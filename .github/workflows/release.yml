@@ -117,22 +117,43 @@ jobs:
       - name: Prepare release assets
         run: |
           cd dist
-          # Rename binaries with OS+arch suffix
-          for dir in sabdopalon-linux-x86_64 sabdopalon-linux-aarch64 sabdopalon-macos-x86_64 sabdopalon-macos-aarch64 sabdopalon-windows-x86_64; do
-            if [ -f "$dir/sabdopalon" ]; then
-              mv "$dir/sabdopalon" "sabdopalon-$dir"
-            elif [ -f "$dir/sabdopalon.exe" ]; then
-              mv "$dir/sabdopalon.exe" "sabdopalon-$dir.exe"
+          shopt -s nullglob
+          # Each artifact downloads into its own subdirectory:
+          #   dist/sabdopalon-<os>-<arch>/sabdopalon[.exe]
+          # Flatten into correctly-named release archives at dist/ root.
+          for d in sabdopalon-*/; do
+            d="${d%/}"
+            suffix="${d#sabdopalon-}"
+            if [[ "$suffix" == windows-* ]]; then
+              src="$d/sabdopalon.exe"
+              out="sabdopalon-${suffix}.exe"
+              if [ -f "$src" ]; then
+                cp "$src" "$out"
+                zip -q "${out}.zip" "$out"
+                rm -f "$out"
+              fi
+            else
+              src="$d/sabdopalon"
+              out="sabdopalon-${suffix}"
+              if [ -f "$src" ]; then
+                cp "$src" "$out"
+                tar czf "${out}.tar.gz" "$out"
+                rm -f "$out"
+              fi
             fi
+            rm -rf "$d"
           done
-          # Compress: tar.gz for Linux/macOS, zip for Windows
-          for f in sabdopalon-linux-* sabdopalon-macos-*; do
-            [ -f "$f" ] && tar czf "$f.tar.gz" "$f"
-          done
-          for f in sabdopalon-windows-*.exe; do
-            [ -f "$f" ] && zip "$f.zip" "$f"
-          done
+          echo "Release assets ready:"
           ls -lh
+
+      - name: Verify assets exist (fail loud, never ship an empty release)
+        run: |
+          count=$(ls dist/*.tar.gz dist/*.zip 2>/dev/null | wc -l)
+          echo "asset archives: $count"
+          test "$count" -eq 5 || {
+            echo "::error::expected 5 archives (4 tar.gz + 1 zip), found $count"
+            exit 1
+          }
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
