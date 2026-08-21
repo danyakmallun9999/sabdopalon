@@ -19,9 +19,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
@@ -211,12 +213,14 @@ func allDigits(s string) bool {
 	return true
 }
 
-// List returns all known package definitions.
+// List returns all known package definitions, sorted by name so the
+// dashboard renders them in a stable order (map iteration is randomized).
 func (m *Manager) List() []PackageDef {
 	out := make([]PackageDef, 0, len(m.packages))
 	for _, p := range m.packages {
 		out = append(out, p)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
@@ -687,7 +691,14 @@ func ResolvePHP(binRoot, spec string) (string, error) {
 		if p := PHPVersionedPath(binRoot, norm); p != "" {
 			return p, nil
 		}
-		return "", fmt.Errorf("bundled PHP %s is not installed — run: sabdopalon add php@%s", spec, norm)
+		// No bundled copy — fall back to a system CLI of that version
+		// (e.g. /usr/bin/php8.5 from a distro/PPA install).
+		if p, err := exec.LookPath("php" + norm); err == nil {
+			return p, nil
+		}
+		return "", fmt.Errorf(
+			"no bundled PHP %s (run: sabdopalon add php@%s) and no system 'php%s' on PATH",
+			spec, norm, norm)
 	}
 	// Command name on PATH
 	if p, err := exec.LookPath(spec); err == nil {
@@ -820,4 +831,165 @@ func getBool(kv map[string]toml.Value, key string) bool {
 func dirExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+
+// SystemPHP describes a PHP CLI binary found on the host (outside bin/).
+type SystemPHP struct {
+	Path    string `json:"path"`
+	Version string `json:"version"`
+	Active  bool   `json:"active"`
+}
+
+var versionCache sync.Map // path -> version string
+
+// PHPBinaryVersion returns "X.Y.Z" for a php binary, caching the result.
+// Returns "" when the binary cannot be executed.
+func PHPBinaryVersion(path string) string {
+	if v, ok := versionCache.Load(path); ok {
+		return v.(string)
+	}
+	out, err := exec.Command(path, "-r", "echo PHP_VERSION;").Output()
+	v := ""
+	if err == nil {
+		if m := regexp.MustCompile(`^\d+\.\d+\.\d+`).FindString(strings.TrimSpace(string(out))); m != "" {
+			v = m
+		}
+	}
+	versionCache.Store(path, v)
+	return v
+}
+
+// SystemPHPCandidates scans PATH and common locations for PHP CLIs
+// ("php" plus version-suffixed ones like /usr/bin/php8.5), newest first.
+func SystemPHPCandidates() []SystemPHP {
+	seen := map[string]bool{}
+	var dirs []string
+	add := func(d string) {
+		if d != "" && !seen[d] {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	for _, d := range filepath.SplitList(os.Getenv("PATH")) {
+		add(d)
+	}
+	for _, d := range []string{"/usr/local/sbin", "/usr/local/bin", "/usr/sbin", "/usr/bin", "/sbin", "/bin"} {
+		add(d)
+	}
+
+	name := "php"
+	ext := ""
+	if runtime.GOOS == "windows" {
+		name = "php.exe"
+		ext = ".exe"
+	}
+	pattern := regexp.MustCompile(`^php(\d+\.\d+)?` + regexp.QuoteMeta(ext) + `$`)
+
+	var out []SystemPHP
+	collect := func(dir string) {
+		matches, _ := filepath.Glob(filepath.Join(dir, name))
+		for _, suffixGlob := range []string{"php8.*", "php7.*"} {
+			m, _ := filepath.Glob(filepath.Join(dir, suffixGlob))
+			matches = append(matches, m...)
+		}
+		for _, p := range matches {
+			base := filepath.Base(p)
+			if !pattern.MatchString(base) || seen[p] {
+				continue
+			}
+			seen[p] = true
+			if fi, err := os.Stat(p); err != nil || fi.IsDir() {
+				continue
+			}
+			if v := PHPBinaryVersion(p); v != "" {
+				out = append(out, SystemPHP{Path: p, Version: v})
+			}
+		}
+	}
+	for _, dir := range dirs {
+		collect(dir)
+	}
+	sort.Slice(out, func(i, j int) bool { return versionLess(out[j].Version, out[i].Version) })
+	return out
+}
+
+func versionLess(a, b string) bool {
+	parse := func(v string) []int {
+		var parts []int
+		for _, s := range strings.SplitN(v, ".", 3) {
+			n := 0
+			fmt.Sscanf(s, "%d", &n)
+			parts = append(parts, n)
+		}
+		return parts
+	}
+	pa, pb := parse(a), parse(b)
+	for i := 0; i < 3; i++ {
+		x, y := 0, 0
+		if i < len(pa) {
+			x = pa[i]
+		}
+		if i < len(pb) {
+			y = pb[i]
+		}
+		if x != y {
+			return x < y
+		}
+	}
+	return false
+}
+
+// ResolveDefaultPHP resolves the global default PHP WITHOUT downloading:
+//
+//  1. explicit override in cfg.PHP.Binary (engine.toml / profile), set & exists
+//  2. prefer == "system":  PATH "php" → highest suffixed system PHP → bundled
+//     prefer == "bundled": highest bundled → legacy bundled → PATH → system
+//
+// Returns "" when nothing is available; callers may then EnsurePHP() to download.
+func ResolveDefaultPHP(cfg *config.Engine) (string, error) {
+	if cfg.PHP.Binary != "" {
+		if fileExists(cfg.PHP.Binary) {
+			return cfg.PHP.Binary, nil
+		}
+		return "", fmt.Errorf("configured [php] binary not found: %s", cfg.PHP.Binary)
+	}
+	binRoot := filepath.Join(cfg.RootDir, "bin")
+
+	bundled := func() string {
+		if versions := InstalledVersions(binRoot); len(versions) > 0 {
+			if p := PHPVersionedPath(binRoot, versions[len(versions)-1]); p != "" {
+				return p
+			}
+		}
+		return PHPBinaryPath(binRoot) // legacy layout
+	}
+	systemPath := func() string {
+		if p, err := exec.LookPath("php"); err == nil {
+			return p
+		}
+		if cands := SystemPHPCandidates(); len(cands) > 0 {
+			return cands[0].Path
+		}
+		return ""
+	}
+
+	prefer := strings.ToLower(cfg.PHP.Prefer)
+	if prefer == "" {
+		prefer = "system"
+	}
+	order := []func() string{systemPath, bundled}
+	if prefer == "bundled" {
+		order = []func() string{bundled, systemPath}
+	}
+	for _, pick := range order {
+		if p := pick(); p != "" {
+			return p, nil
+		}
+	}
+	return "", nil
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }

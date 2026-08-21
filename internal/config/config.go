@@ -25,6 +25,7 @@ type Engine struct {
 
 	PHP struct {
 		Binary string
+		Prefer string // "system" (default) | "bundled"
 	}
 
 	Database struct {
@@ -68,9 +69,7 @@ func Load(baseDir string) (*Engine, error) {
 	e.Proxy.HTTPSPort = t.GetInt("proxy", "https_port", 8443)
 
 	e.PHP.Binary = t.GetString("php", "binary", "")
-	if e.PHP.Binary == "" {
-		e.PHP.Binary = autoDetectPHP()
-	}
+	e.PHP.Prefer = t.GetString("php", "prefer", "")
 
 	e.Database.Engine = t.GetString("database", "engine", "sqlite")
 	e.Database.Path = resolve(baseDir, t.GetString("database", "path", "./data/sabdopalon.db"))
