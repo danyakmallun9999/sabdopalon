@@ -213,9 +213,9 @@ system-wide installation, no pollution of your OS, completely portable.
                  │                                          │
                  │   Dashboard :9900 (interactive UI + API) │
                  │                                          │
-                 │  Host: example-app.localhost              │
+                 │  Host: example-app.localhost             │
                  │     ▼  (first access: lazy-start)        │
-                 │   ReverseProxy ──────────────────────▶   php -S :9001 -t sites/example-app/public
+                 │   ReverseProxy ───────▶   php -S :9001 -t sites/example-app/public
                  └──────────────┬───────────────────────────┘
                                 │
                  ┌──────────────▼───────────────────────────┐
