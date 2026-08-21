@@ -20,6 +20,14 @@ export type SystemPHP = {
   active: boolean
 }
 
+export type SiteConfigPayload = {
+  php: string
+  docroot: string
+  aliases: string[]
+  env: Record<string, string>
+  running?: boolean
+}
+
 export type Site = {
   name: string
   url: string
@@ -133,6 +141,13 @@ const api = {
   siteAction: (name: string, action: "start" | "stop" | "restart") =>
     post<{ ok: boolean; port?: number; was_running?: boolean; error?: string }>(
       `/api/sites/${encodeURIComponent(name)}/${action}`,
+    ),
+  siteConfig: (name: string) =>
+    request<SiteConfigPayload>(`/api/sites/${encodeURIComponent(name)}/config`),
+  saveSiteConfig: (name: string, payload: SiteConfigPayload) =>
+    request<{ ok: boolean; message: string; restarted: boolean; error?: string }>(
+      `/api/sites/${encodeURIComponent(name)}/config`,
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
     ),
   deleteSite: (name: string) =>
     request<{ ok: boolean; message?: string; error?: string }>(

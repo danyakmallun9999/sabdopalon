@@ -12,12 +12,18 @@ import {
   Plus,
   RotateCw,
   ScrollText,
+  Settings2,
   ShieldAlert,
   Square,
   Trash2,
 } from "lucide-react"
 
-import api, { poll, type Site, type Status } from "@/lib/api"
+import api, {
+  poll,
+  type Site,
+  type SiteConfigPayload,
+  type Status,
+} from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -46,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -102,6 +109,10 @@ export default function SitesPage() {
   const [status, setStatus] = useState<Status | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
+  const [cfgSite, setCfgSite] = useState<Site | null>(null)
+  const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
+  const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
+  const [savingCfg, setSavingCfg] = useState(false)
 
   // New-site dialog state
   const [open, setOpen] = useState(false)
@@ -128,6 +139,50 @@ export default function SitesPage() {
       return u.toString()
     } catch {
       return `http://${alias}/`
+    }
+  }
+
+  async function openConfigure(site: Site) {
+    setCfgSite(site)
+    // PHP options: default + bundled + system (composed once per open)
+    const opts: { value: string; label: string; group: string }[] = [
+      { value: "", label: `Default (${(status?.php_version ?? "system-first")})`, group: "General" },
+    ]
+    try {
+      const pkgs = await api.listPackages()
+      pkgs.filter((p) => p.is_php).forEach((p) =>
+        opts.push({ value: p.short, label: `${p.short}${p.installed ? "" : " (not downloaded)"}`, group: "Bundled" }),
+      )
+      const sys = await api.systemPHPs()
+      sys.forEach((c) => opts.push({ value: c.path, label: `${c.version} — ${c.path}`, group: "System" }))
+    } catch {
+      /* options stay partial */
+    }
+    setPhpOptions(opts)
+
+    const cfgData = await api.siteConfig(site.name)
+    if (!("error" in (cfgData as object))) {
+      setCfg({
+        php: cfgData.php ?? "",
+        docroot: cfgData.docroot ?? "",
+        aliases: cfgData.aliases ?? [],
+        env: cfgData.env ?? {},
+      })
+    }
+  }
+
+  async function saveConfigure() {
+    if (!cfgSite) return
+    setSavingCfg(true)
+    try {
+      const payload: SiteConfigPayload = { ...cfg }
+      const r = await api.saveSiteConfig(cfgSite.name, payload)
+      if (r.error) toast.error(r.error)
+      else toast.success(r.message ?? "Saved")
+      setCfgSite(null)
+      load()
+    } finally {
+      setSavingCfg(false)
     }
   }
 
@@ -350,6 +405,9 @@ export default function SitesPage() {
                         <DropdownMenuItem onClick={() => act(s, "restart")} disabled={!s.running}>
                           <RotateCw /> Restart
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openConfigure(s)}>
+                          <Settings2 /> Configure…
+                        </DropdownMenuItem>
                         <DropdownMenuItem render={<Link to={`/logs?site=${s.name}`} />}>
                           <ScrollText /> Logs
                         </DropdownMenuItem>
@@ -368,6 +426,98 @@ export default function SitesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!cfgSite} onOpenChange={(v) => !v && setCfgSite(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Configure “{cfgSite?.name}”</DialogTitle>
+            <DialogDescription>
+              Stored in <code>.sabdopalon.yml</code>. Saving applies changes immediately — a running
+              site is restarted automatically.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label>PHP version</Label>
+              <Select value={cfg.php} onValueChange={(v) => setCfg({ ...cfg, php: v ?? "" })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Default" />
+                </SelectTrigger>
+                <SelectContent>
+                  {["General", "Bundled", "System"].map((group) => (
+                    <>
+                      <div key={group} className="text-muted-foreground px-2 py-1 text-xs font-medium">
+                        {group}
+                      </div>
+                      {phpOptions
+                        .filter((o) => o.group === group)
+                        .map((o) => (
+                          <SelectItem key={o.value || "__default"} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                    </>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="cfg-docroot">Document root (relative to site folder)</Label>
+              <Input
+                id="cfg-docroot"
+                placeholder="public"
+                value={cfg.docroot}
+                onChange={(e) => setCfg({ ...cfg, docroot: e.target.value })}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="cfg-aliases">Aliases (one per line)</Label>
+              <Textarea
+                id="cfg-aliases"
+                rows={3}
+                placeholder={"www.myapp.localhost\napi.myapp.test"}
+                value={(cfg.aliases ?? []).join("\n")}
+                onChange={(e) =>
+                  setCfg({ ...cfg, aliases: e.target.value.split("\n").map((x) => x.trim()) })
+                }
+              />
+              <p className="text-muted-foreground text-xs">
+                Custom domains (not *.localhost) need a hosts entry to resolve.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="cfg-env">Environment variables (KEY=value per line)</Label>
+              <Textarea
+                id="cfg-env"
+                rows={4}
+                placeholder={"APP_ENV=local\nAPP_DEBUG=true"}
+                value={Object.entries(cfg.env ?? {})
+                  .map(([k, v]) => `${k}=${v}`)
+                  .join("\n")}
+                onChange={(e) => {
+                  const env: Record<string, string> = {}
+                  e.target.value.split("\n").forEach((line) => {
+                    const idx = line.indexOf("=")
+                    if (idx > 0) env[line.slice(0, idx).trim()] = line.slice(idx + 1).trim()
+                  })
+                  setCfg({ ...cfg, env })
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCfgSite(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveConfigure} disabled={savingCfg}>
+              {savingCfg ? "Saving…" : "Save & apply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
         <AlertDialogContent>
