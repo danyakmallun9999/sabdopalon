@@ -255,6 +255,10 @@ env:
 
 ## Dashboard
 
+Built with **React + shadcn/ui** (dashboard-01 template, Lucide icons, dark theme).
+The compiled bundle is embedded into the Go binary (`go:embed`) — releases stay a
+single self-contained file with no Node.js required at runtime.
+
 The dashboard binds to `127.0.0.1` only and is the single control surface:
 
 | Page | What you can do |
@@ -265,6 +269,21 @@ The dashboard binds to `127.0.0.1` only and is the single control surface:
 | 🔒 SSL | CA → wildcard → trust wizard; detects stale/untrusted CAs |
 | ⚙️ Settings | TLD, ports, DB engine, auto-open, Mailpit toggle; apply profiles |
 | 📜 Logs | Live per-site PHP, DB and Mailpit logs |
+
+### Developing / building the dashboard UI
+
+Requires Node.js 20+ (build-time only):
+
+```bash
+cd internal/dashboard/ui
+npm install
+npm run dev        # dev server on :5173 — proxies /api to :9900 (run sabdopalon alongside)
+npm run build      # production bundle → dist/ (picked up by the next go build)
+```
+
+Then rebuild the binary: `go build -o sabdopalon ./cmd/sabdopalon`.
+Without a UI build the binary still works and serves a placeholder page plus the
+full JSON API at `/api/*`.
 
 JSON API (used by the UI, also handy for scripting): `/api/status`, `/api/sites`
 (GET/POST), `/api/sites/<name>/start|stop|restart` (POST), `/api/sites/<name>`

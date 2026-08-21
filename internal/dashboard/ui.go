@@ -2,90 +2,58 @@ package dashboard
 
 import (
 	"embed"
-	"html/template"
 	"io"
+	"io/fs"
 	"net/http"
 	"path"
 	"strings"
 )
 
-//go:embed web
-var webFS embed.FS
+// The React UI lives in internal/dashboard/ui (Vite + shadcn/ui). Its build
+// output (npm run build) is embedded into the binary so the distributed Go
+// executable stays fully self-contained.
+//
+//go:embed all:ui/dist
+var distFS embed.FS
 
-// pageSet holds one parsed template set per UI page.
-type pageSet map[string]*template.Template
-
-var pages = []string{"sites", "database", "packages", "ssl", "settings", "logs"}
-
-// loadTemplates parses layouts/base.html together with each page template.
-func loadTemplates() pageSet {
-	set := pageSet{}
-	base, err := webFS.ReadFile("web/layouts/base.html")
+// spaHandler serves the built single-page app: /assets/* straight from the
+// embedded filesystem, every other non-API GET path falls back to index.html
+// so client-side routing (react-router) works on deep links.
+func (s *Server) spaHandler() http.Handler {
+	sub, err := fs.Sub(distFS, "ui/dist")
 	if err != nil {
-		return set
+		panic("dashboard: embedded ui/dist unavailable: " + err.Error())
 	}
-	for _, p := range pages {
-		body, err := webFS.ReadFile("web/pages/" + p + ".html")
-		if err != nil {
-			continue
+	fileServer := http.FileServer(http.FS(sub))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+
+		// Serve real files directly (hashed assets, favicon, ...).
+		if p != "" {
+			if f, err := sub.Open(p); err == nil {
+				_ = f.Close()
+				fileServer.ServeHTTP(w, r)
+				return
+			}
 		}
-		t := template.Must(template.New("base").Parse(string(base)))
-		template.Must(t.New("content").Parse(string(body)))
-		set[p] = t
-	}
-	return set
-}
 
-type pageData struct {
-	Version  string
-	Page     string
-	TLD      string
-	DashPort int
-}
-
-// renderPage serves one embedded HTML page.
-func (s *Server) renderPage(w http.ResponseWriter, name string, r *http.Request) {
-	t, ok := s.tmpl[name]
-	if !ok {
-		http.Error(w, "page not available", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = t.ExecuteTemplate(w, "base", pageData{
-		Version:  Version,
-		Page:     name,
-		TLD:      s.cfg.TLD,
-		DashPort: s.cfg.Dashboard.Port,
+		index := "index.html"
+		if _, err := fs.ReadFile(sub, index); err != nil {
+			// UI not built yet (fresh clone without Node) — placeholder page.
+			placeholder, rerr := fs.ReadFile(sub, "index.placeholder.html")
+			if rerr != nil {
+				http.Error(w, "Dashboard UI is not built.\nRun: cd internal/dashboard/ui && npm install && npm run build", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write(placeholder)
+			return
+		}
+		data, _ := fs.ReadFile(sub, index)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write(data)
 	})
 }
 
-// handleStatic serves CSS/JS/images from the embedded filesystem.
-func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, "/static/")
-	if strings.Contains(name, "..") {
-		http.NotFound(w, r)
-		return
-	}
-	f, err := webFS.Open(path.Join("web", name))
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	defer f.Close()
-	data, err := io.ReadAll(f)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	switch {
-	case strings.HasSuffix(name, ".css"):
-		w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	case strings.HasSuffix(name, ".js"):
-		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-	case strings.HasSuffix(name, ".svg"):
-		w.Header().Set("Content-Type", "image/svg+xml")
-	default:
-		w.Header().Set("Content-Type", "application/octet-stream")
-	}
-	_, _ = w.Write(data)
-}
+var _ = io.Discard // retained for future use

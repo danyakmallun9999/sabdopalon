@@ -10,9 +10,36 @@ permissions:
   contents: write
 
 jobs:
+  ui:
+    name: Build dashboard UI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: internal/dashboard/ui/package-lock.json
+
+      - name: Build React dashboard
+        working-directory: internal/dashboard/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload UI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: internal/dashboard/ui/dist/
+
   build:
     name: Build ${{ matrix.os }}-${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
+    needs: ui
     strategy:
       matrix:
         include:
@@ -53,6 +80,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Download prebuilt UI bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-dist
+          path: internal/dashboard/ui/dist
 
       - name: Set up Go
         uses: actions/setup-go@v5

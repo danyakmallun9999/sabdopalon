@@ -44,3 +44,9 @@ desktop.ini
 
 # Deleted sites (dashboard moves folders here instead of rm -rf)
 /sites/.trash/
+
+# Dashboard React UI (build artifacts — commit only the placeholder)
+/internal/dashboard/ui/node_modules/
+/internal/dashboard/ui/dist/*
+!/internal/dashboard/ui/dist/
+!/internal/dashboard/ui/dist/index.placeholder.html

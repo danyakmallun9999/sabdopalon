@@ -1,10 +1,14 @@
 package dashboard
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sabdopalon/sabdopalon/internal/config"
 )
 
 func TestTrashSite(t *testing.T) {
@@ -40,27 +44,34 @@ func TestTrashSiteRejectsInvalidNames(t *testing.T) {
 	}
 }
 
-func TestLoadTemplatesEmbedsAllPages(t *testing.T) {
-	set := loadTemplates()
-	if len(set) != len(pages) {
-		t.Errorf("loaded %d page templates, want %d: %v", len(set), len(pages), set)
+func testServer(t *testing.T) *Server {
+	dir := t.TempDir()
+	return New(&config.Engine{RootDir: dir, TLD: "localhost"}, nil, nil, nil)
+}
+
+func TestSpaFallback(t *testing.T) {
+	s := testServer(t)
+
+	// Deep link → index.html (client routing)
+	rec := httptest.NewRecorder()
+	s.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sites", nil))
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK || !strings.Contains(body, "<div id=\"root\">") {
+		t.Errorf("GET /sites should serve the SPA, got %d: %.80s", rec.Code, body)
 	}
-	for _, p := range pages {
-		tmpl, ok := set[p]
-		if !ok {
-			t.Errorf("page %q missing", p)
-			continue
-		}
-		var buf strings.Builder
-		if err := tmpl.ExecuteTemplate(&buf, "base", pageData{Version: "test", Page: p, TLD: "localhost", DashPort: 9900}); err != nil {
-			t.Errorf("render %s: %v", p, err)
-		}
-		out := buf.String()
-		for _, want := range []string{"Sabdopalon", "/static/css/app.css", "/sites"} {
-			if !strings.Contains(out, want) {
-				t.Errorf("page %s missing %q", p, want)
-			}
-		}
+
+	// Unknown deep link → index.html as well
+	rec = httptest.NewRecorder()
+	s.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/some/unknown/route", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "root") {
+		t.Errorf("unknown route should fall back to index.html, got %d", rec.Code)
+	}
+
+	// Unknown API path → JSON 404
+	rec = httptest.NewRecorder()
+	s.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/does-not-exist", nil))
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "error") {
+		t.Errorf("unknown api should be JSON 404, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

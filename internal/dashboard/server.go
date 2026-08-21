@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
@@ -39,7 +40,6 @@ type Server struct {
 	svc     *services.Manager // may be nil when mailpit is disabled
 	mux     *http.ServeMux
 	started time.Time
-	tmpl    pageSet
 }
 
 // New creates a dashboard Server. svc may be nil.
@@ -52,7 +52,6 @@ func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services
 		mux:     http.NewServeMux(),
 		started: time.Now(),
 	}
-	s.tmpl = loadTemplates()
 	s.routes()
 	return s
 }
@@ -64,23 +63,7 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) routes() {
-	// UI pages
-	s.mux.HandleFunc("/static/", s.handleStatic)
-	for _, p := range []string{"/sites", "/database", "/packages", "/ssl", "/settings", "/logs"} {
-		page := p[1:]
-		s.mux.HandleFunc(p, func(w http.ResponseWriter, r *http.Request) {
-			s.renderPage(w, page, r)
-		})
-	}
-	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		http.Redirect(w, r, "/sites", http.StatusFound)
-	})
-
-	// API: system
+	// JSON API (used by the React SPA and handy for scripting).
 	s.mux.HandleFunc("/api/status", s.handleAPIStatus)
 
 	// API: sites
@@ -113,6 +96,23 @@ func (s *Server) routes() {
 
 	// API: logs
 	s.mux.HandleFunc("/api/logs/", s.handleAPILogs)
+
+	// Unknown API path → JSON 404 (registered last, /api/* falls through).
+	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"unknown api endpoint"}`))
+	})
+
+	// Everything else → React SPA (client-side routing).
+	uiHandler := s.spaHandler()
+	s.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && strings.HasPrefix(r.URL.Path, "/api") {
+			http.NotFound(w, r)
+			return
+		}
+		uiHandler.ServeHTTP(w, r)
+	})
 }
 
 // siteURLs builds friendly URLs for a site using the actually-bound ports.

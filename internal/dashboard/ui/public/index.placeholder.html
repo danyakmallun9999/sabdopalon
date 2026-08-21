@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sabdopalon Dashboard</title>
+    <style>
+      body{font-family:system-ui,-apple-system,sans-serif;background:#0a0a0a;color:#fafafa;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+      .card{max-width:520px;padding:2rem;border:1px solid #262626;border-radius:12px;line-height:1.6}
+      code{background:#171717;border:1px solid #262626;padding:.15em .4em;border-radius:6px;font-size:.9em}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🐫 Dashboard UI not built yet</h1>
+      <p>This Sabdopalan binary was compiled without the React dashboard bundle.</p>
+      <p>The REST API is fully available at <code>/api/*</code>.</p>
+      <p>To build the UI (requires Node.js 20+):</p>
+      <pre><code>cd internal/dashboard/ui
+npm install
+npm run build</code></pre>
+      <p>…then recompile with <code>go build ./cmd/sabdopalon</code>.</p>
+    </div>
+  </body>
+</html>
