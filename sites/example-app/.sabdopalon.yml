@@ -6,7 +6,7 @@ node: "22"
 database: "mysql"
 docroot: "public"
 aliases:
-  - www.example-app.test
+  - www.example-app.localhost
 env:
   APP_ENV: local
   APP_DEBUG: "true"

@@ -2,18 +2,22 @@ import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import {
+  Copy,
   EllipsisVerticalIcon,
   ExternalLink,
   Globe,
+  Link as LinkIcon,
+  Lock,
   Play,
   Plus,
   RotateCw,
   ScrollText,
+  ShieldAlert,
   Square,
   Trash2,
 } from "lucide-react"
 
-import api, { poll, type Site } from "@/lib/api"
+import api, { poll, type Site, type Status } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -66,8 +70,36 @@ const TEMPLATES = [
   { id: "codeigniter", label: "CodeIgniter 4 (needs composer)" },
 ]
 
+function CleanUrlBanner({ tld }: { tld?: string }) {
+  return (
+    <div className="bg-card flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:items-center">
+      <ShieldAlert className="text-amber-500 size-5 shrink-0" />
+      <p className="text-muted-foreground flex-1 text-sm">
+        URLs currently include a port. Run{" "}
+        <code className="bg-muted rounded px-1.5 py-0.5">sudo ./sabdopalon enable-ports</code>{" "}
+        once and restart to unlock clean URLs like{" "}
+        <code className="bg-muted rounded px-1.5 py-0.5">
+          https://my-app.{tld ?? "localhost"}
+        </code>
+        .
+      </p>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          navigator.clipboard.writeText("sudo ./sabdopalon enable-ports")
+          toast.success("Command copied — run it, then restart Sabdopalon")
+        }}
+      >
+        <Copy /> Copy command
+      </Button>
+    </div>
+  )
+}
+
 export default function SitesPage() {
   const [sites, setSites] = useState<Site[]>([])
+  const [status, setStatus] = useState<Status | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
 
@@ -81,8 +113,30 @@ export default function SitesPage() {
 
   useEffect(() => {
     const t = poll(load, 4000)
-    return () => clearInterval(t)
+    api.status().then(setStatus).catch(() => {})
+    const st = setInterval(() => api.status().then(setStatus).catch(() => {}), 6000)
+    return () => {
+      clearInterval(t)
+      clearInterval(st)
+    }
   }, [])
+
+  function aliasTarget(site: Site, alias: string): string {
+    try {
+      const u = new URL(site.url)
+      u.hostname = alias
+      return u.toString()
+    } catch {
+      return `http://${alias}/`
+    }
+  }
+
+  async function copyHostsLine(alias: string) {
+    await navigator.clipboard.writeText(`127.0.0.1 ${alias}`).catch(() => {})
+    toast.info("Hosts line copied", {
+      description: "Paste it into /etc/hosts (Linux/macOS) or C:\\Windows\\System32\\drivers\\etc\\hosts (Windows), then reload.",
+    })
+  }
 
   async function act(site: Site, action: "start" | "stop" | "restart") {
     setBusy(site.name + action)
@@ -179,6 +233,8 @@ export default function SitesPage() {
         </Dialog>
       </div>
 
+      {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
+
       <div className="bg-card overflow-hidden rounded-xl border">
         <Table>
           <TableHeader>
@@ -203,27 +259,56 @@ export default function SitesPage() {
               <TableRow key={s.name}>
                 <TableCell className="font-medium">{s.name}</TableCell>
                 <TableCell>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-1">
                     <a
                       href={s.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-primary inline-flex items-center gap-1 hover:underline"
+                      className="text-primary inline-flex items-center gap-1.5 text-sm hover:underline"
                     >
-                      {s.url.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" />
+                      <Globe className="size-3.5 shrink-0" />
+                      {s.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                      <ExternalLink className="size-3 opacity-60" />
                     </a>
                     <a
                       href={s.https}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-muted-foreground inline-flex items-center gap-1 hover:underline"
+                      className="text-muted-foreground inline-flex items-center gap-1.5 text-sm hover:underline"
                     >
-                      {s.https.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" />
+                      <Lock className="size-3.5 shrink-0 text-emerald-500" />
+                      {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+                      <ExternalLink className="size-3 opacity-60" />
                     </a>
                     {(s.aliases ?? []).length > 0 && (
-                      <span className="text-muted-foreground mt-1 text-xs">
-                        aliases: {s.aliases.join(", ")}
-                      </span>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {(s.aliases ?? []).map((a) => {
+                          const resolvable = a.endsWith("." + (status?.tld ?? "localhost"))
+                          return resolvable ? (
+                            <a
+                              key={a}
+                              href={aliasTarget(s, a)}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`Open http://${a}`}
+                            >
+                              <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                                <LinkIcon className="size-3" /> {a}
+                              </Badge>
+                            </a>
+                          ) : (
+                            <Badge
+                              key={a}
+                              variant="outline"
+                              className="cursor-pointer"
+                              title="Custom domain — click to copy the /etc/hosts line"
+                              onClick={() => copyHostsLine(a)}
+                            >
+                              <Copy className="size-3" /> {a}
+                            </Badge>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
                 </TableCell>
