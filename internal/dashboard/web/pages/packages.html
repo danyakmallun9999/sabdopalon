@@ -1,0 +1,62 @@
+{{define "content"}}
+<h1>📦 Packages</h1>
+<p class="sub">Optional components, downloaded and managed inside <code class="inline">bin/</code> — nothing touches your OS.</p>
+
+<div id="pkgs" class="grid"></div>
+
+<div class="card" id="job-card" style="display:none">
+  <h2 id="job-title">Installing…</h2>
+  <div class="progress" id="job-out"></div>
+</div>
+
+<script>
+const labels = {
+  php:'Default PHP (auto-used by all sites)', php81:'PHP 8.1', php82:'PHP 8.2',
+  php83:'PHP 8.3', php84:'PHP 8.4', php85:'PHP 8.5',
+  mariadb:'MariaDB server (auto-managed daemon)', mailpit:'Mailpit — local e-mail catcher',
+};
+
+async function loadPkgs() {
+  const pkgs = await api('/api/packages');
+  const el = document.getElementById('pkgs');
+  if (!Array.isArray(pkgs)) return;
+  el.innerHTML = pkgs.map(p => `
+    <div class="site-card">
+      <div class="head">
+        <span class="name">${esc(labels[p.name] || p.name)}</span>
+        <span class="badge ${p.installed ? '' : 'off'}">${p.installed ? 'installed' : 'not installed'}</span>
+      </div>
+      <div class="hint">v${esc(p.version)} · ${esc(p.license || '')}</div>
+      <div class="actions">
+        <button class="btn small" ${p.installed ? 'disabled' : ''} onclick="install('${esc(p.name)}', this)">
+          ${p.installed ? '✓ Installed' : '⬇ Install'}
+        </button>
+        ${p.is_php ? `<button class="btn small secondary" onclick="location.href='/sites'">Use in a site →</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+poll(loadPkgs, 8000);
+
+let jobTimer = null;
+async function install(name) {
+  const r = await post('/api/packages/install', {name});
+  if (r.error) { toast(r.error, true); return; }
+  document.getElementById('job-card').style.display = '';
+  document.getElementById('job-title').textContent = `Installing ${name}…`;
+  if (!jobTimer) jobTimer = setInterval(pollJob, 700);
+}
+
+async function pollJob() {
+  const j = await api('/api/packages/job');
+  document.getElementById('job-out').textContent = j.output || 'starting…';
+  if (!j.running) {
+    clearInterval(jobTimer); jobTimer = null;
+    if (j.error) { toast(j.error, true); }
+    else if (j.done) { toast(`Installed ✓`); }
+    document.getElementById('job-title').textContent = j.done && !j.error ? 'Install complete' : 'Install failed';
+    setTimeout(() => { document.getElementById('job-card').style.display = 'none'; }, 2500);
+    loadPkgs();
+  }
+}
+</script>
+{{end}}

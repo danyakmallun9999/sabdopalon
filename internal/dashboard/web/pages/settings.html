@@ -1,0 +1,90 @@
+{{define "content"}}
+<h1>⚙️ Settings</h1>
+<p class="sub">Stored in <code class="inline">config/engine.toml</code>. Port/TLD/database changes apply after a restart.</p>
+
+<div class="card">
+  <h2>General</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 1.4rem">
+    <div class="field"><label>Domain suffix (TLD)</label><input id="f-tld" placeholder="localhost"></div>
+    <div class="field"><label>HTTP port (fallback)</label><input id="f-http" type="number" min="1" max="65535"></div>
+    <div class="field"><label>HTTPS port (fallback)</label><input id="f-https" type="number" min="1" max="65535"></div>
+  </div>
+  <p class="hint">Sabdopalon automatically tries ports <b>80/443</b> for clean URLs first; these are the fallbacks.<br>
+  Enable clean URLs permanently: <code class="inline">sabdopalon enable-ports</code>.</p>
+</div>
+
+<div class="card">
+  <h2>Database</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 1.4rem">
+    <div class="field"><label>Engine</label>
+      <select id="f-db">
+        <option value="sqlite">SQLite — zero setup</option>
+        <option value="mariadb">MariaDB (install from Packages)</option>
+      </select></div>
+    <div class="field"><label>Port (mariadb/mysql)</label><input id="f-dbport" type="number"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Dashboard & services</h2>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0 1.4rem">
+    <div class="field"><label>Dashboard port</label><input id="f-dashport" type="number" min="1" max="65535"></div>
+    <div class="field"><label>Open dashboard on start</label><select id="f-autoopen"><option value="true">Yes</option><option value="false">No</option></select></div>
+    <div class="field"><label>Mailpit e-mail catcher</label><select id="f-mailpit"><option value="true">Enabled</option><option value="false">Disabled</option></select></div>
+  </div>
+  <button class="btn" onclick="saveConfig(this)">💾 Save settings</button>
+</div>
+
+<div class="card">
+  <h2>Profiles</h2>
+  <p class="hint" style="margin-bottom:.8rem">Named PHP/database presets. Applying stops running sites so they pick up the new PHP binary.</p>
+  <table id="profiles-table"></table>
+</div>
+
+<script>
+async function loadConfig() {
+  const c = await api('/api/config');
+  if (!c || c.error) return;
+  f('tld', c.tld); f('http', c.http_port); f('https', c.https_port);
+  f('db', c.db_engine); f('dbport', c.db_port);
+  f('dashport', c.dashboard_port); f('autoopen', String(c.auto_open));
+  f('mailpit', String(c.mailpit_enabled));
+}
+function f(id, val) { const el = document.getElementById('f-' + id); if (el && val != null) el.value = val; }
+
+async function saveConfig(btn) {
+  btn.disabled = true;
+  const r = await api('/api/config', {method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+    tld: document.getElementById('f-tld').value.trim(),
+    http_port: +document.getElementById('f-http').value,
+    https_port: +document.getElementById('f-https').value,
+    db_engine: document.getElementById('f-db').value,
+    db_port: +document.getElementById('f-dbport').value || undefined,
+    dashboard_port: +document.getElementById('f-dashport').value,
+    auto_open: document.getElementById('f-autoopen').value === 'true',
+    mailpit_enabled: document.getElementById('f-mailpit').value === 'true',
+  })});
+  toast(r.message || r.error, !!r.error);
+  btn.disabled = false;
+}
+
+async function loadProfiles() {
+  const list = await api('/api/profiles');
+  const tb = document.getElementById('profiles-table');
+  if (!Array.isArray(list) || !list.length) { tb.innerHTML = '<tr><td class="empty">No profiles yet — create with <code class="inline">sabdopalon profile:create</code>.</td></tr>'; return; }
+  tb.innerHTML = '<thead><tr><th>Name</th><th>PHP</th><th>DB</th><th></th></tr></thead><tbody>' +
+    list.map(p => `<tr>
+      <td>${esc(p.name)}${p.description ? ` <span class="hint">${esc(p.description)}</span>` : ''}</td>
+      <td>${esc(p.PHP || '(default)')}</td><td>${esc(p.DBEngine || '(default)')}</td>
+      <td>${p.name !== 'default' ? `<button class="btn small secondary" onclick="applyProfile('${esc(p.name)}')">Apply</button>` : ''}</td>
+    </tr>`).join('') + '</tbody>';
+}
+
+async function applyProfile(name) {
+  if (!confirm(`Apply profile "${name}"? Running sites will restart.`)) return;
+  const r = await post('/api/profiles/apply', {name});
+  toast(r.message || r.error, !!r.error);
+}
+loadConfig(); loadProfiles();
+</script>
+{{end}}
