@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -84,6 +85,26 @@ func TestBaseName(t *testing.T) {
 	for in, want := range cases {
 		if got := baseName(in); got != want {
 			t.Errorf("baseName(%q) = %q; want %q", in, got, want)
+		}
+	}
+}
+
+func TestSiteActionMethodsAreStrict(t *testing.T) {
+	s := testServer(t)
+
+	// start/stop/restart must be POST — a GET/PUT must NOT trigger them.
+	for _, m := range []string{http.MethodGet, http.MethodPut} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(m, "/api/sites/example-app/start", nil)
+		s.mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusMethodNotAllowed {
+			t.Errorf("%s /start must be rejected with 405, got %d", m, rec.Code)
+			continue
+		}
+		var body map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &body)
+		if _, hasErr := body["error"]; !hasErr {
+			t.Errorf("%s /start 405 should carry a JSON error field", m)
 		}
 	}
 }

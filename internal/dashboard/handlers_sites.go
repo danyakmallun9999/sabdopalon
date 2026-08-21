@@ -103,11 +103,7 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch r.Method {
-	case http.MethodGet:
-		if action == "config" {
-			s.getSiteConfig(w, name)
-			return
-		}
+	case http.MethodPost:
 		siteDir := filepath.Join(s.cfg.Root, name)
 		if _, err := os.Stat(siteDir); err != nil {
 			s.json(w, map[string]string{"error": "site not found: " + name})
@@ -134,12 +130,22 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 			s.json(w, map[string]string{"error": "unknown action (start|stop|restart)"})
 		}
 
+	case http.MethodGet:
+		if action == "config" {
+			s.getSiteConfig(w, name)
+			return
+		}
+		w.Header().Set("Allow", "POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		s.json(w, map[string]string{"error": "method not allowed, use POST"})
+
 	case http.MethodPut:
 		if action == "config" {
 			s.putSiteConfig(w, name, r)
 			return
 		}
 		w.Header().Set("Allow", "POST, DELETE")
+		w.WriteHeader(http.StatusMethodNotAllowed)
 		s.json(w, map[string]string{"error": "method not allowed"})
 
 	case http.MethodDelete:
