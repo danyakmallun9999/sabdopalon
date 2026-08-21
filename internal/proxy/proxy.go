@@ -248,15 +248,18 @@ a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}</style><
 }
 
 // hostToSite maps "example-app.localhost" -> "example-app".
+// Hosts are normalized to lowercase so that map keys (sites, disabled,
+// aliases) stay consistent on case-insensitive filesystems (Windows/macOS).
 func (s *Server) hostToSite(host string) (string, bool) {
-	tld := s.cfg.TLD
+	tld := strings.ToLower(s.cfg.TLD)
+	host = strings.ToLower(strings.TrimSpace(host))
 	// bare localhost / 127.0.0.1 → dashboard
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return "", false
 	}
 	// per-site aliases (.sabdopalon.yml) take precedence
 	s.mu.Lock()
-	if name, ok := s.aliases[strings.ToLower(host)]; ok {
+	if name, ok := s.aliases[host]; ok {
 		s.mu.Unlock()
 		return name, true
 	}
@@ -266,10 +269,11 @@ func (s *Server) hostToSite(host string) (string, bool) {
 		return "", false
 	}
 	name := strings.TrimSuffix(host, suffix)
-	if name == "" {
+	if name == "" || !validSiteName(name) {
 		return "", false
 	}
-	// verify site folder exists
+	// verify site folder exists (case-insensitive filesystems may match a
+	// differently-cased folder; canonical lowercase is required)
 	docroot := filepath.Join(s.cfg.Root, name, "public")
 	if _, err := os.Stat(docroot); err != nil {
 		docroot = filepath.Join(s.cfg.Root, name)
@@ -278,6 +282,18 @@ func (s *Server) hostToSite(host string) (string, bool) {
 		}
 	}
 	return name, true
+}
+
+// validSiteName guards path construction: single path segment, no dots-only
+// or hidden folders.
+func validSiteName(name string) bool {
+	if name == "" || strings.ContainsAny(name, "/\\") {
+		return false
+	}
+	if strings.HasPrefix(name, ".") || strings.Contains(name, "..") {
+		return false
+	}
+	return true
 }
 
 // buildAliases pre-scans all sites for .sabdopalon.yml aliases so extra

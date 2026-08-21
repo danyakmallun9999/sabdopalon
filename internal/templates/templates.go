@@ -44,7 +44,9 @@ var Registry = []Template{
 
 // Create sets up a new project from a template.
 func Create(sitesDir, templateName, projectName string) error {
-	// Validate project name
+	// Validate project name (normalized to lowercase — site folders are
+	// addressed via lowercase hostnames)
+	projectName = strings.ToLower(strings.TrimSpace(projectName))
 	if projectName == "" {
 		return fmt.Errorf("project name is required")
 	}

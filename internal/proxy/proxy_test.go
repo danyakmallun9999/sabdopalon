@@ -28,7 +28,7 @@ func TestHostToSite(t *testing.T) {
 		ok   bool
 	}{
 		{"myapp.localhost", "myapp", true},
-		{"MYAPP.localhost", "", false}, // normalized upstream; case-sensitive suffix ok
+		{"MYAPP.localhost", "myapp", true}, // normalized to lowercase (Windows/macOS safe)
 		{"other.localhost", "", false}, // folder missing
 		{"localhost", "", false},
 		{"127.0.0.1", "", false},
@@ -142,6 +142,20 @@ func TestStoppedSiteStaysDown(t *testing.T) {
 		t.Error("StartSite must clear the stopped flag")
 	}
 	s.StopAll()
+}
+
+func TestStoppedSiteStaysDownMixedCaseHost(t *testing.T) {
+	s := testServer(t)
+	s.StopSite("myapp")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://MYAPP.LOCALHOST/", nil)
+	req.Host = "MYAPP.LOCALHOST"
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("stopped site via UPPERCASE host should return 503, got %d", rec.Code)
+	}
 }
 
 func TestServeHTTPUnknownHostFallsBack(t *testing.T) {
