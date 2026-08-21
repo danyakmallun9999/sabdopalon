@@ -37,7 +37,9 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		fmt.Sprintf("SABDOPALON_DB_PATH=%s", dbPath),
 	)
 	// Put the process in its own process group so we can kill the whole tree.
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	attr := &syscall.SysProcAttr{}
+	setProcessGroup(attr)
+	cmd.SysProcAttr = attr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("exec php: %w", err)
 	}
@@ -50,11 +52,8 @@ func (m *managedPHP) stop() error {
 		return nil
 	}
 	// Kill the entire process group (PHP may have spawned children).
-	pgid, err := syscall.Getpgid(m.cmd.Process.Pid)
-	if err == nil {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	}
-	_ = m.cmd.Process.Signal(syscall.SIGTERM)
+	killProcessGroup(m.cmd.Process)
+	signalTerm(m.cmd.Process)
 	return m.cmd.Process.Kill()
 }
 

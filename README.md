@@ -35,22 +35,49 @@ all work. Tested with PHP 8.5 + MariaDB 11.4.12 on Linux Mint.
 
 ## Prerequisites
 
-Sabdopalon is designed to be **zero-dependency at runtime**. You only need Go
-to build it once — after that, everything else (PHP, MariaDB) is auto-downloaded.
+**None.** Sabdopalon is fully self-contained — no Go, no PHP, no MariaDB
+needed on your system. Just download the binary and run it:
 
-1. **Go 1.22+** — only needed to *build* Sabdopalon from source (not to run it)
-2. **PHP** — **NOT required to pre-install**. Sabdopalon auto-downloads a
-   self-contained static PHP binary (8.4.8, ~8MB, 30+ extensions including
-   pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache) on first run.
-3. **MariaDB** — **NOT required to pre-install**. Run `sabdopalon add mariadb`
-   and Sabdopalon downloads, verifies, and manages it for you.
+- **PHP** — auto-downloaded on first run (8.4.8, ~8MB, 30+ extensions)
+- **MariaDB** — auto-downloaded when you run `sabdopalon add mariadb`
+- **Go** — only needed if you want to build from source yourself
 
-> If you already have PHP installed on your system, Sabdopalon will detect and
-> use it automatically. The auto-download only triggers if no PHP is found.
+> If you already have PHP installed, Sabdopalon detects and uses it
+> automatically. The auto-download only triggers if no PHP is found.
 
 ## Installation
 
-### Option A: Build from source (all platforms)
+### Option A: Download pre-built binary (recommended — no Go needed)
+
+Download the latest release for your OS from the
+[Releases page](https://github.com/danyakmallun9999/sabdopalon/releases).
+Binaries are built automatically via GitHub Actions for all platforms:
+
+| Platform | File |
+|---|---|
+| Linux x86_64 (Intel/AMD) | `sabdopalon-linux-x86_64.tar.gz` |
+| Linux aarch64 (ARM64) | `sabdopalon-linux-aarch64.tar.gz` |
+| macOS x86_64 (Intel) | `sabdopalon-macos-x86_64.tar.gz` |
+| macOS aarch64 (Apple Silicon) | `sabdopalon-macos-aarch64.tar.gz` |
+| Windows x86_64 | `sabdopalon-windows-x86_64.zip` |
+
+```bash
+# Example (Linux x86_64):
+curl -L https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/sabdopalon-linux-x86_64.tar.gz | tar xz
+chmod +x sabdopalon
+./sabdopalon version
+
+# macOS (Apple Silicon):
+curl -L https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/sabdopalon-macos-aarch64.tar.gz | tar xz
+chmod +x sabdopalon
+./sabdopalon version
+
+# Windows (PowerShell):
+# Download sabdopalon-windows-x86_64.zip, extract, then:
+.\sabdopalon.exe version
+```
+
+### Option B: Build from source (requires Go 1.22+)
 
 ```bash
 # 1. Clone the repository
@@ -69,19 +96,6 @@ go build -o sabdopalon.exe .\cmd\sabdopalon
 .\sabdopalon.exe version # Windows
 ```
 
-### Option B: Pre-built binary (no Go needed)
-
-Download the latest release for your OS from the
-[Releases page](https://github.com/danyakmallun9999/sabdopalon/releases),
-extract it, and you're ready — no build step required.
-
-```bash
-# Example (Linux):
-curl -L https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/sabdopalon-linux-amd64 -o sabdopalon
-chmod +x sabdopalon
-./sabdopalon version
-```
-
 ### Make it available system-wide (optional)
 
 ```bash
@@ -94,7 +108,7 @@ sudo ln -s "$(pwd)/sabdopalon" /usr/local/bin/sabdopalon
 
 ## Quick start
 
-After building (or downloading) Sabdopalon, just run it — PHP downloads automatically:
+After installing (download or build), just run it — PHP downloads automatically:
 
 ```bash
 # 1. Start Sabdopalon — PHP auto-downloads on first run if not found

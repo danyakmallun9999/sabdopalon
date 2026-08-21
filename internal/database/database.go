@@ -74,7 +74,9 @@ func (m *Manager) Start() error {
 	cmd := exec.Command(binary, args...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	attr := &syscall.SysProcAttr{}
+	setProcessGroup(attr)
+	cmd.SysProcAttr = attr
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return fmt.Errorf("start %s: %w", engine, err)
@@ -97,11 +99,8 @@ func (m *Manager) Stop() error {
 	if m.cmd == nil || m.cmd.Process == nil {
 		return nil
 	}
-	pgid, err := syscall.Getpgid(m.cmd.Process.Pid)
-	if err == nil {
-		_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	}
-	_ = m.cmd.Process.Signal(syscall.SIGTERM)
+	killProcessGroup(m.cmd.Process)
+	signalTerm(m.cmd.Process)
 	time.Sleep(500 * time.Millisecond)
 	_ = m.cmd.Process.Kill()
 	fmt.Printf("  ◾  %s stopped\n", m.cfg.Database.Engine)
