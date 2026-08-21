@@ -36,9 +36,9 @@ export default function SiteHeader({ status }: { status: Status | null }) {
           <Badge variant="outline" className="text-muted-foreground">
             DB {status?.database ?? "—"}
           </Badge>
-          {status?.php && (
+          {(status?.php_version || status?.php) && (
             <Badge variant="outline" className="text-muted-foreground">
-              PHP {status.php}
+              PHP {status?.php_version ?? status?.php}
             </Badge>
           )}
           {status?.mailpit && (
