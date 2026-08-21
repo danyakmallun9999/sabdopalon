@@ -3,6 +3,5 @@ php: 8.4
 docroot: public
 aliases:
   - www.example-app.localhost
-  - api.example-app.localhost
 env:
-  APP_ENV: production
+  APP_ENV: local
