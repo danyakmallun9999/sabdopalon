@@ -1,0 +1,28 @@
+# Package definitions for Sabdopalon's "Quick Add" system.
+#
+# Each section describes a downloadable component. Download with:
+#   sabdopalon add <name>
+# Binary is extracted to bin/<target>/.
+
+[mariadb]
+version = "11.4.12"
+url = "https://archive.mariadb.org/mariadb-11.4.12/bintar-linux-systemd-x86_64/mariadb-11.4.12-linux-systemd-x86_64.tar.gz"
+sha256 = "afb81282f977c599ecbb0390588b0005b304b4e87d64615a2649ecd2bd1dc16f"
+target = "mariadb"
+strip_root = true
+license = "GPL-2.0 (with FOSS exception)"
+
+# [mysql]
+# version = "8.4.11"
+# url = "https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.11-linux-glibc2.17-x86_64.tar.xz"
+# target = "mysql"
+# strip_root = true
+# license = "GPL-2.0"
+
+# [php]
+# PHP is auto-detected from PATH/herd-lite. Download manually from:
+# https://www.php.net/downloads.php (source) or https://windows.php.net/ (Win binaries)
+# version = "8.5.9"
+# url = "https://www.php.net/distributions/php-8.5.9.tar.gz"
+# target = "php/8.5"
+# license = "PHP License"

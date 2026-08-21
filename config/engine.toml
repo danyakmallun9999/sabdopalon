@@ -1,0 +1,32 @@
+# Sabdopalon global configuration.
+# Per-project overrides live in sites/<app>/.sabdopalon.yml
+
+[sabdopalon]
+# TLD .localhost auto-resolves on Linux/macOS/Win10+ WITHOUT editing /etc/hosts.
+# Use "test" only if you have admin/root to edit the hosts file.
+tld = "localhost"
+root = "./sites"
+logs = "./logs"
+data = "./data"
+
+[proxy]
+# The Sabdopalon proxy listens here and routes *.localhost to per-site PHP servers.
+http_port = 8080
+https_port = 8443
+
+[php]
+# Path to the php binary. Leave empty to auto-detect from PATH or herd-lite.
+# Examples:
+#   binary = "/home/you/.config/herd-lite/bin/php"
+#   binary = ""          # auto-detect
+binary = "/home/danyakmallun/.config/herd-lite/bin/php"
+
+[database]
+# SQLite needs zero setup. MariaDB/MySQL/PostgreSQL can be added later.
+engine = "mariadb"
+# For sqlite: path to the .db file. For mysql/mariadb: port.
+path = "./data/sabdopalon.db"
+
+[dashboard]
+enabled = true
+port = 9900

@@ -1,0 +1,43 @@
+# Binaries
+/sabdopalon
+/sabdopalon.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Downloaded packages (installed via 'sabdopalon add', not committed)
+/bin/
+
+# Runtime data (never commit)
+/data/
+/logs/
+/tmp/
+/backups/
+
+# SSL certs (generated locally)
+/certs/*.pem
+/certs/*.crt
+/certs/*.key
+/certs/*.csr
+
+# Generated vhost configs
+/config/vhosts/*.conf
+
+# Generated PHP routers (auto-created by proxy)
+/sites/*/.sabdopalon-router.php
+
+# Go
+/vendor/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
