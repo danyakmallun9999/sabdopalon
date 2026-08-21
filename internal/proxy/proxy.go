@@ -296,6 +296,10 @@ func validSiteName(name string) bool {
 	return true
 }
 
+// RebuildAliases re-scans per-site .sabdopalon.yml files so alias changes
+// made from the dashboard take effect without restarting Sabdopalon.
+func (s *Server) RebuildAliases() { s.buildAliases() }
+
 // buildAliases pre-scans all sites for .sabdopalon.yml aliases so extra
 // domains can route to a project without editing /etc/hosts.
 func (s *Server) buildAliases() {
