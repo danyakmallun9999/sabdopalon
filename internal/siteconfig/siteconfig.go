@@ -39,6 +39,70 @@ func Load(sitesDir, siteName string) (*SiteConfig, error) {
 	return parseYAML(string(data))
 }
 
+// Save writes sites/<name>/.sabdopalon.yml deterministically (sorted env
+// keys, stable field order). Values are quoted only when required.
+func Save(sitesDir, siteName string, sc *SiteConfig) error {
+	if strings.ContainsAny(siteName, "/\\") || strings.HasPrefix(siteName, ".") {
+		return fmt.Errorf("invalid site name")
+	}
+	if err := sc.validate(); err != nil {
+		return err
+	}
+
+	var b strings.Builder
+	b.WriteString("# Per-site overrides managed by the Sabdopalon dashboard.\n")
+
+	writeVal := func(v string) string {
+		if v == "" || !strings.ContainsAny(v, " #\"'\\\n:") {
+			return v
+		}
+		return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`).Replace(v) + `"`
+	}
+
+	if sc.PHP != "" {
+		fmt.Fprintf(&b, "php: %s\n", writeVal(sc.PHP))
+	}
+	if sc.Docroot != "" {
+		fmt.Fprintf(&b, "docroot: %s\n", writeVal(sc.Docroot))
+	}
+	if len(sc.Aliases) > 0 {
+		b.WriteString("aliases:\n")
+		for _, a := range sc.Aliases {
+			fmt.Fprintf(&b, "  - %s\n", writeVal(a))
+		}
+	}
+	if len(sc.Env) > 0 {
+		b.WriteString("env:\n")
+		keys := make([]string, 0, len(sc.Env))
+		for k := range sc.Env {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			fmt.Fprintf(&b, "  %s: %s\n", k, writeVal(sc.Env[k]))
+		}
+	}
+
+	dir := filepath.Join(sitesDir, siteName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, ".sabdopalon.yml")
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		return err
+	}
+	// Sanity: what we wrote must round-trip through our own parser.
+	back, err := Load(sitesDir, siteName)
+	if err != nil {
+		return fmt.Errorf("saved config does not re-parse: %w", err)
+	}
+	if back.PHP != sc.PHP || back.Docroot != sc.Docroot ||
+		strings.Join(back.Aliases, "|") != strings.Join(sc.Aliases, "|") {
+		return fmt.Errorf("saved config did not round-trip correctly")
+	}
+	return nil
+}
+
 // parseYAML parses a minimal YAML subset: top-level keys, "key: value" pairs,
 // "aliases:" with "- item" list items, and "env:" with "  KEY: value" entries.
 func parseYAML(s string) (*SiteConfig, error) {
