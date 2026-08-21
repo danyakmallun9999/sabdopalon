@@ -3,8 +3,10 @@ package dashboard
 import (
 	"encoding/json"
 	"net/http"
+	"path/filepath"
 	"time"
 
+	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 )
 
@@ -28,8 +30,35 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.cfg.PHP.Binary != "" {
 		resp["php"] = baseName(s.cfg.PHP.Binary)
+		resp["php_version"] = pkgmgr.PHPBinaryVersion(s.cfg.PHP.Binary)
 	}
 	s.json(w, resp)
+}
+
+// handleAPISystemPHP lists PHP CLIs found on the host (outside bin/).
+func (s *Server) handleAPISystemPHP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		s.methodNotAllowed(w, "GET")
+		return
+	}
+	cands := pkgmgr.SystemPHPCandidates()
+	for i := range cands {
+		cands[i].Active = samePathLocal(cands[i].Path, s.cfg.PHP.Binary)
+	}
+	s.json(w, cands)
+}
+
+// samePathLocal compares two paths after symlink/clean resolution.
+func samePathLocal(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	ra, e1 := filepath.EvalSymlinks(a)
+	rb, e2 := filepath.EvalSymlinks(b)
+	if e1 != nil || e2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }
 
 type configPayload struct {

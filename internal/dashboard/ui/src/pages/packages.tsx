@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Download } from "lucide-react"
 
-import api, { poll, type InstallJob, type Package } from "@/lib/api"
+import api, { poll, type InstallJob, type Package, type SystemPHP } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,6 +22,48 @@ const LABELS: Record<string, string> = {
   php85: "PHP 8.5",
   mariadb: "MariaDB server (auto-managed daemon)",
   mailpit: "Mailpit — local e-mail catcher",
+}
+
+function SystemPHPCard() {
+  const [sys, setSys] = useState<SystemPHP[]>([])
+  useEffect(() => {
+    const load = () => api.systemPHPs().then((d) => setSys(Array.isArray(d) ? d : [])).catch(() => {})
+    poll(load, 10000)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1.5">
+            <CardTitle className="text-base">System PHP (your machine)</CardTitle>
+            <CardDescription>
+              Detected outside Sabdopalon's bin/. Default priority is system-first — pin a version
+              per site via .sabdopalon.yml (php: "8.5").
+            </CardDescription>
+          </div>
+        </div>
+        {sys.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No system PHP found.</p>
+        ) : (
+          <div className="mt-2 flex flex-col gap-1.5">
+            {sys.map((c) => (
+              <div key={c.path} className="flex items-center justify-between gap-2 text-sm">
+                <span className="font-mono text-xs break-all">{c.path}</span>
+                {c.active ? (
+                  <Badge>default</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-amber-500 dark:text-amber-400">
+                    PHP {c.version}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardHeader>
+    </Card>
+  )
 }
 
 export default function PackagesPage() {
@@ -75,6 +117,8 @@ export default function PackagesPage() {
         Optional components, downloaded and managed inside{" "}
         <code className="bg-muted rounded px-1.5 py-0.5">bin/</code> — nothing touches your OS.
       </p>
+
+      <SystemPHPCard />
 
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
         {pkgs.map((p) => (

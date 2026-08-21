@@ -86,6 +86,9 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/profiles", s.handleAPIProfiles)
 	s.mux.HandleFunc("/api/profiles/apply", s.handleAPIProfileApply)
 
+	// API: system PHP discovery
+	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
+
 	// API: services
 	s.mux.HandleFunc("/api/services", s.handleAPIServices)
 	s.mux.HandleFunc("/api/services/mailpit", s.handleAPIMailpitToggle)

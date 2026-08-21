@@ -191,9 +191,15 @@ func (a *App) serve() int {
 		fmt.Printf("  ✓  profile %q applied\n", a.Profile)
 	}
 
-	// Resolve PHP: bundled (migrating legacy layout first) → PATH → download.
+	// Resolve PHP via the unified resolver: explicit override → system/bundled
+	// (per [php] prefer) → auto-download as a last resort.
 	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
-	if a.Cfg.PHP.Binary == "" || !fileExists(a.Cfg.PHP.Binary) {
+	resolved, rerr := pkgmgr.ResolveDefaultPHP(a.Cfg)
+	switch {
+	case rerr != nil:
+		fmt.Fprintf(os.Stderr, "✗ %s\n", rerr)
+		return 1
+	case resolved == "":
 		m, err := pkgmgr.New(a.Cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "✗ package manager: %v\n", err)
@@ -206,6 +212,8 @@ func (a *App) serve() int {
 			return 1
 		}
 		a.Cfg.PHP.Binary = phpPath
+	default:
+		a.Cfg.PHP.Binary = resolved
 	}
 
 	_ = os.MkdirAll(a.Cfg.Data, 0o755)
@@ -371,20 +379,47 @@ func (a *App) doctor() int {
 	fmt.Println()
 	fmt.Println("  Bundled PHP versions")
 	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
-	versions := pkgmgr.InstalledVersions(filepath.Join(a.Cfg.RootDir, "bin"))
+	binRoot := filepath.Join(a.Cfg.RootDir, "bin")
+	versions := pkgmgr.InstalledVersions(binRoot)
 	if len(versions) == 0 {
-		fmt.Println("    (none bundled — system PHP is used; 'sabdopalon add php' installs one)")
+		fmt.Println("    (none bundled — 'sabdopalon add php' installs one)")
 	}
 	for _, v := range versions {
+		p := pkgmgr.PHPVersionedPath(binRoot, v)
 		marker := " "
-		if p := pkgmgr.PHPVersionedPath(filepath.Join(a.Cfg.RootDir, "bin"), v); samePath(p, a.Cfg.PHP.Binary) {
+		if samePath(p, a.Cfg.PHP.Binary) {
 			marker = "*"
 		}
-		fmt.Printf("    %s %s\n", marker, v)
+		fmt.Printf("    %s %-5s (%s)\n", marker, v, p)
 	}
-	if a.Cfg.PHP.Binary != "" {
-		fmt.Printf("\n  active PHP: %s\n", a.Cfg.PHP.Binary)
+
+	fmt.Println("\n  System PHP binaries")
+	cands := pkgmgr.SystemPHPCandidates()
+	if len(cands) == 0 {
+		fmt.Println("    (none found)")
 	}
+	for _, c := range cands {
+		marker := " "
+		if samePath(c.Path, a.Cfg.PHP.Binary) {
+			marker = "*"
+		}
+		fmt.Printf("    %s %-7s (%s)\n", marker, c.Version, c.Path)
+	}
+
+	resolved, _ := pkgmgr.ResolveDefaultPHP(a.Cfg)
+	prefer := a.Cfg.PHP.Prefer
+	if prefer == "" {
+		prefer = "system"
+	}
+	activeStr := resolved
+	if activeStr == "" {
+		activeStr = "(none — will auto-download on serve)"
+	}
+	fmt.Printf("\n  active PHP: %s", activeStr)
+	if v := pkgmgr.PHPBinaryVersion(resolved); v != "" {
+		fmt.Printf("  (PHP %s)", v)
+	}
+	fmt.Printf("\n  priority  : [php] binary > prefer=%s (system|bundled)\n", prefer)
 
 	fmt.Println()
 	fmt.Println("  Sites discovered:")
@@ -518,7 +553,7 @@ func (a *App) phpList() int {
 	pkgmgr.MigrateLegacyPHP(binRoot)
 
 	active := a.Cfg.PHP.Binary
-	fmt.Println("Installed bundled PHP versions:")
+	fmt.Println("Bundled PHP versions (bin/php/):")
 	versions := pkgmgr.InstalledVersions(binRoot)
 	if len(versions) == 0 {
 		fmt.Println("  (none)")
@@ -526,16 +561,33 @@ func (a *App) phpList() int {
 	for _, v := range versions {
 		p := pkgmgr.PHPVersionedPath(binRoot, v)
 		marker := " "
-		out, _ := exec.Command(p, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;").Output()
-		_ = out
 		if samePath(p, active) {
 			marker = "*"
 		}
-		fmt.Printf("  %s %-5s → %s\n", marker, v, p)
+		fmt.Printf("  %s %-5s (%s)\n", marker, v, p)
 	}
-	fmt.Println("\nInstall more:  sabdopalon add php@8.2   (8.1 – 8.5 available)")
+
+	fmt.Println("\nSystem PHP binaries:")
+	cands := pkgmgr.SystemPHPCandidates()
+	if len(cands) == 0 {
+		fmt.Println("  (none found on PATH / common locations)")
+	}
+	for _, c := range cands {
+		marker := " "
+		if samePath(c.Path, active) {
+			marker = "*"
+		}
+		fmt.Printf("  %s %-7s (%s)\n", marker, c.Version, c.Path)
+	}
+
+	fmt.Println("\nPriority: [php] binary override > prefer=system|bundled (default: system)")
+	fmt.Println("Install bundled: sabdopalon add php@8.2   (8.1 – 8.5 available)")
 	if active != "" {
-		fmt.Printf("Active default: %s\n", active)
+		v := pkgmgr.PHPBinaryVersion(active)
+		if v == "" {
+			v = "?"
+		}
+		fmt.Printf("Active default: PHP %s — %s\n", v, active)
 	}
 	return 0
 }

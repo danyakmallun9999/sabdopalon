@@ -11,6 +11,13 @@ export type Status = {
   php?: string
   sites_count: number
   mailpit: boolean
+  php_version?: string
+}
+
+export type SystemPHP = {
+  path: string
+  version: string
+  active: boolean
 }
 
 export type Site = {
@@ -134,6 +141,7 @@ const api = {
     ),
 
   listPackages: () => request<Package[]>("/api/packages"),
+  systemPHPs: () => request<SystemPHP[]>("/api/php/system"),
   installPackage: (name: string) =>
     post<{ ok: boolean; message?: string; error?: string }>("/api/packages/install", { name }),
   installJob: () => request<InstallJob>("/api/packages/job"),
