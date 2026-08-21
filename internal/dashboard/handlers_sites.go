@@ -173,3 +173,95 @@ func trashSite(rootDir, name string) error {
 	dst := filepath.Join(trashDir, fmt.Sprintf("%s-%d", name, time.Now().Unix()))
 	return os.Rename(src, dst)
 }
+
+// siteConfigPayload is the editable per-site configuration (.sabdopalon.yml).
+type siteConfigPayload struct {
+	PHP     string            `json:"php"`
+	Docroot string            `json:"docroot"`
+	Aliases []string          `json:"aliases"`
+	Env     map[string]string `json:"env"`
+	Running bool              `json:"running"`
+}
+
+func (s *Server) getSiteConfig(w http.ResponseWriter, name string) {
+	siteDir := filepath.Join(s.cfg.Root, name)
+	if _, err := os.Stat(siteDir); err != nil {
+		s.json(w, map[string]string{"error": "site not found: " + name})
+		return
+	}
+	sc, err := siteconfig.Load(s.cfg.Root, name)
+	if err != nil {
+		s.json(w, map[string]string{"error": err.Error()})
+		return
+	}
+	if sc == nil {
+		sc = &siteconfig.SiteConfig{Env: map[string]string{}}
+	}
+	s.json(w, siteConfigPayload{
+		PHP:     sc.PHP,
+		Docroot: sc.Docroot,
+		Aliases: sc.Aliases,
+		Env:     sc.Env,
+		Running: s.proxy.IsRunning(name),
+	})
+}
+
+// putSiteConfig validates and writes .sabdopalon.yml, refreshes alias routing
+// immediately, and restarts the site when it is running so the new PHP
+// binary/docroot take effect right away.
+func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Request) {
+	var p siteConfigPayload
+	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
+		s.json(w, map[string]string{"error": "invalid JSON"})
+		return
+	}
+	siteDir := filepath.Join(s.cfg.Root, name)
+	if _, err := os.Stat(siteDir); err != nil {
+		s.json(w, map[string]string{"error": "site not found: " + name})
+		return
+	}
+	wasRunning := s.proxy.IsRunning(name)
+
+	clean := &siteconfig.SiteConfig{
+		PHP:     strings.TrimSpace(p.PHP),
+		Docroot: filepath.ToSlash(filepath.Clean("/" + strings.TrimSpace(p.Docroot)))[1:],
+		Aliases: make([]string, 0, len(p.Aliases)),
+		Env:     map[string]string{},
+	}
+	for _, a := range p.Aliases {
+		a = strings.ToLower(strings.TrimSpace(a))
+		if a != "" {
+			clean.Aliases = append(clean.Aliases, a)
+		}
+	}
+	for k, v := range p.Env {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k != "" && !strings.ContainsAny(k, " \t=") {
+			clean.Env[k] = v
+		}
+	}
+
+	if err := siteconfig.Save(s.cfg.Root, name, clean); err != nil {
+		s.json(w, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Apply immediately.
+	s.proxy.RebuildAliases()
+	restarted := false
+	if wasRunning {
+		if err := s.proxy.RestartSite(name); err == nil {
+			restarted = true
+		}
+	}
+
+	msg := "Configuration saved."
+	if restarted {
+		msg += " Site restarted with the new settings."
+	} else if wasRunning {
+		msg += " Saved — but the restart failed; check the Logs page."
+	}
+	u, _ := s.siteURLs(name)
+	s.json(w, map[string]any{"ok": true, "message": msg, "restarted": restarted, "url": u})
+}

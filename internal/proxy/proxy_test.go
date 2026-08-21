@@ -29,7 +29,7 @@ func TestHostToSite(t *testing.T) {
 	}{
 		{"myapp.localhost", "myapp", true},
 		{"MYAPP.localhost", "myapp", true}, // normalized to lowercase (Windows/macOS safe)
-		{"other.localhost", "", false}, // folder missing
+		{"other.localhost", "", false},     // folder missing
 		{"localhost", "", false},
 		{"127.0.0.1", "", false},
 		{"example.com", "", false},
