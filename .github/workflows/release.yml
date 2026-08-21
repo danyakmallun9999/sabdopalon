@@ -116,35 +116,35 @@ jobs:
 
       - name: Prepare release assets
         run: |
-          cd dist
+          set -e
           shopt -s nullglob
+          mkdir assets
           # Each artifact downloads into its own subdirectory:
           #   dist/sabdopalon-<os>-<arch>/sabdopalon[.exe]
-          # Flatten into correctly-named release archives at dist/ root.
+          # Move binaries to a clean staging dir (the target filename equals
+          # the artifact dir name, so copying in place would collide).
           for d in sabdopalon-*/; do
             d="${d%/}"
             suffix="${d#sabdopalon-}"
-            if [[ "$suffix" == windows-* ]]; then
-              src="$d/sabdopalon.exe"
-              out="sabdopalon-${suffix}.exe"
-              if [ -f "$src" ]; then
-                cp "$src" "$out"
-                zip -q "${out}.zip" "$out"
-                rm -f "$out"
-              fi
-            else
-              src="$d/sabdopalon"
-              out="sabdopalon-${suffix}"
-              if [ -f "$src" ]; then
-                cp "$src" "$out"
-                tar czf "${out}.tar.gz" "$out"
-                rm -f "$out"
-              fi
-            fi
+            case "$suffix" in
+              windows-*) bin="$d/sabdopalon.exe"; ext=".exe" ;;
+              *)         bin="$d/sabdopalon";    ext="" ;;
+            esac
+            test -f "$bin" || { echo "::error::missing $bin"; exit 1; }
+            mv "$bin" "assets/sabdopalon-${suffix}${ext}"
             rm -rf "$d"
           done
+          cd assets
+          # Compress: tar.gz for Linux/macOS, zip for Windows.
+          for f in *; do
+            case "$f" in
+              *.exe) zip -q "${f}.zip" "$f" ;;
+              *)     tar czf "${f}.tar.gz" "$f" ;;
+            esac
+          done
+          mv *.tar.gz *.zip ..
           echo "Release assets ready:"
-          ls -lh
+          ls -lh ..
 
       - name: Verify assets exist (fail loud, never ship an empty release)
         run: |
