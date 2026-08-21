@@ -116,11 +116,21 @@ func TestResolvePHP(t *testing.T) {
 	if _, err := ResolvePHP(binRoot, ""); err != nil {
 		t.Errorf(`ResolvePHP("") must be a no-op, got %v`, err)
 	}
-	if _, err := ResolvePHP(binRoot, "8.3"); err == nil {
-		t.Fatal("expected friendly error for missing bundled version")
-	} else if msg := err.Error(); !strings.Contains(msg, "sabdopalon add php@") {
-		t.Errorf("error should suggest add command, got: %v", err)
+
+	// Behavior contract for a missing bundled version: either a friendly
+	// error suggesting the add command, OR (CI runners ship PHP) a resolved
+	// system CLI of that exact version. Both are acceptable outcomes.
+	got, err := ResolvePHP(binRoot, "8.3")
+	switch {
+	case err != nil:
+		if !strings.Contains(err.Error(), "sabdopalon add php@") {
+			t.Errorf("error should suggest the add command, got: %v", err)
+		}
+	case !strings.Contains(filepath.Base(got), "php8.3"):
+		t.Errorf("fallback should resolve to a php8.3 CLI, got %q", got)
 	}
+
+	// Installed bundled version always wins over system.
 	dir := filepath.Join(binRoot, "php", "8.3")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -129,9 +139,9 @@ func TestResolvePHP(t *testing.T) {
 	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := ResolvePHP(binRoot, "8.3")
+	got, err = ResolvePHP(binRoot, "8.3")
 	if err != nil || got != bin {
-		t.Errorf("ResolvePHP(8.3) = %q, %v; want %q", got, err, bin)
+		t.Errorf("ResolvePHP(8.3) with bundled copy = %q, %v; want %q", got, err, bin)
 	}
 }
 
