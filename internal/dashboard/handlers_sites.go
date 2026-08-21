@@ -49,7 +49,9 @@ func (s *Server) listSites(w http.ResponseWriter) {
 		if sc != nil {
 			item["php"] = sc.PHP
 			item["docroot"] = sc.Docroot
-			item["aliases"] = sc.Aliases
+			if len(sc.Aliases) > 0 {
+				item["aliases"] = sc.Aliases
+			}
 		}
 		result = append(result, item)
 	}

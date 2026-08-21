@@ -220,7 +220,7 @@ export default function SitesPage() {
                     >
                       {s.https.replace(/^https?:\/\//, "")} <ExternalLink className="size-3" />
                     </a>
-                    {s.aliases.length > 0 && (
+                    {(s.aliases ?? []).length > 0 && (
                       <span className="text-muted-foreground mt-1 text-xs">
                         aliases: {s.aliases.join(", ")}
                       </span>
