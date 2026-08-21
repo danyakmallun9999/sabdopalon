@@ -36,6 +36,7 @@ type Server struct {
 	cfg      *config.Engine
 	mu       sync.Mutex
 	sites    map[string]*siteServer // host -> running PHP server for that site
+	disabled map[string]bool        // sites stopped from the dashboard (in-memory)
 	portNext int
 	stopCh   chan struct{}
 	aliases  map[string]string // alias hostname -> canonical site name
@@ -62,6 +63,7 @@ func New(cfg *config.Engine) *Server {
 	return &Server{
 		cfg:      cfg,
 		sites:    map[string]*siteServer{},
+		disabled: map[string]bool{},
 		aliases:  map[string]string{},
 		portNext: 9001,
 		stopCh:   make(chan struct{}),
@@ -207,12 +209,42 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.dashboardFallback(w, r, host)
 		return
 	}
+	// Sites stopped from the dashboard stay down: no lazy restart until the
+	// user explicitly starts them again.
+	if s.isStopped(siteName) {
+		s.serveStoppedPage(w, siteName)
+		return
+	}
 	ss, err := s.ensureSite(siteName)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("sabdopalon: cannot start PHP for %s: %v", siteName, err), http.StatusBadGateway)
 		return
 	}
 	ss.proxy.ServeHTTP(w, r)
+}
+
+// isStopped reports whether the site was stopped via the dashboard.
+func (s *Server) isStopped(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.disabled[name]
+}
+
+// serveStoppedPage renders a friendly 503 so visitors understand why the site
+// is down (and that it is intentional, not broken).
+func (s *Server) serveStoppedPage(w http.ResponseWriter, name string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	dash := fmt.Sprintf("http://localhost:%d/sites", s.cfg.Dashboard.Port)
+	fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>%s — stopped</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;background:#0d1117;color:#e6edf3;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+.c{max-width:460px;text-align:center;padding:2.5rem;border:1px solid #30363d;border-radius:14px}
+h1{font-size:1.3rem;margin:0 0 .5rem}p{color:#8b949e;line-height:1.6;margin:.5rem 0}
+a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}</style></head>
+<body><div class="c"><h1>🛑 %s is stopped</h1>
+<p>This site was stopped from the Sabdopalon dashboard and stays down until you start it again.</p>
+<p><a href="%s">Start it in the dashboard →</a></p></div></body></html>`, name, name, dash)
 }
 
 // hostToSite maps "example-app.localhost" -> "example-app".
@@ -379,6 +411,9 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 // StartSite pre-warms (starts) the PHP server for a named site.
 // Used by the dashboard so users can start sites without waiting for a request.
 func (s *Server) StartSite(name string) (*SiteInfo, error) {
+	s.mu.Lock()
+	delete(s.disabled, name) // an explicit start always re-enables the site
+	s.mu.Unlock()
 	ss, err := s.ensureSite(name)
 	if err != nil {
 		return nil, err
@@ -386,24 +421,30 @@ func (s *Server) StartSite(name string) (*SiteInfo, error) {
 	return &SiteInfo{Host: ss.host, Dir: ss.dir, Port: ss.port}, nil
 }
 
-// StopSite stops one site's PHP server. Returns true if it was running.
+// StopSite stops one site's PHP server and keeps it down (requests receive a
+// friendly 503 instead of lazily restarting PHP). Returns true if it was running.
 func (s *Server) StopSite(name string) bool {
 	host := name + "." + s.cfg.TLD
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	ss, ok := s.sites[host]
-	if !ok {
-		return false
+	if ok {
+		_ = ss.php.stop()
+		if ss.logFile != nil {
+			_ = ss.logFile.Close()
+		}
+		delete(s.sites, host)
 	}
-	_ = ss.php.stop()
-	if ss.logFile != nil {
-		_ = ss.logFile.Close()
+	s.disabled[name] = true
+	verbose := s.Verbose
+	port := 0
+	if ok {
+		port = ss.port
 	}
-	delete(s.sites, host)
-	if s.Verbose {
-		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, ss.port)
+	s.mu.Unlock()
+	if verbose {
+		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, port)
 	}
-	return true
+	return ok
 }
 
 // RestartSite restarts one site's PHP server (picks up code-level changes
@@ -412,6 +453,14 @@ func (s *Server) RestartSite(name string) error {
 	s.StopSite(name)
 	_, err := s.StartSite(name)
 	return err
+}
+
+// Enable clears the stopped flag for a site without starting PHP (used when
+// a site is deleted so a future site with the same name starts fresh).
+func (s *Server) Enable(name string) {
+	s.mu.Lock()
+	delete(s.disabled, name)
+	s.mu.Unlock()
 }
 
 // IsRunning reports whether a site's PHP server is currently up.

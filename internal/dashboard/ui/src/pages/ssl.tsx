@@ -47,7 +47,6 @@ export default function SslPage() {
     return () => clearInterval(t)
   }, [])
 
-  const trusted = !!st?.installed && !!st?.fingerprint_match
   const staleTrust = !!st?.installed && !st?.fingerprint_match
 
   async function run(key: string, fn: () => Promise<SslAction>) {
@@ -132,14 +131,14 @@ export default function SslPage() {
               <div className="mt-3 flex items-center justify-between">
                 <Button
                   size="sm"
-                  disabled={
-                    busy === String(s.n) ||
-                    (s.n >= 2 && !st?.ca_exists) ||
-                    // Already done states disable the button
+                  variant={
                     (s.stateKey === "ca_exists" && st?.ca_exists) ||
-                    (s.stateKey === "wildcard_cert" && st?.wildcard_cert) ||
-                    (s.stateKey === "trusted" && trusted)
+                    (s.stateKey === "wildcard_cert" && st?.wildcard_cert)
+                      ? "secondary"
+                      : "default"
                   }
+                  title="Click to regenerate / re-apply"
+                  disabled={busy === String(s.n) || (s.n >= 2 && !st?.ca_exists)}
                   onClick={() => run(String(s.n), s.action)}
                 >
                   {busy === String(s.n) ? "Working…" : s.cta}
@@ -178,8 +177,12 @@ export default function SslPage() {
                 <TableCell>{st?.wildcard_cert ? "✓ present" : "— missing"}</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>OS trust store</TableCell>
-                <TableCell>{st?.installed ? "✓ installed" : "— not installed"}</TableCell>
+                <TableCell>Trust store</TableCell>
+                <TableCell>
+                  {st?.installed
+                    ? `✓ ${st.source === "user" ? "user (no admin)" : "system"}`
+                    : "— not installed"}
+                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Fingerprint match</TableCell>

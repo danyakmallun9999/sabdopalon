@@ -45,6 +45,7 @@ export type SslStatus = {
   wildcard_cert: boolean
   installed: boolean
   fingerprint_match: boolean
+  source?: "system" | "user"
   detail?: string
   https_port: number
   tld: string

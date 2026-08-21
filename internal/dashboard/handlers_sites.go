@@ -136,6 +136,7 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.proxy.StopSite(name)
+		s.proxy.Enable(name)
 		s.json(w, map[string]any{"ok": true, "message": name + " moved to .trash/"})
 
 	default:

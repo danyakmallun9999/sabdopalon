@@ -41,9 +41,12 @@ export default function AppSidebar({ status }: { status: Status | null }) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
               render={<NavLink to="/sites" />}
             >
-              <span aria-hidden className="text-xl leading-none">
-                🐫
-              </span>
+              <img
+                src="/logo.png"
+                alt="Sabdopalon logo"
+                className="size-7 rounded-md"
+                draggable={false}
+              />
               <span className="flex flex-col">
                 <span className="text-base leading-tight font-semibold">Sabdopalon</span>
                 <span className="text-muted-foreground text-xs">

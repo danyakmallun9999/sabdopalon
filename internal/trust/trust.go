@@ -1,14 +1,18 @@
-// Package trust installs the Sabdopalon root CA into the OS certificate
-// trust store so browsers accept the locally-issued HTTPS certificates
-// without warnings.
+// Package trust installs the Sabdopalon root CA so browsers accept the
+// locally-issued HTTPS certificates without warnings.
 //
-// Platform support:
-//   - Linux: copies the CA to /usr/local/share/ca-certificates/ and runs
-//     update-ca-certificates (Debian/Ubuntu/Mint). Requires root.
-//   - macOS: uses `security add-trusted-cert` (requires root/admin).
-//   - Windows: uses `certutil -addstore` (requires admin).
+// Two installation tiers per platform:
 //
-// If elevation is not available, the user is instructed to run it manually.
+//	system-wide (preferred)          per-user fallback (NO sudo/admin)
+//	────────────────────────         ─────────────────────────────────
+//	Linux:  /usr/local/share/        NSS user DB (~/.pki/nssdb) for
+//	        ca-certificates +        Chrome/Chromium/Edge, plus Firefox
+//	        update-ca-certificates   profile databases (via certutil)
+//	macOS:  System keychain (-d)     login keychain (no -d)
+//	Windows: certutil -addstore      certutil -user -addstore Root
+//	         Root (admin)
+//
+// If every automatic route fails, ManualCommand() returns the exact command.
 package trust
 
 import (
@@ -23,6 +27,8 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
+
+const caNickname = "Sabdopalon Local Root CA"
 
 // InstallCA installs the root CA into the system trust store.
 // Returns true if it succeeded, false if manual action is needed.
@@ -77,13 +83,13 @@ func IsTrusted() bool {
 	return false
 }
 
-// Status describes whether the Sabdopalon root CA is installed in the OS
-// trust store and whether it still matches the local certs/sabdopalon-rootCA.crt.
+// Status describes whether the Sabdopalon root CA is trusted and where.
 type Status struct {
 	CAExists     bool   `json:"ca_exists"`
+	WildcardCert bool   `json:"wildcard_cert"`
 	Installed    bool   `json:"installed"`
 	FingerMatch  bool   `json:"fingerprint_match"` // false = stale trust after CA regeneration
-	WildcardCert bool   `json:"wildcard_cert"`
+	Source       string `json:"source,omitempty"`  // "system" or "user"
 	Detail       string `json:"detail,omitempty"`
 }
 
@@ -108,24 +114,38 @@ func CheckStatus(cfg *config.Engine) Status {
 
 	switch runtime.GOOS {
 	case "linux":
-		sysPEM, err := os.ReadFile("/usr/local/share/ca-certificates/sabdopalon-rootCA.crt")
-		if err != nil {
-			st.Detail = "not installed in the OS trust store"
-			return st
+		if sysPEM, err := os.ReadFile("/usr/local/share/ca-certificates/sabdopalon-rootCA.crt"); err == nil {
+			st.Installed = true
+			st.Source = "system"
+			st.FingerMatch = sha256Equal(localPEM, sysPEM)
+			break
 		}
-		st.Installed = true
-		st.FingerMatch = sha256Equal(localPEM, sysPEM)
+		checkNSSStatus(&st, localPEM)
 	case "darwin":
-		out, err := exec.Command("security", "find-certificate", "-c", "Sabdopalon Local Root CA", "-p").Output()
-		if err != nil || len(out) == 0 {
-			st.Detail = "not installed in the macOS keychain"
-			return st
+		if out, err := exec.Command("security", "find-certificate", "-c", caNickname, "-p").Output(); err == nil && len(out) > 0 {
+			st.Installed = true
+			st.Source = "system"
+			st.FingerMatch = sha256Equal(localPEM, out)
+			break
 		}
-		st.Installed = true
-		st.FingerMatch = sha256Equal(localPEM, out)
-	default: // windows and others: presence check only
-		st.Installed = IsTrusted()
-		st.FingerMatch = st.Installed
+		loginKeychain := filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db")
+		if out, err := exec.Command("security", "find-certificate", "-c", caNickname, "-p", loginKeychain).Output(); err == nil && len(out) > 0 {
+			st.Installed = true
+			st.Source = "user"
+			st.FingerMatch = sha256Equal(localPEM, out)
+			break
+		}
+		st.Detail = "not installed in any keychain"
+	default: // windows and others: presence checks only
+		if out, err := exec.Command("certutil", "-store", "Root", caNickname).CombinedOutput(); err == nil && len(out) > 0 {
+			st.Installed, st.Source, st.FingerMatch = true, "system", true
+			break
+		}
+		if out, err := exec.Command("certutil", "-user", "-store", "Root", caNickname).CombinedOutput(); err == nil && len(out) > 0 {
+			st.Installed, st.Source, st.FingerMatch = true, "user", true
+			break
+		}
+		st.Detail = "not installed in the certificate store"
 	}
 
 	if st.Installed && !st.FingerMatch {
@@ -140,27 +160,55 @@ func sha256Equal(a, b []byte) bool {
 	return ha == hb
 }
 
-// InstallCAQuiet installs the CA like InstallCA but without console output,
-// for use by the dashboard API. Returns ok=false when elevation is required.
+// InstallCAQuiet installs the CA, preferring the system store and falling
+// back to per-user stores that need NO admin rights. Console-free (dashboard
+// API). Returns ok=false when every automatic route failed — pair with
+// ManualCommand() so the UI can show exact instructions.
 func InstallCAQuiet(cfg *config.Engine) (bool, error) {
 	caCert := filepath.Join(cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
 	if !fileExists(caCert) {
 		return false, fmt.Errorf("root CA not found — generate it first")
 	}
-	var ok bool
-	var err error
+
+	// Tier 1: system-wide.
 	switch runtime.GOOS {
 	case "linux":
-		ok, err = installLinuxQuiet(caCert)
+		if ok, err := installLinuxQuiet(caCert); ok {
+			return true, err
+		}
 	case "darwin":
-		_, err = exec.Command("security", "add-trusted-cert", "-d", "-r", "trustRoot",
-			"-k", "/Library/Keychains/System.keychain", caCert).CombinedOutput()
-		ok = err == nil
+		if out, err := exec.Command("security", "add-trusted-cert", "-d", "-r", "trustRoot",
+			"-k", "/Library/Keychains/System.keychain", caCert).CombinedOutput(); err == nil {
+			_ = out
+			return true, nil
+		}
 	case "windows":
-		_, err = exec.Command("certutil", "-addstore", "-f", "Root", caCert).CombinedOutput()
-		ok = err == nil
+		if out, err := exec.Command("certutil", "-addstore", "-f", "Root", caCert).CombinedOutput(); err == nil {
+			_ = out
+			return true, nil
+		}
 	}
-	return ok, err
+
+	// Tier 2: per-user stores — no elevation required.
+	switch runtime.GOOS {
+	case "linux":
+		return installLinuxUserNSS(caCert)
+	case "darwin":
+		loginKeychain := filepath.Join(homeDir(), "Library", "Keychains", "login.keychain-db")
+		if out, err := exec.Command("security", "add-trusted-cert", "-r", "trustRoot",
+			"-k", loginKeychain, caCert).CombinedOutput(); err == nil {
+			_ = out
+			return true, nil
+		}
+		return false, fmt.Errorf("login keychain import failed — approve the macOS prompt or use the manual command")
+	case "windows":
+		out, err := exec.Command("certutil", "-user", "-addstore", "-f", "Root", caCert).CombinedOutput()
+		if err != nil {
+			return false, fmt.Errorf("certutil -user: %s", strings.TrimSpace(string(out)))
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 // ManualCommand returns the exact terminal command a user should run when
@@ -245,4 +293,94 @@ func copyFile(src, dst string) error {
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+// homeDir returns the current user's home directory ("" if undetectable).
+func homeDir() string {
+	h, _ := os.UserHomeDir()
+	return h
+}
+
+// --- Linux per-user NSS stores (Chrome/Chromium/Edge + Firefox) ---
+
+// nssDB describes one NSS certificate database.
+type nssDB struct {
+	dir   string
+	label string
+}
+
+// userNSSDBs lists candidate NSS databases for the current user.
+func userNSSDBs() []nssDB {
+	home := homeDir()
+	if home == "" {
+		return nil
+	}
+	var dbs []nssDB
+	dbs = append(dbs, nssDB{dir: filepath.Join(home, ".pki", "nssdb"), label: "Chrome/Chromium"})
+	patterns := []string{
+		filepath.Join(home, ".mozilla", "firefox", "*", "cert9.db"),
+		filepath.Join(home, "snap", "firefox", "common", ".mozilla", "firefox", "*", "cert9.db"),
+	}
+	for _, pat := range patterns {
+		matches, _ := filepath.Glob(pat)
+		for _, m := range matches {
+			dbs = append(dbs, nssDB{dir: filepath.Dir(m), label: "Firefox"})
+		}
+	}
+	return dbs
+}
+
+// checkNSSStatus fills st from the per-user NSS databases when the CA is
+// present there (system-wide install absent).
+func checkNSSStatus(st *Status, localPEM []byte) {
+	if _, err := exec.LookPath("certutil"); err != nil {
+		st.Detail = "not installed in the OS trust store"
+		return
+	}
+	for _, db := range userNSSDBs() {
+		out, err := exec.Command("certutil", "-L", "-a", "-d", "sql:"+db.dir, "-n", caNickname).Output()
+		if err != nil || len(out) == 0 {
+			continue
+		}
+		st.Installed = true
+		st.Source = "user"
+		st.FingerMatch = sha256Equal(localPEM, out)
+		return
+	}
+	st.Detail = "not installed in the OS trust store"
+}
+
+// installLinuxUserNSS imports the CA into every reachable per-user NSS store:
+// Chrome/Chromium (~/.pki/nssdb, created when missing) and Firefox profiles.
+// Requires the `certutil` tool (libnss3-tools); without it we report failure
+// so the UI falls back to manual instructions.
+func installLinuxUserNSS(caCert string) (bool, error) {
+	if _, err := exec.LookPath("certutil"); err != nil {
+		return false, fmt.Errorf(
+			"per-user trust needs the NSS tool: install it once with 'sudo apt install libnss3-tools', then press Trust CA again")
+	}
+	imported := 0
+	for _, db := range userNSSDBs() {
+		if db.label != "Firefox" {
+			// Ensure Chrome's DB exists; Firefox profile DBs always do.
+			if _, err := os.Stat(filepath.Join(db.dir, "cert9.db")); os.IsNotExist(err) {
+				_ = os.MkdirAll(db.dir, 0o700)
+				cmd := exec.Command("certutil", "-N", "-d", "sql:"+db.dir, "--empty-password")
+				if out, err := cmd.CombinedOutput(); err != nil {
+					_ = out
+					continue
+				}
+			}
+		}
+		cmd := exec.Command("certutil", "-A", "-d", "sql:"+db.dir,
+			"-n", caNickname, "-t", "C,,", "-i", caCert)
+		if out, err := cmd.CombinedOutput(); err == nil {
+			_ = out
+			imported++
+		}
+	}
+	if imported == 0 {
+		return false, fmt.Errorf("no NSS database could be updated")
+	}
+	return true, nil
 }

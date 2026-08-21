@@ -190,7 +190,8 @@ func (s *Server) handleAPIServices(w http.ResponseWriter, r *http.Request) {
 	s.json(w, resp)
 }
 
-// handleAPIMailpitToggle enables/disables Mailpit in engine.toml {enabled}.
+// handleAPIMailpitToggle enables/disables Mailpit {enabled}. Applies
+// immediately when the service manager is available, and persists to config.
 func (s *Server) handleAPIMailpitToggle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.methodNotAllowed(w, "POST")
@@ -204,15 +205,36 @@ func (s *Server) handleAPIMailpitToggle(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	s.cfg.Services.Mailpit = req.Enabled
+
+	var msg string
+	switch {
+	case req.Enabled && s.svc == nil:
+		// Service manager not wired (mailpit disabled at startup) — needs restart.
+		msg = "Mailpit enabled in config — it will start after restarting Sabdopalon."
+	case req.Enabled:
+		if err := s.svc.Start(); err != nil {
+			if err := s.cfg.Save(); err != nil {
+				s.json(w, map[string]string{"error": err.Error()})
+				return
+			}
+			msg = "Enabled in config, but could not start now: " + err.Error()
+		} else {
+			msg = "Mailpit started → " + s.svc.Status().UI
+		}
+	default:
+		_ = s.svc.Stop()
+		msg = "Mailpit stopped and disabled."
+	}
+
 	if err := s.cfg.Save(); err != nil {
 		s.json(w, map[string]string{"error": err.Error()})
 		return
 	}
-	msg := "Mailpit disabled in config (applies after restart)."
-	if req.Enabled {
-		msg = "Mailpit enabled in config. Install it from Packages if needed; starts with Sabdopalon."
+	resp := map[string]any{"ok": true, "message": msg}
+	if s.svc != nil {
+		resp["mailpit"] = s.svc.Status()
 	}
-	s.json(w, map[string]any{"ok": true, "message": msg})
+	s.json(w, resp)
 }
 
 func intPtr(n int) *int    { return &n }

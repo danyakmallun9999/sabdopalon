@@ -1,6 +1,10 @@
-# Sabdopalon
+<div align="center">
+  <img src="images/logo-text.png" alt="Sabdopalon" width="340">
+  <p><strong>Portable, cross-platform local development environment — no Apache/Nginx needed.</strong></p>
+  <p>Free forever (MIT) · Alternative to Laragon / XAMPP / Herd</p>
+</div>
 
-> 🐫 Portable, cross-platform local development environment — no Apache/Nginx needed.
+---
 
 Sabdopalon is a clean-room, open-source (MIT) alternative to Laragon/XAMPP/Herd.
 Instead of bundling heavy web server binaries, it uses a **Go reverse proxy**

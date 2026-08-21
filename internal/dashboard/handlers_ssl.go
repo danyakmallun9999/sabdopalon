@@ -22,6 +22,7 @@ func (s *Server) handleAPISSLStatus(w http.ResponseWriter, r *http.Request) {
 		"wildcard_cert":     st.WildcardCert,
 		"installed":         st.Installed,
 		"fingerprint_match": st.FingerMatch,
+		"source":            st.Source,
 		"detail":            st.Detail,
 		"https_port":        httpsPort,
 		"tld":               s.cfg.TLD,
@@ -64,29 +65,38 @@ func (s *Server) handleAPISSLWildcard(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleAPISSLTrust installs the root CA into the OS trust store (POST).
-// Without elevated rights it fails and returns exact manual instructions.
+// handleAPISSLTrust installs the root CA (POST). Prefers system-wide, falls
+// back to per-user stores needing no admin; on failure returns exact manual
+// instructions for a copyable dialog.
 func (s *Server) handleAPISSLTrust(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.methodNotAllowed(w, "POST")
 		return
 	}
-	ok, err := trust.InstallCAQuiet(s.cfg)
-	if err != nil {
-		s.json(w, map[string]string{"error": err.Error()})
-		return
-	}
+	ok, installErr := trust.InstallCAQuiet(s.cfg)
 	if !ok {
+		msg := "Automatic installation failed. Run this in a terminal:"
+		if installErr != nil {
+			msg = installErr.Error()
+		}
 		s.json(w, map[string]any{
 			"ok":       false,
 			"needs_su": true,
-			"message":  "Needs administrator rights. Run in a terminal:",
+			"message":  msg,
 			"command":  trust.ManualCommand(s.cfg),
 			"note":     firefoxNote(),
 		})
 		return
 	}
-	s.json(w, map[string]any{"ok": true, "message": "Root CA installed — restart your browser and reload.", "note": firefoxNote()})
+	where := ""
+	if st := trust.CheckStatus(s.cfg); st.Source == "user" {
+		where = " (per-user store — no admin rights needed)"
+	}
+	s.json(w, map[string]any{
+		"ok":      true,
+		"message": "Root CA trusted" + where + " — restart your browser and reload.",
+		"note":    firefoxNote(),
+	})
 }
 
 func firefoxNote() string {

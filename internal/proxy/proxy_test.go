@@ -113,6 +113,37 @@ func TestStartStopSiteLifecycle(t *testing.T) {
 	}
 }
 
+func TestStoppedSiteStaysDown(t *testing.T) {
+	s := testServer(t)
+	s.StopSite("myapp")
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
+	req.Host = "myapp.localhost"
+	s.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("stopped site should return 503, got %d", rec.Code)
+	}
+	if !contains(rec.Body.String(), "is stopped") {
+		t.Error("503 page should explain the site is stopped")
+	}
+	if s.IsRunning("myapp") {
+		t.Error("no PHP process should exist for a stopped site")
+	}
+
+	// Explicit start re-enables (will attempt PHP; tolerate missing binary by
+	// checking the flag cleared rather than requiring success).
+	_, _ = s.StartSite("myapp")
+	s.mu.Lock()
+	disabled := s.disabled["myapp"]
+	s.mu.Unlock()
+	if disabled {
+		t.Error("StartSite must clear the stopped flag")
+	}
+	s.StopAll()
+}
+
 func TestServeHTTPUnknownHostFallsBack(t *testing.T) {
 	s := testServer(t)
 	rec := httptest.NewRecorder()
