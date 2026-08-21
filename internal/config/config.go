@@ -77,13 +77,24 @@ func Load(baseDir string) (*Engine, error) {
 	return e, nil
 }
 
-// autoDetectPHP finds a php binary in PATH or common herd-lite locations.
+// autoDetectPHP finds a php binary. Priority:
+// 1. bin/php/php (downloaded by Sabdopalon's package system)
+// 2. PATH
+// 3. herd-lite / common system locations
 func autoDetectPHP() string {
-	// 1. PATH
+	// 1. Sabdopalon-downloaded PHP (bin/php/php)
+	//    We can't know RootDir here reliably, so check relative to executable.
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), "bin", "php", "php")
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
+	// 2. PATH
 	if p, err := exec.LookPath("php"); err == nil {
 		return p
 	}
-	// 2. herd-lite (Laravel Herd)
+	// 3. herd-lite (Laravel Herd) + common system paths
 	home, _ := os.UserHomeDir()
 	candidates := []string{
 		filepath.Join(home, ".config", "herd-lite", "bin", "php"),

@@ -3,6 +3,13 @@
 # Each section describes a downloadable component. Download with:
 #   sabdopalon add <name>
 # Binary is extracted to bin/<target>/.
+#
+# URL templates support placeholders:
+#   {os}      → linux, macos, windows
+#   {arch}    → x86_64, aarch64, x64
+#   {version} → the version field
+#
+# type can be: "tar.gz" (default), "binary" (single executable), "zip"
 
 [mariadb]
 version = "11.4.12"
@@ -10,7 +17,22 @@ url = "https://archive.mariadb.org/mariadb-11.4.12/bintar-linux-systemd-x86_64/m
 sha256 = "afb81282f977c599ecbb0390588b0005b304b4e87d64615a2649ecd2bd1dc16f"
 target = "mariadb"
 strip_root = true
+type = "tar.gz"
 license = "GPL-2.0 (with FOSS exception)"
+
+[php]
+# static-php.dev provides self-contained static PHP binaries with 30+ extensions
+# (pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache, etc.)
+# The tar.gz contains a single 'php' executable — no dependencies, ~8MB.
+# Source: https://dl.static-php.dev/static-php-cli/common/
+version = "8.4.8"
+url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
+sha256 = ""
+target = "php"
+strip_root = false
+type = "tar.gz"
+license = "PHP License"
 
 # [mysql]
 # version = "8.4.11"
@@ -18,11 +40,3 @@ license = "GPL-2.0 (with FOSS exception)"
 # target = "mysql"
 # strip_root = true
 # license = "GPL-2.0"
-
-# [php]
-# PHP is auto-detected from PATH/herd-lite. Download manually from:
-# https://www.php.net/downloads.php (source) or https://windows.php.net/ (Win binaries)
-# version = "8.5.9"
-# url = "https://www.php.net/distributions/php-8.5.9.tar.gz"
-# target = "php/8.5"
-# license = "PHP License"

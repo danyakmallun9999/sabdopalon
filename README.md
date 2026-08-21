@@ -35,43 +35,18 @@ all work. Tested with PHP 8.5 + MariaDB 11.4.12 on Linux Mint.
 
 ## Prerequisites
 
-Sabdopalon needs **two things** to run:
+Sabdopalon is designed to be **zero-dependency at runtime**. You only need Go
+to build it once — after that, everything else (PHP, MariaDB) is auto-downloaded.
 
-1. **PHP** — the runtime for your sites (Sabdopalon manages the proxy, not PHP itself)
-2. **Go 1.22+** — only needed to *build* Sabdopalon from source (not to run it)
+1. **Go 1.22+** — only needed to *build* Sabdopalon from source (not to run it)
+2. **PHP** — **NOT required to pre-install**. Sabdopalon auto-downloads a
+   self-contained static PHP binary (8.4.8, ~8MB, 30+ extensions including
+   pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache) on first run.
+3. **MariaDB** — **NOT required to pre-install**. Run `sabdopalon add mariadb`
+   and Sabdopalon downloads, verifies, and manages it for you.
 
-### Install PHP
-
-**Linux (Debian/Ubuntu/Mint):**
-```bash
-sudo apt update && sudo apt install -y php-cli php-sqlite3 php-mysql php-curl php-mbstring php-zip php-gd php-xml
-php -v   # verify: should show PHP 8.x
-```
-
-**macOS:**
-```bash
-# Option A: Homebrew
-brew install php
-php -v
-
-# Option B: Laravel Herd (includes PHP + GUI manager)
-# Download from https://herd.laravel.com
-```
-
-**Windows:**
-```bash
-# Option A: Download PHP from https://windows.php.net/download/
-# Extract to C:\php, add C:\php to PATH
-php -v
-
-# Option B: Use Laragon/Herd for Windows to get PHP, then run Sabdopalon separately
-
-# Option C: Scoop
-scoop install php
-```
-
-> Sabdopalon auto-detects PHP from PATH. If you have multiple PHP versions,
-> set the exact path in `config/engine.toml` → `[php] binary = "..."`.
+> If you already have PHP installed on your system, Sabdopalon will detect and
+> use it automatically. The auto-download only triggers if no PHP is found.
 
 ## Installation
 
@@ -119,24 +94,25 @@ sudo ln -s "$(pwd)/sabdopalon" /usr/local/bin/sabdopalon
 
 ## Quick start
 
-After installation (build or download), run these steps once:
+After building (or downloading) Sabdopalon, just run it — PHP downloads automatically:
 
 ```bash
-# 1. Check that everything is ready
-./sabdopalon doctor
-#    This shows: PHP version, proxy ports, DB engine, discovered sites
-#    If PHP is not found, edit config/engine.toml -> [php] binary = "/path/to/php"
+# 1. Start Sabdopalon — PHP auto-downloads on first run if not found
+./sabdopalon
+#    You'll see: "⬇ PHP not found — downloading automatically..."
+#    Then: "✓ PHP ready: bin/php/php" (PHP 8.4.8, ~8MB, with 30+ extensions)
+#    Press Ctrl+C to stop.
 
-# 2. (Optional) Download MariaDB — Sabdopalon manages it automatically
-./sabdopalon add mariadb
-#    Then set engine in config/engine.toml:
+# 2. (Optional) Use MariaDB instead of the default SQLite
+./sabdopalon add mariadb          # auto-downloads MariaDB 11.4.12
+#    Then edit config/engine.toml:
 #    [database]
 #    engine = "mariadb"
 
 # 3. (Optional) Enable HTTPS with trusted local certs
-./sabdopalon ssl:ca          # generate local root CA
-./sabdopalon ssl:wildcard    # issue *.localhost wildcard cert
-sudo ./sabdopalon ssl:trust  # install CA into OS trust store (Linux/macOS)
+./sabdopalon ssl:ca              # generate local root CA
+./sabdopalon ssl:wildcard        # issue *.localhost wildcard cert
+sudo ./sabdopalon ssl:trust      # install CA into OS trust store (Linux/macOS)
 #    On Windows, run as Administrator:
 #    sabdopalon.exe ssl:trust
 
@@ -144,9 +120,9 @@ sudo ./sabdopalon ssl:trust  # install CA into OS trust store (Linux/macOS)
 ./sabdopalon new blank myapp
 #    Templates: blank, laravel (needs composer), wordpress, codeigniter (needs composer)
 
-# 5. Start everything — proxy + DB + dashboard
-./sabdopalon
-#    Press Ctrl+C to stop. All PHP servers + DB daemon shut down gracefully.
+# 5. Check everything is ready
+./sabdopalon doctor
+#    Shows: PHP version, proxy ports, DB engine, discovered sites
 ```
 
 ## Running your sites
@@ -175,6 +151,16 @@ mkdir -p sites/myapp/public
 echo '<?php echo "Hello!";' > sites/myapp/public/index.php
 # → visit http://myapp.localhost:8080/ (no restart needed)
 ```
+
+### What gets auto-downloaded
+
+| Component | When | Size | Source |
+|---|---|---|---|
+| **PHP 8.4.8** | First `sabdopalon` run if no PHP found | ~8 MB | [static-php.dev](https://dl.static-php.dev/static-php-cli/common/) |
+| **MariaDB 11.4.12** | `sabdopalon add mariadb` | ~250 MB | [archive.mariadb.org](https://archive.mariadb.org/) |
+
+Both are verified (SHA-256 where available) and extracted into `bin/` — no
+system-wide installation, no pollution of your OS, completely portable.
 
 ### Platform notes
 

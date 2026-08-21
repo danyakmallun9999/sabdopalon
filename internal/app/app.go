@@ -151,17 +151,23 @@ Open your site at:
 
 // serve is the main command: starts the DB (if needed) + multiplexing proxy and blocks.
 func (a *App) serve() int {
+	// If PHP binary is missing or not found, auto-download it.
 	if a.Cfg.PHP.Binary == "" || !fileExists(a.Cfg.PHP.Binary) {
-		fmt.Fprintf(os.Stderr, "✗ PHP binary not found.\n")
-		fmt.Fprintf(os.Stderr, "  Edit config/engine.toml [php] binary = \"/path/to/php\"\n")
-		fmt.Fprintf(os.Stderr, "  Detected candidates: ")
-		if p, err := exec.LookPath("php"); err == nil {
-			fmt.Fprintf(os.Stderr, "%s\n", p)
-		} else {
-			fmt.Fprintf(os.Stderr, "(none in PATH)\n")
+		fmt.Println("PHP not found — auto-downloading...")
+		m, err := pkgmgr.New(a.Cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ package manager: %v\n", err)
+			return 1
 		}
-		return 1
+		phpPath, err := m.EnsurePHP()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+			fmt.Fprintf(os.Stderr, "  You can install PHP manually and set [php] binary in config/engine.toml\n")
+			return 1
+		}
+		a.Cfg.PHP.Binary = phpPath
 	}
+	fmt.Printf("  ✓  PHP: %s\n", a.Cfg.PHP.Binary)
 
 	_ = os.MkdirAll(a.Cfg.Data, 0o755)
 	_ = os.MkdirAll(a.Cfg.Logs, 0o755)
