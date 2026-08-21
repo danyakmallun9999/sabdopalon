@@ -12,17 +12,23 @@ package proxy
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
+	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
+	"github.com/sabdopalon/sabdopalon/internal/vhost"
 )
 
 // Server is the multiplexing proxy that routes *.localhost to per-site PHP.
@@ -32,10 +38,18 @@ type Server struct {
 	sites    map[string]*siteServer // host -> running PHP server for that site
 	portNext int
 	stopCh   chan struct{}
+	aliases  map[string]string // alias hostname -> canonical site name
+	Verbose  bool              // print per-site start/stop events
+
+	// Actual bound ports after low-port auto-attempt (may differ from config).
+	httpPortActual  int
+	httpsPortActual int
+	lowPortsBound   bool
 }
 
 type siteServer struct {
 	host    string
+	name    string // site folder name
 	dir     string // document root
 	port    int
 	proxy   *httputil.ReverseProxy
@@ -48,6 +62,7 @@ func New(cfg *config.Engine) *Server {
 	return &Server{
 		cfg:      cfg,
 		sites:    map[string]*siteServer{},
+		aliases:  map[string]string{},
 		portNext: 9001,
 		stopCh:   make(chan struct{}),
 	}
@@ -57,25 +72,34 @@ func New(cfg *config.Engine) *Server {
 func (s *Server) Start() error {
 	// Ensure the router script exists alongside each site.
 	s.ensureRouters()
+	s.buildAliases()
 
-	addr := fmt.Sprintf(":%d", s.cfg.Proxy.HTTPPort)
+	// Try low ports (:80/:443) first for clean URLs; fall back to the
+	// configured ports if not permitted (needs root or setcap).
+	httpPort := s.cfg.Proxy.HTTPPort
+	if canBind(80) {
+		httpPort = 80
+		s.lowPortsBound = true
+	}
+	s.httpPortActual = httpPort
+
+	errCh := make(chan error, 4)
+
 	srv := &http.Server{
-		Addr:         addr,
+		Addr:         fmt.Sprintf(":%d", httpPort),
 		Handler:      s,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 60 * time.Second,
 	}
-	fmt.Printf("  ✦  Sabdopalon proxy on http://localhost%s  (.*.%s → PHP)\n", addr, s.cfg.TLD)
-	fmt.Printf("  ✦  Dashboard: http://localhost:%d/\n", s.cfg.Proxy.HTTPPort)
 
-	errCh := make(chan error, 2)
-
-	// Optional HTTPS listener if a wildcard cert exists.
-	if s.startHTTPS(errCh) {
-		fmt.Printf("  🔒  HTTPS on https://localhost:%d\n", s.cfg.Proxy.HTTPSPort)
+	if s.Verbose {
+		fmt.Printf("  ✦  Sabdopalon proxy on http://localhost:%d  (.*.%s → PHP)\n", httpPort, s.cfg.TLD)
 	}
 
-	fmt.Printf("  ⏹  Press Ctrl+C to stop.\n\n")
+	// Optional HTTPS listener (low port preferred as well).
+	if s.startHTTPS(errCh) && s.Verbose {
+		fmt.Printf("  🔒  HTTPS on https://localhost:%d\n", s.httpsPortActual)
+	}
 
 	go func() {
 		errCh <- srv.ListenAndServe()
@@ -90,8 +114,17 @@ func (s *Server) Start() error {
 	}
 }
 
+// Ports returns the actually-bound HTTP and HTTPS ports.
+func (s *Server) Ports() (int, int) {
+	return s.httpPortActual, s.httpsPortActual
+}
+
+// LowPortsBound reports whether :80/:443 were successfully bound.
+func (s *Server) LowPortsBound() bool { return s.lowPortsBound }
+
 // startHTTPS launches an HTTPS listener if a wildcard cert for *.<tld> exists.
-// Returns true if HTTPS was started.
+// Returns true if HTTPS was started. TLS handshake rejections from browsers
+// that don't trust the local CA yet are logged once instead of per-request.
 func (s *Server) startHTTPS(errCh chan<- error) bool {
 	caCert := filepath.Join(s.cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
 	// Look for a wildcard or single cert covering the TLD.
@@ -103,21 +136,61 @@ func (s *Server) startHTTPS(errCh chan<- error) bool {
 		certPath = filepath.Join(s.cfg.RootDir, "certs", "localhost.crt")
 		keyPath = filepath.Join(s.cfg.RootDir, "certs", "localhost.key")
 		if !fileExists(certPath) || !fileExists(keyPath) {
+			s.httpsPortActual = s.cfg.Proxy.HTTPSPort
 			return false
 		}
 	}
 	_ = caCert // referenced for clarity; trust store install is separate
-	httpsAddr := fmt.Sprintf(":%d", s.cfg.Proxy.HTTPSPort)
+
+	httpsPort := s.cfg.Proxy.HTTPSPort
+	if s.lowPortsBound && canBind(443) {
+		httpsPort = 443
+	}
+	s.httpsPortActual = httpsPort
+
+	httpsAddr := fmt.Sprintf(":%d", httpsPort)
+	quietLog := log.New(&handshakeFilter{next: os.Stderr}, "", log.LstdFlags)
 	httpsSrv := &http.Server{
 		Addr:         httpsAddr,
 		Handler:      s,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 60 * time.Second,
+		ErrorLog:     quietLog,
 	}
 	go func() {
 		errCh <- httpsSrv.ListenAndServeTLS(certPath, keyPath)
 	}()
 	return true
+}
+
+// handshakeFilter suppresses repetitive client-side TLS handshake errors
+// (e.g. "remote error: tls: unknown certificate authority") which occur on
+// every request until the user trusts the local CA. Other errors pass through.
+type handshakeFilter struct {
+	next  io.Writer
+	shown map[string]bool
+	mu    sync.Mutex
+}
+
+func (f *handshakeFilter) Write(p []byte) (int, error) {
+	msg := string(p)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.shown == nil {
+		f.shown = map[string]bool{}
+	}
+	if strings.Contains(msg, "TLS handshake error") {
+		if f.shown["tls"] {
+			return len(p), nil // already warned once — swallow
+		}
+		f.shown["tls"] = true
+		hint := msg
+		if strings.Contains(msg, "unknown certificate authority") {
+			hint += "  ⚠  Browser does not trust the Sabdopalon CA yet — open the dashboard → SSL → Trust CA.\n"
+		}
+		return f.next.Write([]byte(hint))
+	}
+	return f.next.Write(p)
 }
 
 // Stop signals the proxy to shut down and kills all PHP servers.
@@ -149,6 +222,13 @@ func (s *Server) hostToSite(host string) (string, bool) {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return "", false
 	}
+	// per-site aliases (.sabdopalon.yml) take precedence
+	s.mu.Lock()
+	if name, ok := s.aliases[strings.ToLower(host)]; ok {
+		s.mu.Unlock()
+		return name, true
+	}
+	s.mu.Unlock()
 	suffix := "." + tld
 	if !strings.HasSuffix(host, suffix) {
 		return "", false
@@ -168,6 +248,35 @@ func (s *Server) hostToSite(host string) (string, bool) {
 	return name, true
 }
 
+// buildAliases pre-scans all sites for .sabdopalon.yml aliases so extra
+// domains can route to a project without editing /etc/hosts.
+func (s *Server) buildAliases() {
+	names, err := discoverSites(s.cfg)
+	if err != nil {
+		return
+	}
+	m := map[string]string{}
+	for _, n := range names {
+		sc, err := siteconfig.Load(s.cfg.Root, n)
+		if err != nil || len(sc.Aliases) == 0 {
+			continue
+		}
+		for _, a := range sc.Aliases {
+			a = strings.ToLower(strings.TrimSpace(a))
+			if a == "" {
+				continue
+			}
+			if !strings.Contains(a, ".") { // bare word → append default TLD
+				a = a + "." + s.cfg.TLD
+			}
+			m[a] = n
+		}
+	}
+	s.mu.Lock()
+	s.aliases = m
+	s.mu.Unlock()
+}
+
 // ensureSite lazily starts a PHP built-in server for the given site.
 func (s *Server) ensureSite(name string) (*siteServer, error) {
 	s.mu.Lock()
@@ -176,9 +285,30 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	if ss, ok := s.sites[host]; ok {
 		return ss, nil
 	}
+
+	// Per-site overrides from sites/<name>/.sabdopalon.yml (optional).
+	sc, scErr := siteconfig.Load(s.cfg.Root, name)
 	docroot := filepath.Join(s.cfg.Root, name, "public")
 	if _, err := os.Stat(docroot); err != nil {
 		docroot = filepath.Join(s.cfg.Root, name)
+	}
+	if scErr == nil && sc.Docroot != "" {
+		overridden := filepath.Join(s.cfg.Root, name, filepath.FromSlash(sc.Docroot))
+		if _, err := os.Stat(overridden); err == nil {
+			docroot = overridden
+		} else {
+			fmt.Printf("  ⚠  %s: docroot override %q not found — using default\n", name, sc.Docroot)
+		}
+	}
+
+	// Resolve the PHP binary: per-site version/binary wins over global default.
+	phpBin := s.cfg.PHP.Binary
+	if scErr == nil && sc.PHP != "" {
+		resolved, err := pkgmgr.ResolvePHP(filepath.Join(s.cfg.RootDir, "bin"), sc.PHP)
+		if err != nil {
+			return nil, fmt.Errorf("%s wants PHP %s: %w", name, sc.PHP, err)
+		}
+		phpBin = resolved
 	}
 
 	// Ensure the router script exists for this site (handles sites created
@@ -203,9 +333,15 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		return nil, err
 	}
 
-	router := filepath.Join(s.cfg.Root, name, ".sabdopalon-router.php")
-	php, err := startPHP(s.cfg.PHP.Binary, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path)
-	_ = router // startPHP checks for router existence internally
+	extraEnv := []string{}
+	if scErr == nil {
+		for k, v := range sc.Env {
+			extraEnv = append(extraEnv, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+	sort.Strings(extraEnv)
+
+	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv)
 	if err != nil {
 		lf.Close()
 		return nil, err
@@ -226,6 +362,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 
 	ss := &siteServer{
 		host:    host,
+		name:    name,
 		dir:     docroot,
 		port:    port,
 		proxy:   rp,
@@ -233,8 +370,57 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		logFile: lf,
 	}
 	s.sites[host] = ss
-	fmt.Printf("  ▶  %s → php :%d  (%s)\n", host, port, docroot)
+	if s.Verbose {
+		fmt.Printf("  ▶  %s → php :%d  (%s)\n", host, port, docroot)
+	}
 	return ss, nil
+}
+
+// StartSite pre-warms (starts) the PHP server for a named site.
+// Used by the dashboard so users can start sites without waiting for a request.
+func (s *Server) StartSite(name string) (*SiteInfo, error) {
+	ss, err := s.ensureSite(name)
+	if err != nil {
+		return nil, err
+	}
+	return &SiteInfo{Host: ss.host, Dir: ss.dir, Port: ss.port}, nil
+}
+
+// StopSite stops one site's PHP server. Returns true if it was running.
+func (s *Server) StopSite(name string) bool {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ss, ok := s.sites[host]
+	if !ok {
+		return false
+	}
+	_ = ss.php.stop()
+	if ss.logFile != nil {
+		_ = ss.logFile.Close()
+	}
+	delete(s.sites, host)
+	if s.Verbose {
+		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, ss.port)
+	}
+	return true
+}
+
+// RestartSite restarts one site's PHP server (picks up code-level changes
+// that require a fresh process).
+func (s *Server) RestartSite(name string) error {
+	s.StopSite(name)
+	_, err := s.StartSite(name)
+	return err
+}
+
+// IsRunning reports whether a site's PHP server is currently up.
+func (s *Server) IsRunning(name string) bool {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.sites[host]
+	return ok
 }
 
 // StopAll terminates all per-site PHP servers.
@@ -247,7 +433,9 @@ func (s *Server) StopAll() int {
 		if ss.logFile != nil {
 			_ = ss.logFile.Close()
 		}
-		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, ss.port)
+		if s.Verbose {
+			fmt.Printf("  ◾  stopped %s (php :%d)\n", host, ss.port)
+		}
 		delete(s.sites, host)
 		n++
 	}
@@ -309,77 +497,28 @@ echo "404 Not Found — create index.php or the requested file in " . $docroot;
 return true;
 `
 
-// dashboardFallback shows a friendly index when hitting bare localhost.
+// dashboardFallback routes bare localhost traffic to the real dashboard.
+// When the dashboard is disabled a minimal site index is rendered instead.
 func (s *Server) dashboardFallback(w http.ResponseWriter, r *http.Request, requestedHost string) {
-	sites, _ := discoverSites(s.cfg)
-	running := s.RunningSites()
-	runningSet := map[string]bool{}
-	for _, ri := range running {
-		runningSet[ri.Host] = true
+	if s.cfg.Dashboard.Enabled {
+		http.Redirect(w, r, fmt.Sprintf("http://localhost:%d/", s.cfg.Dashboard.Port), http.StatusFound)
+		return
 	}
-
+	sites, _ := vhost.Scan(s.cfg)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sabdopalon</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#e0e0e0;padding:2rem 1rem}
-.wrap{max-width:720px;margin:0 auto}
-h1{color:#58a6ff;margin-bottom:.3rem}
-.meta{color:#8b949e;font-size:.9rem;margin-bottom:1.5rem}
-ul{list-style:none}
-li{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border:1px solid #30363d;border-radius:10px;margin:.5rem 0;text-decoration:none;color:#e0e0e0;transition:border-color .2s}
-li:hover{border-color:#58a6ff}
-a{text-decoration:none;color:inherit;display:flex;align-items:center;gap:.5rem;flex:1}
-.badge{font-size:.7rem;padding:.15rem .5rem;border-radius:99px;background:#238636;color:#fff}
-.badge.off{background:#30363d;color:#8b949e}
-.port{color:#6e7681;font-family:monospace;font-size:.85rem}
-.empty{padding:1.2rem;color:#8b949e;text-align:center;border:1px dashed #30363d;border-radius:10px}
-.hint{margin-top:1.5rem;padding:.8rem;background:#161b22;border-radius:8px;font-family:monospace;font-size:.85rem;color:#8b949e}
-</style></head><body><div class="wrap">
-<h1>🐫 Sabdopalon</h1>
-<p class="meta">Port %d · TLD .%s · PHP %s · DB %s</p>
-<h3 style="margin-bottom:.5rem">Sites</h3>
-<ul>`, s.cfg.Proxy.HTTPPort, s.cfg.TLD, shortPHP(s.cfg.PHP.Binary), s.cfg.Database.Engine)
-
-	if len(sites) == 0 {
-		fmt.Fprintf(w, `<li class="empty">No sites yet. Run: <code>mkdir -p sites/myapp/public</code></li>`)
-	}
+	fmt.Fprintf(w, `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Sabdopalon</title></head>
+<body style="font-family:system-ui;padding:2rem;background:#0d1117;color:#e6edf3">
+<h1 style="color:#58a6ff">🐫 Sabdopalon</h1><p style="color:#8b949e">Dashboard is disabled in config.</p><ul>`)
 	for _, name := range sites {
-		host := name + "." + s.cfg.TLD
-		on := runningSet[host]
-		badge := `<span class="badge off">stopped</span>`
-		if on {
-			badge = `<span class="badge">running</span>`
-		}
-		fmt.Fprintf(w, `<li><a href="http://%s:%d/">%s</a>%s</li>`, host, s.cfg.Proxy.HTTPPort, host, badge)
+		fmt.Fprintf(w, `<li><a href="http://%s.%s:%d/">%s.%s</a></li>`,
+			name, s.cfg.TLD, s.httpPortActual, name, s.cfg.TLD)
 	}
-	fmt.Fprintf(w, `</ul>
-<div class="hint">$ mkdir -p sites/myapp/public &amp;&amp; echo '&lt;?php echo "Hello Sabdopalon";' > sites/myapp/public/index.php</div>
-</div></body></html>`)
+	fmt.Fprintf(w, "</ul></body></html>")
 }
 
-func shortPHP(p string) string {
-	if p == "" {
-		return "(not found)"
-	}
-	return filepath.Base(filepath.Dir(p)) + "/" + filepath.Base(p)
-}
-
-// discoverSites lists site folder names.
+// discoverSites lists site folder names via the shared scanner.
 func discoverSites(cfg *config.Engine) ([]string, error) {
-	entries, err := os.ReadDir(cfg.Root)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for _, e := range entries {
-		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-			names = append(names, e.Name())
-		}
-	}
-	return names, nil
+	return vhost.Scan(cfg)
 }
 
 func normalizeHost(h string) string {
@@ -391,6 +530,17 @@ func normalizeHost(h string) string {
 
 func isPortFree(port int) bool {
 	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return false
+	}
+	_ = l.Close()
+	return true
+}
+
+// canBind reports whether the process is allowed to bind a privileged
+// (low) TCP port on all interfaces.
+func canBind(port int) bool {
+	l, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return false
 	}

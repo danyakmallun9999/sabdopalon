@@ -41,3 +41,6 @@ desktop.ini
 *~
 .idea/
 .vscode/
+
+# Deleted sites (dashboard moves folders here instead of rm -rf)
+/sites/.trash/

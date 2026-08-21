@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
@@ -16,6 +18,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
+	"github.com/sabdopalon/sabdopalon/internal/services"
 	"github.com/sabdopalon/sabdopalon/internal/ssl"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/trust"
@@ -23,11 +26,13 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.3.0-dev"
+var Version = "0.5.0"
 
-// App holds the resolved config.
+// App holds the resolved config and CLI options.
 type App struct {
-	Cfg *config.Engine
+	Cfg     *config.Engine
+	Profile string // --profile overlay applied at serve-time
+	Verbose bool   // --verbose keeps detailed per-event console output
 }
 
 // New loads config relative to the executable (or cwd) and builds an App.
@@ -55,7 +60,28 @@ func baseDir() (string, error) {
 }
 
 // Run dispatches a CLI command. Returns an exit code.
+// Global flags (--profile <name>, --verbose) are extracted before dispatch.
 func (a *App) Run(args []string) int {
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		switch {
+		case args[i] == "--verbose" || args[i] == "-V":
+			a.Verbose = true
+		case args[i] == "--profile":
+			if i+1 >= len(args) {
+				fmt.Fprintln(os.Stderr, "error: --profile requires a name")
+				return 1
+			}
+			i++
+			a.Profile = args[i]
+		case strings.HasPrefix(args[i], "--profile="):
+			a.Profile = strings.TrimPrefix(args[i], "--profile=")
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	args = rest
+
 	if len(args) == 0 {
 		return a.serve() // default: start the proxy server
 	}
@@ -77,6 +103,10 @@ func (a *App) Run(args []string) int {
 		return a.pkgAdd(args[1:])
 	case "pkg:list":
 		return a.pkgList()
+	case "php:list":
+		return a.phpList()
+	case "enable-ports", "ports:enable":
+		return a.enablePorts()
 	case "ssl:ca":
 		return a.sslCA()
 	case "ssl:issue":
@@ -109,51 +139,61 @@ func (a *App) usage() int {
 	fmt.Print(`Sabdopalon — portable local dev server (v` + Version + `)
 
 Usage:
-  sabdopalon [serve]            Start proxy + DB + dashboard (default; Ctrl+C to stop)
-  sabdopalon doctor             Check config, PHP binary, and ports
+  sabdopalon [serve]            Start everything; open the web dashboard
+                                (flags: --profile <name>, --verbose)
+  sabdopalon doctor             Health check: PHP, ports, database, SSL
   sabdopalon sites              List discovered sites
-  sabdopalon new <tmpl> <name>  Create a project (templates: blank, laravel, wordpress, codeigniter)
-  sabdopalon vhost              Print reference Apache vhosts
-
-  Database:
-  sabdopalon backup             Create a database backup now
-  sabdopalon backup:list        List existing backups
+  sabdopalon new <tmpl> <name>  Create a project (templates: ` + templates.ListNames() + `)
 
   Packages:
-  sabdopalon add <pkg>          Download & install a package (e.g. mariadb)
-  sabdopalon pkg:list           List available packages + install status
+  sabdopalon add <pkg>          Install a package (mariadb, mailpit, php@8.2 …)
+  sabdopalon pkg:list           Show available packages
+  sabdopalon php:list           Show installed PHP versions
 
   SSL / HTTPS:
   sabdopalon ssl:ca             Generate the local root CA
   sabdopalon ssl:wildcard       Issue *.<tld> wildcard cert for HTTPS
   sabdopalon ssl:issue <host>   Issue a certificate for a specific host
-  sabdopalon ssl:trust          Install root CA into OS trust store (may need sudo)
+  sabdopalon ssl:trust          Trust the CA in the OS store (may need sudo)
 
-  Profiles:
-  sabdopalon profile:list                  List profiles
-  sabdopalon profile <name>                Show a profile's settings
-  sabdopalon profile:create <name>         Create a profile
-  sabdopalon profile:delete <name>          Delete a profile
+  Database:
+  sabdopalon backup             Create a database backup now
+  sabdopalon backup:list        List existing backups
 
-  sabdopalon version            Print version
-  sabdopalon help               Show this message
+  Advanced:
+  sabdopalon enable-ports       Allow binding :80/:443 for clean URLs
+  sabdopalon vhost              Print reference Apache vhosts
+  sabdopalon profile:list | profile:create | profile:delete
+  sabdopalon version | help
 
-How it works:
-  Sabdopalon runs a proxy on port ` + fmt.Sprintf("%d", a.Cfg.Proxy.HTTPPort) + ` + dashboard on ` + fmt.Sprintf("%d", a.Cfg.Dashboard.Port) + `.
-  Each site folder under sites/ becomes name.` + a.Cfg.TLD + ` automatically.
-  No Apache/Nginx needed — Sabdopalon proxies to PHP's built-in server per site.
-
-Open your site at:
-  http://example-app.` + a.Cfg.TLD + `:` + fmt.Sprintf("%d", a.Cfg.Proxy.HTTPPort) + `/
+Everything above is also clickable inside the dashboard:
+  http://localhost:` + fmt.Sprintf("%d", a.Cfg.Dashboard.Port) + `
+Sites are served at http://<name>.` + a.Cfg.TLD + ` — no Apache/Nginx needed.
 `)
 	return 0
 }
 
-// serve is the main command: starts the DB (if needed) + multiplexing proxy and blocks.
+// serve is the main command: starts the DB (if needed), optional services,
+// the multiplexing proxy and the dashboard, then blocks until Ctrl+C.
+// Console output is intentionally minimal — everything else lives in the
+// web dashboard.
 func (a *App) serve() int {
-	// If PHP binary is missing or not found, auto-download it.
+	fmt.Printf("🐫 Sabdopalon v%s\n\n", Version)
+
+	// Apply profile overlay (--profile name) before anything starts.
+	if a.Profile != "" && a.Profile != "default" {
+		cfg, err := profiles.Apply(a.Cfg, a.Profile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ profile: %v\n", err)
+			return 1
+		}
+		a.Cfg = cfg
+		fmt.Printf("  ✓  profile %q applied\n", a.Profile)
+	}
+
+	// Resolve PHP: bundled (migrating legacy layout first) → PATH → download.
+	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
 	if a.Cfg.PHP.Binary == "" || !fileExists(a.Cfg.PHP.Binary) {
-		fmt.Println("PHP not found — auto-downloading...")
 		m, err := pkgmgr.New(a.Cfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "✗ package manager: %v\n", err)
@@ -167,15 +207,15 @@ func (a *App) serve() int {
 		}
 		a.Cfg.PHP.Binary = phpPath
 	}
-	fmt.Printf("  ✓  PHP: %s\n", a.Cfg.PHP.Binary)
 
 	_ = os.MkdirAll(a.Cfg.Data, 0o755)
 	_ = os.MkdirAll(a.Cfg.Logs, 0o755)
 
 	// Start database daemon if engine is not sqlite.
 	dbMgr := database.New(a.Cfg)
+	dbMgr.Verbose = a.Verbose
 	if a.Cfg.Database.Engine != "sqlite" && a.Cfg.Database.Engine != "" {
-		fmt.Printf("Starting database (%s)...\n", a.Cfg.Database.Engine)
+		fmt.Printf("  ⏳ starting database (%s)…\n", a.Cfg.Database.Engine)
 		if err := dbMgr.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "✗ database: %v\n", err)
 			fmt.Fprintf(os.Stderr, "  (set [database] engine = \"sqlite\" in config/engine.toml for zero-setup)\n")
@@ -184,11 +224,29 @@ func (a *App) serve() int {
 	}
 
 	srv := proxy.New(a.Cfg)
+	srv.Verbose = a.Verbose
+
+	// Optional bundled services (Mailpit SMTP catcher).
+	var svcMgr *services.Manager
+	if a.Cfg.Services.Mailpit {
+		svcMgr = services.New(a.Cfg)
+		if svcMgr.Installed() {
+			if err := svcMgr.Start(); err != nil {
+				fmt.Fprintf(os.Stderr, "  ⚠ mailpit: %v\n", err)
+				svcMgr = nil
+			}
+		} else if a.Verbose {
+			fmt.Println("  ℹ  mailpit enabled but not installed — use `sabdopalon add mailpit`")
+		}
+	}
+
+	dashboard.Version = Version
+	dashURL := fmt.Sprintf("http://localhost:%d", a.Cfg.Dashboard.Port)
 
 	// Start the interactive dashboard (goroutine).
 	if a.Cfg.Dashboard.Enabled {
 		bk := backup.New(a.Cfg, 5)
-		dash := dashboard.New(a.Cfg, srv, bk)
+		dash := dashboard.New(a.Cfg, srv, bk, svcMgr)
 		go func() {
 			if err := dash.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠ dashboard: %v\n", err)
@@ -196,7 +254,7 @@ func (a *App) serve() int {
 		}()
 	}
 
-	// Handle Ctrl+C / SIGTERM gracefully: stop proxy + DB, then exit.
+	// Handle Ctrl+C / SIGTERM gracefully: stop proxy + DB + services, then exit.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -204,15 +262,56 @@ func (a *App) serve() int {
 		fmt.Println("\n\nStopping Sabdopalon...")
 		n := srv.StopAll()
 		_ = dbMgr.Stop()
+		if svcMgr != nil {
+			_ = svcMgr.Stop()
+		}
 		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
 		os.Exit(0)
 	}()
+
+	// Warn once when local HTTPS exists but browsers won't trust it yet.
+	if st := trust.CheckStatus(a.Cfg); st.CAExists && !st.Installed {
+		fmt.Println("  ⚠  Local CA is not trusted yet — HTTPS will warn in browsers.")
+		fmt.Println("     Fix it in one click: Dashboard → SSL → Trust CA")
+	} else if st.Installed && !st.FingerMatch {
+		fmt.Println("  ⚠  An older Sabdopalon CA is still trusted — re-run Trust CA from the dashboard.")
+	}
+
+	if a.Cfg.Dashboard.Enabled {
+		fmt.Printf("\n  🖥  Open your dashboard  →  %s\n\n", dashURL)
+		if a.Cfg.Dashboard.AutoOpen {
+			openBrowser(dashURL)
+		}
+	} else {
+		fmt.Printf("\n  ✦  Proxy ready on http://localhost:%d (dashboard disabled)\n\n", a.Cfg.Proxy.HTTPPort)
+	}
+
+	if !a.Verbose {
+		fmt.Println("  ⏹  Press Ctrl+C to stop. Sites: http://<name>." + a.Cfg.TLD)
+		fmt.Println("     Tip: run with --verbose for detailed logs.")
+	} else {
+		fmt.Println("  ⏹  Press Ctrl+C to stop.")
+	}
 
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ proxy error: %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// openBrowser opens url in the default browser (best-effort).
+func openBrowser(url string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", url)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	_ = cmd.Start()
 }
 
 func (a *App) doctor() int {
@@ -244,6 +343,49 @@ func (a *App) doctor() int {
 			fmt.Printf("    status  : will be created on first use\n")
 		}
 	}
+	fmt.Println()
+	fmt.Println("  SSL")
+	{
+		st := trust.CheckStatus(a.Cfg)
+		if !st.CAExists {
+			fmt.Println("    root CA  : not generated (run 'sabdopalon ssl:ca' or use the dashboard)")
+		} else {
+			fmt.Println("    root CA  : ✓ present (certs/sabdopalon-rootCA.crt)")
+			if st.WildcardCert {
+				fmt.Printf("    wildcard : ✓ *.%s\n", a.Cfg.TLD)
+			} else {
+				fmt.Println("    wildcard : — not issued yet ('sabdopalon ssl:wildcard')")
+			}
+			switch {
+			case !st.Installed:
+				fmt.Println("    trusted  : ✗ NOT in OS trust store — HTTPS will show warnings")
+				fmt.Println("                 fix: sabdopalon ssl:trust   (or dashboard → SSL)")
+			case !st.FingerMatch:
+				fmt.Println("    trusted  : ⚠ an OLDER Sabdopalon CA is trusted — re-run ssl:trust")
+			default:
+				fmt.Println("    trusted  : ✓ installed and matching")
+			}
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("  Bundled PHP versions")
+	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
+	versions := pkgmgr.InstalledVersions(filepath.Join(a.Cfg.RootDir, "bin"))
+	if len(versions) == 0 {
+		fmt.Println("    (none bundled — system PHP is used; 'sabdopalon add php' installs one)")
+	}
+	for _, v := range versions {
+		marker := " "
+		if p := pkgmgr.PHPVersionedPath(filepath.Join(a.Cfg.RootDir, "bin"), v); samePath(p, a.Cfg.PHP.Binary) {
+			marker = "*"
+		}
+		fmt.Printf("    %s %s\n", marker, v)
+	}
+	if a.Cfg.PHP.Binary != "" {
+		fmt.Printf("\n  active PHP: %s\n", a.Cfg.PHP.Binary)
+	}
+
 	fmt.Println()
 	fmt.Println("  Sites discovered:")
 	names, _ := vhost.Scan(a.Cfg)
@@ -341,7 +483,7 @@ func (a *App) sslWildcard() int {
 	return 0
 }
 
-// pkgAdd downloads and installs a package (e.g. mariadb, mysql, php).
+// pkgAdd downloads and installs a package (e.g. mariadb, mailpit, php@8.3).
 func (a *App) pkgAdd(args []string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: sabdopalon add <package>")
@@ -354,17 +496,90 @@ func (a *App) pkgAdd(args []string) int {
 		return 1
 	}
 	name := args[0]
-	if _, ok := m.Get(name); !ok {
-		fmt.Fprintf(os.Stderr, "✗ unknown package: %s\n", name)
-		fmt.Fprintln(os.Stderr, "run 'sabdopalon pkg:list' to see available packages")
+	pkg, err := m.ResolvePackageName(name)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
-	fmt.Printf("Installing %s...\n", name)
-	if err := m.Download(name); err != nil {
+	if pkg != name {
+		fmt.Printf("(%s → package %q)\n", name, pkg)
+	}
+	fmt.Printf("Installing %s...\n", pkg)
+	if err := m.Download(pkg); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
 	return 0
+}
+
+// phpList shows installed bundled PHP versions and the active default.
+func (a *App) phpList() int {
+	binRoot := filepath.Join(a.Cfg.RootDir, "bin")
+	pkgmgr.MigrateLegacyPHP(binRoot)
+
+	active := a.Cfg.PHP.Binary
+	fmt.Println("Installed bundled PHP versions:")
+	versions := pkgmgr.InstalledVersions(binRoot)
+	if len(versions) == 0 {
+		fmt.Println("  (none)")
+	}
+	for _, v := range versions {
+		p := pkgmgr.PHPVersionedPath(binRoot, v)
+		marker := " "
+		out, _ := exec.Command(p, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;").Output()
+		_ = out
+		if samePath(p, active) {
+			marker = "*"
+		}
+		fmt.Printf("  %s %-5s → %s\n", marker, v, p)
+	}
+	fmt.Println("\nInstall more:  sabdopalon add php@8.2   (8.1 – 8.5 available)")
+	if active != "" {
+		fmt.Printf("Active default: %s\n", active)
+	}
+	return 0
+}
+
+// enablePorts grants the binary permission to bind privileged ports :80/:443
+// so sites can use clean URLs without the browser port suffix.
+func (a *App) enablePorts() int {
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	switch runtime.GOOS {
+	case "linux":
+		fmt.Println("Granting cap_net_bind_service so Sabdopalon can bind :80/:443 …")
+		cmd := exec.Command("sudo", "setcap", "cap_net_bind_service=+ep", exe)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "✗ setcap failed (%v)\n", err)
+			fmt.Fprintf(os.Stderr, "  Run manually: sudo setcap 'cap_net_bind_service=+ep' %s\n", exe)
+			return 1
+		}
+		fmt.Println("✓ Done — restart sabdopalon to use http://site.<tld> without a port.")
+	case "darwin":
+		fmt.Println("On macOS, one option is a pf redirect (no root at runtime):")
+		fmt.Printf("  echo 'rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port %d' | sudo tee /etc/pf.anchors/sabdopalon\n", a.Cfg.Proxy.HTTPPort)
+		fmt.Println("  sudo pfctl -f /etc/pf.conf 2>/dev/null; sudo pfctl -e")
+		fmt.Println("Alternatively run sabdopalon with sudo once (not recommended).")
+	default:
+		fmt.Println("On Windows, ports below 1024 are not restricted — no action needed.")
+	}
+	return 0
+}
+
+func samePath(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	ra, err1 := filepath.EvalSymlinks(a)
+	rb, err2 := filepath.EvalSymlinks(b)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }
 
 // pkgList shows all packages from the registry with install status.

@@ -3,9 +3,9 @@
 > Portable, cross-platform local development environment.
 > Clean-room orchestrator over open-source components. MIT licensed, free forever.
 
-**Version:** 0.1.0
-**Status:** ✅ Functional MVP — tested with PHP 8.5 on Linux Mint 22
-**Last updated:** 2026-08-21
+**Version:** 0.5.0
+**Status:** ✅ Dashboard-first release — see CHANGELOG.md
+**Last updated:** 2026-08-22
 
 ---
 

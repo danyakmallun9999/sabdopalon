@@ -12,11 +12,14 @@
 package trust
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
@@ -74,6 +77,108 @@ func IsTrusted() bool {
 	return false
 }
 
+// Status describes whether the Sabdopalon root CA is installed in the OS
+// trust store and whether it still matches the local certs/sabdopalon-rootCA.crt.
+type Status struct {
+	CAExists     bool   `json:"ca_exists"`
+	Installed    bool   `json:"installed"`
+	FingerMatch  bool   `json:"fingerprint_match"` // false = stale trust after CA regeneration
+	WildcardCert bool   `json:"wildcard_cert"`
+	Detail       string `json:"detail,omitempty"`
+}
+
+// CheckStatus inspects local PKI state and (where possible) compares the
+// fingerprint of the trusted CA against the local one. A mismatch means the
+// CA was regenerated after being installed — every HTTPS request will be
+// rejected until it is re-trusted.
+func CheckStatus(cfg *config.Engine) Status {
+	st := Status{}
+	caPath := filepath.Join(cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
+	localPEM, err := os.ReadFile(caPath)
+	if err != nil {
+		st.Detail = "no root CA generated yet — start at step 1"
+		return st
+	}
+	st.CAExists = true
+
+	wildcard := filepath.Join(cfg.RootDir, "certs", "*."+cfg.TLD+".crt")
+	if _, err := os.Stat(wildcard); err == nil {
+		st.WildcardCert = true
+	}
+
+	switch runtime.GOOS {
+	case "linux":
+		sysPEM, err := os.ReadFile("/usr/local/share/ca-certificates/sabdopalon-rootCA.crt")
+		if err != nil {
+			st.Detail = "not installed in the OS trust store"
+			return st
+		}
+		st.Installed = true
+		st.FingerMatch = sha256Equal(localPEM, sysPEM)
+	case "darwin":
+		out, err := exec.Command("security", "find-certificate", "-c", "Sabdopalon Local Root CA", "-p").Output()
+		if err != nil || len(out) == 0 {
+			st.Detail = "not installed in the macOS keychain"
+			return st
+		}
+		st.Installed = true
+		st.FingerMatch = sha256Equal(localPEM, out)
+	default: // windows and others: presence check only
+		st.Installed = IsTrusted()
+		st.FingerMatch = st.Installed
+	}
+
+	if st.Installed && !st.FingerMatch {
+		st.Detail = "an OLDER Sabdopalon CA is still trusted — run Trust CA again"
+	}
+	return st
+}
+
+func sha256Equal(a, b []byte) bool {
+	ha := sha256.Sum256(bytes.TrimSpace(a))
+	hb := sha256.Sum256(bytes.TrimSpace(b))
+	return ha == hb
+}
+
+// InstallCAQuiet installs the CA like InstallCA but without console output,
+// for use by the dashboard API. Returns ok=false when elevation is required.
+func InstallCAQuiet(cfg *config.Engine) (bool, error) {
+	caCert := filepath.Join(cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
+	if !fileExists(caCert) {
+		return false, fmt.Errorf("root CA not found — generate it first")
+	}
+	var ok bool
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		ok, err = installLinuxQuiet(caCert)
+	case "darwin":
+		_, err = exec.Command("security", "add-trusted-cert", "-d", "-r", "trustRoot",
+			"-k", "/Library/Keychains/System.keychain", caCert).CombinedOutput()
+		ok = err == nil
+	case "windows":
+		_, err = exec.Command("certutil", "-addstore", "-f", "Root", caCert).CombinedOutput()
+		ok = err == nil
+	}
+	return ok, err
+}
+
+// ManualCommand returns the exact terminal command a user should run when
+// automatic trust installation fails due to missing privileges.
+func ManualCommand(cfg *config.Engine) string {
+	caCert := filepath.Join(cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
+	switch runtime.GOOS {
+	case "linux":
+		return fmt.Sprintf("sudo cp %s /usr/local/share/ca-certificates/sabdopalon-rootCA.crt && sudo update-ca-certificates", caCert)
+	case "darwin":
+		return fmt.Sprintf("sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain %s", caCert)
+	case "windows":
+		return "Run this app as Administrator once, then press Trust CA."
+	default:
+		return ""
+	}
+}
+
 func installLinux(caCert string) (bool, error) {
 	dest := "/usr/local/share/ca-certificates/sabdopalon-rootCA.crt"
 	if err := copyFile(caCert, dest); err != nil {
@@ -91,6 +196,21 @@ func installLinux(caCert string) (bool, error) {
 		fmt.Printf("  ⚠  update-ca-certificates failed: %s\n", string(out))
 		fmt.Printf("     Run manually: sudo update-ca-certificates\n")
 		return false, nil
+	}
+	return true, nil
+}
+
+// installLinuxQuiet is the console-free variant used by the dashboard.
+func installLinuxQuiet(caCert string) (bool, error) {
+	dest := "/usr/local/share/ca-certificates/sabdopalon-rootCA.crt"
+	if err := copyFile(caCert, dest); err != nil {
+		if os.IsPermission(err) {
+			return false, nil // needs sudo — caller shows manual command
+		}
+		return false, err
+	}
+	if out, err := exec.Command("update-ca-certificates").CombinedOutput(); err != nil {
+		return false, fmt.Errorf("update-ca-certificates: %s", strings.TrimSpace(string(out)))
 	}
 	return true, nil
 }

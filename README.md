@@ -2,12 +2,16 @@
 
 > 🐫 Portable, cross-platform local development environment — no Apache/Nginx needed.
 
-Sabdopalon is a clean-room, open-source (MIT) alternative to Laragon/XAMPP.
+Sabdopalon is a clean-room, open-source (MIT) alternative to Laragon/XAMPP/Herd.
 Instead of bundling heavy web server binaries, it uses a **Go reverse proxy**
 that routes `*.localhost` domains to per-site PHP built-in servers — one process
 per project, started on demand. Databases are handled by SQLite (zero-setup) or
-MariaDB (auto-downloaded & managed). Includes an interactive web dashboard,
-project templates, database backups, SSL trust store integration, and profiles.
+MariaDB (auto-downloaded & managed).
+
+**Dashboard-first:** run `sabdopalon` once and everything happens in the browser —
+create sites from templates, start/stop them, install PHP versions / MariaDB /
+Mailpit, set up trusted HTTPS in three clicks, edit settings, browse logs and
+take database backups. No config files required.
 
 **Why this is better than Laragon/XAMPP:**
 
@@ -19,8 +23,10 @@ project templates, database backups, SSL trust store integration, and profiles.
 | Pretty URLs | ✓ (needs hosts edit) | ✗ | **✓ (.localhost auto-resolves)** |
 | Per-site PHP | ✓ | ✗ | **✓ (one server per site)** |
 | DB setup | Manual MySQL config | Manual MySQL config | **SQLite zero-setup OR MariaDB auto-managed** |
-| HTTPS | Complex | ✗ | **✓ one-command wildcard cert** |
-| Dashboard | ✗ | ✗ | **✓ interactive web UI (port 9900)** |
+| Multi-PHP versions | ✓ | ✗ | **✓ 8.1 – 8.5 side by side, per-site pinning** |
+| Mail catcher | Paid/extra | ✗ | **✓ bundled Mailpit** |
+| HTTPS | Complex | ✗ | **✓ 3-click wizard, auto trust detection** |
+| Dashboard | Basic | phpMyAdmin only | **✓ full control panel — manage everything from the browser** |
 | Project templates | ✗ | ✗ | **✓ blank, Laravel, WordPress, CodeIgniter** |
 | DB backups | ✗ | ✗ | **✓ one-command + auto-prune** |
 | Profiles | ✓ (v7+) | ✗ | **✓ multiple PHP/DB version sets** |
@@ -28,10 +34,11 @@ project templates, database backups, SSL trust store integration, and profiles.
 
 ## Status
 
-`v0.4.0` — **feature-complete**. All Phase 1-4 features implemented and tested.
-Proxy routing, per-site PHP, SQLite, MariaDB daemon, HTTPS, interactive dashboard,
-project templates, DB backups, profiles, SSL trust store, and graceful shutdown
-all work. Tested with PHP 8.5 + MariaDB 11.4.12 on Linux Mint.
+`v0.5.0` — dashboard-first release. Proxy routing, per-site PHP with version
+pinning, multi-PHP (8.1–8.5), SQLite/MariaDB, HTTPS wizard with trust
+detection, full web dashboard, project templates, DB backups, profiles,
+Mailpit mail catcher, clean URLs on :80/:443 (`enable-ports`), checksum-verified
+package installs, and graceful shutdown. Unit tests + CI on Linux/macOS/Windows.
 
 ## Prerequisites
 
@@ -215,43 +222,64 @@ system-wide installation, no pollution of your OS, completely portable.
 
 ## Commands
 
+Everything below is also clickable in the dashboard — the CLI is optional.
+
 | Command | Description |
 |---|---|
-| `sabdopalon` (or `serve`) | Start proxy + DB + dashboard (default) |
-| `sabdopalon doctor` | Check config, PHP binary, ports, DB |
+| `sabdopalon` (or `serve`) | Start everything and open the dashboard (`--profile <name>`, `--verbose`) |
+| `sabdopalon doctor` | Health check: PHP, ports, DB, SSL trust, bundled versions |
 | `sabdopalon sites` | List discovered sites + URLs |
 | `sabdopalon new <tmpl> <name>` | Create project (templates: blank, laravel, wordpress, codeigniter) |
-| `sabdopalon backup` | Create a database backup now |
-| `sabdopalon backup:list` | List existing backups |
-| `sabdopalon add <pkg>` | Download & install a package (e.g. `mariadb`) |
-| `sabdopalon pkg:list` | List available packages + install status |
-| `sabdopalon ssl:ca` | Generate local root CA |
-| `sabdopalon ssl:wildcard` | Issue `*.<tld>` wildcard cert for HTTPS |
-| `sabdopalon ssl:issue <host>` | Issue a certificate for a specific host |
-| `sabdopalon ssl:trust` | Install root CA into OS trust store |
-| `sabdopalon profile:list` | List all profiles |
-| `sabdopalon profile <name>` | Show a profile's settings |
-| `sabdopalon profile:create <name> [php] [db] [desc]` | Create a profile |
-| `sabdopalon profile:delete <name>` | Delete a profile |
+| `sabdopalon add <pkg>` | Install package: `mariadb`, `mailpit`, `php@8.2` … |
+| `sabdopalon pkg:list` | Available packages + install status |
+| `sabdopalon php:list` | Bundled PHP versions (8.1–8.5) with active default |
+| `sabdopalon ssl:ca` / `ssl:wildcard` / `ssl:issue <host>` / `ssl:trust` | Local HTTPS in four steps |
+| `sabdopalon enable-ports` | Allow clean URLs on :80/:443 (Linux setcap helper) |
+| `sabdopalon backup` / `backup:list` | Database backups |
+| `sabdopalon profile:create/list/delete` | Environment profiles |
 | `sabdopalon vhost` | Print reference Apache vhosts |
-| `sabdopalon version` | Print version |
-| `sabdopalon help` | Show help |
+| `sabdopalon version` / `help` | Meta |
+
+### Per-site configuration (`.sabdopalon.yml`)
+
+Drop this file into any site folder for per-project overrides:
+
+```yaml
+php: "8.3"          # version from `add php@8.3`, or a path/PATH command
+docroot: public     # document root relative to the site folder
+aliases:            # extra domains routed to this site automatically
+  - www.myapp.test
+env:
+  APP_ENV: local
+```
 
 ## Dashboard
 
-The interactive dashboard runs on `http://localhost:9900/` and provides:
+The dashboard binds to `127.0.0.1` only and is the single control surface:
 
-- **Status panel** — version, uptime, PHP, DB, ports
-- **Sites list** — running/stopped status, click-through links (HTTP + HTTPS)
-- **Backups** — one-click backup creation, list of existing backups
-- **Logs viewer** — per-site PHP logs, auto-refreshed
+| Page | What you can do |
+|---|---|
+| 🌐 Sites | Create from templates, open, start/stop/restart, delete → `.trash/` |
+| 🗄️ Database | Engine status, one-click backups + retention pruning |
+| 📦 Packages | Install MariaDB, Mailpit, PHP 8.1–8.5 with live progress |
+| 🔒 SSL | CA → wildcard → trust wizard; detects stale/untrusted CAs |
+| ⚙️ Settings | TLD, ports, DB engine, auto-open, Mailpit toggle; apply profiles |
+| 📜 Logs | Live per-site PHP, DB and Mailpit logs |
 
-API endpoints:
-- `GET /api/status` — system status JSON
-- `GET /api/sites` — discovered sites + running status
-- `GET /api/logs/<sitename>` — last 100 log lines
-- `POST /api/backup` — trigger a database backup
-- `GET /api/backups` — list existing backups
+JSON API (used by the UI, also handy for scripting): `/api/status`, `/api/sites`
+(GET/POST), `/api/sites/<name>/start|stop|restart` (POST), `/api/sites/<name>`
+(DELETE), `/api/packages`, `/api/packages/install` + `/api/packages/job`,
+`/api/ssl` (+ `/ca`, `/wildcard`, `/trust`), `/api/config` (GET/PUT),
+`/api/profiles` (+ `/apply`), `/api/services`, `/api/backup(s)`, `/api/logs/<name>`.
+
+### Clean URLs (`https://myapp.localhost` — no port)
+
+Sabdopalon automatically tries ports 80/443 first. Without privileges it falls
+back to 8080/8443. To allow low ports permanently:
+
+```bash
+./sabdopalon enable-ports   # Linux: sudo setcap cap_net_bind_service=+ep <binary>
+```
 
 ## Environment variables (available in PHP)
 

@@ -22,9 +22,10 @@ import (
 
 // Manager owns the database daemon process.
 type Manager struct {
-	cfg   *config.Engine
-	cmd   *exec.Cmd
-	ready bool
+	cfg     *config.Engine
+	cmd     *exec.Cmd
+	ready   bool
+	Verbose bool
 }
 
 // New creates a DB Manager.
@@ -70,7 +71,9 @@ func (m *Manager) Start() error {
 	socket := filepath.Join(socketDir, "mysqld.sock")
 	args := m.startArgs(binary, dataDir, socket)
 
-	fmt.Printf("  ▶  %s starting on port %d ...\n", engine, m.cfg.Database.Port)
+	if m.Verbose {
+		fmt.Printf("  ▶  %s starting on port %d ...\n", engine, m.cfg.Database.Port)
+	}
 	cmd := exec.Command(binary, args...)
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
@@ -90,7 +93,7 @@ func (m *Manager) Start() error {
 		return fmt.Errorf("%s did not start (see logs/%s.log)", engine, engine)
 	}
 	m.ready = true
-	fmt.Printf("  ✓  %s ready (port %d)\n", engine, m.cfg.Database.Port)
+	fmt.Printf("  ✓  %s ready on port %d\n", engine, m.cfg.Database.Port)
 	return nil
 }
 
@@ -103,7 +106,9 @@ func (m *Manager) Stop() error {
 	signalTerm(m.cmd.Process)
 	time.Sleep(500 * time.Millisecond)
 	_ = m.cmd.Process.Kill()
-	fmt.Printf("  ◾  %s stopped\n", m.cfg.Database.Engine)
+	if m.Verbose {
+		fmt.Printf("  ◾  %s stopped\n", m.cfg.Database.Engine)
+	}
 	return nil
 }
 

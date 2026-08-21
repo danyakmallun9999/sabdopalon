@@ -13,10 +13,11 @@ type managedPHP struct {
 	cmd *exec.Cmd
 }
 
-// startPHP launches: php -S 127.0.0.1:<port> -t <docroot> -r <router>
+// startPHP launches: php -S 127.0.0.1:<port> -t <docroot> <router>
 // with stdout/stderr redirected to logFile. Environment variables for the
-// database connection are injected so PHP apps can use them.
-func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string) (*managedPHP, error) {
+// database connection are injected so PHP apps can use them, plus any
+// per-site extra env vars from .sabdopalon.yml.
+func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string) (*managedPHP, error) {
 	router := docroot + "/../.sabdopalon-router.php"
 	args := []string{
 		"-S", fmt.Sprintf("127.0.0.1:%d", port),
@@ -30,12 +31,15 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = docroot
-	// Inject Sabdopalon env so PHP apps can discover DB settings.
-	cmd.Env = append(os.Environ(),
+	// Inject Sabdopalon env so PHP apps can discover DB settings,
+	// then any per-site overrides from .sabdopalon.yml.
+	env := append(os.Environ(),
 		"SABDOPALON=1",
 		fmt.Sprintf("SABDOPALON_DB_ENGINE=%s", dbEngine),
 		fmt.Sprintf("SABDOPALON_DB_PATH=%s", dbPath),
 	)
+	env = append(env, extraEnv...)
+	cmd.Env = env
 	// Put the process in its own process group so we can kill the whole tree.
 	attr := &syscall.SysProcAttr{}
 	setProcessGroup(attr)
