@@ -164,7 +164,7 @@ func (a *App) serveSetupMode() int {
 
 	srv := proxy.New(cfg)
 	bk := backup.New(cfg, 5)
-	dash := dashboard.New(cfg, srv, bk, nil)
+	dash := dashboard.New(cfg, srv, bk, nil, nil)
 
 	// Serve until SIGINT/SIGTERM; the desktop app quits the sidecar the same
 	// way a Ctrl+C would.

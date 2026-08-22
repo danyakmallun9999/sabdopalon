@@ -8,6 +8,7 @@ export type Status = {
   low_ports: boolean
   tld: string
   database: string
+  db_running?: boolean
   php?: string
   sites_count: number
   services: boolean
@@ -244,6 +245,11 @@ const api = {
   setupJob: () => request<SetupJob>("/api/setup/job"),
 
   traffic: () => request<TrafficStats>("/api/stats/traffic"),
+
+  databaseControl: (action: "start" | "stop" | "restart") =>
+    post<{ ok: boolean; engine: string; db_running: boolean; message?: string; error?: string }>(
+      `/api/database/${action}`,
+    ),
 }
 
 export default api

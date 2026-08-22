@@ -25,6 +25,7 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
 )
@@ -38,17 +39,19 @@ type Server struct {
 	proxy   *proxy.Server
 	backup  *backup.Manager
 	svc     *services.Manager // nil when no optional service is enabled
+	db      *database.Manager // nil in setup-mode
 	mux     *http.ServeMux
 	started time.Time
 }
 
-// New creates a dashboard Server. svc may be nil.
-func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services.Manager) *Server {
+// New creates a dashboard Server. svc and db may be nil (setup mode).
+func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services.Manager, db *database.Manager) *Server {
 	s := &Server{
 		cfg:     cfg,
 		proxy:   px,
 		backup:  bk,
 		svc:     svc,
+		db:      db,
 		mux:     http.NewServeMux(),
 		started: time.Now(),
 	}
@@ -88,6 +91,9 @@ func (s *Server) routes() {
 
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
+
+	// API: database control
+	s.mux.HandleFunc("/api/database/{action}", s.handleAPIDatabaseControl)
 
 	// API: setup (first-run wizard; setup-mode server)
 	s.mux.HandleFunc("/api/setup/status", s.handleAPISetupStatus)

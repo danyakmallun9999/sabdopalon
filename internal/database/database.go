@@ -147,7 +147,19 @@ func (m *Manager) Stop() error {
 	if m.Verbose {
 		fmt.Printf("  ◾  %s stopped\n", m.cfg.Database.Engine)
 	}
+	m.cmd = nil
+	m.ready = false
 	return nil
+}
+
+// Restart stops and starts the database daemon (no-op for sqlite).
+func (m *Manager) Restart() error {
+	if m.cfg.Database.Engine == "sqlite" || m.cfg.Database.Engine == "" {
+		m.ready = true
+		return nil
+	}
+	_ = m.Stop()
+	return m.Start()
 }
 
 // Ready reports whether the DB is available (true for sqlite).

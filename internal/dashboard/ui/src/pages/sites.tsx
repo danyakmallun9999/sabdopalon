@@ -497,12 +497,12 @@ export default function SitesPage() {
             <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
           </div>
 
-          {/* Panel terminal — tinggi pasti agar xterm fit tidak memperluas panel */}
+          {/* Panel terminal — tinggi penuh (dvh) agar xterm fit tidak memperluas panel */}
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background lg:border-l"
             style={
               isDesktop
-                ? { width: termWidth, height: "calc(100vh - 11rem)" }
+                ? { width: termWidth, height: "calc(100dvh - 8rem)" }
                 : { height: termHeight }
             }
           >

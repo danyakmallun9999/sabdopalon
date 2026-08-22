@@ -313,7 +313,7 @@ func (a *App) serve() int {
 	// Start the interactive dashboard (goroutine).
 	if a.Cfg.Dashboard.Enabled {
 		bk := backup.New(a.Cfg, 5)
-		dash := dashboard.New(a.Cfg, srv, bk, svcMgr)
+		dash := dashboard.New(a.Cfg, srv, bk, svcMgr, dbMgr)
 		go func() {
 			if err := dash.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠ dashboard: %v\n", err)

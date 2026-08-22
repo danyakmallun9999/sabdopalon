@@ -47,7 +47,7 @@ func TestTrashSiteRejectsInvalidNames(t *testing.T) {
 
 func testServer(t *testing.T) *Server {
 	dir := t.TempDir()
-	return New(&config.Engine{RootDir: dir, TLD: "localhost"}, nil, nil, nil)
+	return New(&config.Engine{RootDir: dir, TLD: "localhost"}, nil, nil, nil, nil)
 }
 
 func TestSpaFallback(t *testing.T) {

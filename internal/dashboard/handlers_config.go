@@ -19,6 +19,12 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpPort, httpsPort := s.proxy.Ports()
+	dbRunning := false
+	if s.db != nil {
+		dbRunning = s.db.Ready()
+	} else if s.cfg.Database.Engine == "sqlite" || s.cfg.Database.Engine == "" {
+		dbRunning = true // sqlite is always available
+	}
 	resp := map[string]any{
 		"version":     Version,
 		"uptime":      time.Since(s.started).Round(time.Second).String(),
@@ -27,6 +33,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		"low_ports":   s.proxy.LowPortsBound(),
 		"tld":         s.cfg.TLD,
 		"database":    s.cfg.Database.Engine,
+		"db_running":  dbRunning,
 		"sites_count": len(s.proxy.RunningSites()),
 		"services":    s.svcRunning(),
 	}
