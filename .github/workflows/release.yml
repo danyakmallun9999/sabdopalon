@@ -94,13 +94,18 @@ jobs:
           CGO_ENABLED: "0"
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: go build -ldflags="-s -w" -o ${{ matrix.binary }} ./cmd/sabdopalon
+        run: |
+          go build -ldflags="-s -w" -o ${{ matrix.binary }} ./cmd/sabdopalon
+          # Upload with the FINAL asset name so the release job can flatten.
+          name="sabdopalon-${{ matrix.os }}-${{ matrix.arch }}"
+          case "${{ matrix.binary }}" in *.exe) name="$name.exe";; esac
+          cp "${{ matrix.binary }}" "$name"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: sabdopalon-${{ matrix.os }}-${{ matrix.arch }}
-          path: ${{ matrix.binary }}
+          path: sabdopalon-${{ matrix.os }}-${{ matrix.arch }}*
 
   release:
     name: Create GitHub Release
@@ -109,42 +114,22 @@ jobs:
     timeout-minutes: 10
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
-      - name: Download all artifacts
+      - name: Download build artifacts (flat)
         uses: actions/download-artifact@v4
         with:
+          pattern: sabdopalon-*
           path: dist
+          merge-multiple: true
 
-      - name: Prepare release assets
+      - name: Package release assets
         run: |
           set -e
+          cd dist
           shopt -s nullglob
-          mkdir assets
-          # Each artifact downloads into its own subdirectory:
-          #   dist/sabdopalon-<os>-<arch>/sabdopalon[.exe]
-          # Move binaries to a clean staging dir (the target filename equals
-          # the artifact dir name, so copying in place would collide).
-          for d in sabdopalon-*/; do
-            d="${d%/}"
-            suffix="${d#sabdopalon-}"
-            case "$suffix" in
-              windows-*) bin="$d/sabdopalon.exe"; ext=".exe" ;;
-              *)         bin="$d/sabdopalon";    ext="" ;;
-            esac
-            test -f "$bin" || { echo "::error::missing $bin"; exit 1; }
-            mv "$bin" "assets/sabdopalon-${suffix}${ext}"
-            rm -rf "$d"
-          done
-          cd assets
-          # Compress: tar.gz for Linux/macOS, zip for Windows.
-          for f in *; do
-            case "$f" in
-              *.exe) zip -q "${f}.zip" "$f" ;;
-              *)     tar czf "${f}.tar.gz" "$f" ;;
-            esac
-          done
-          mv *.tar.gz *.zip ..
-          echo "Release assets ready:"
-          ls -lh ..
+          for f in sabdopalon-windows-*.exe; do zip -q "$f.zip" "$f"; done
+          for f in sabdopalon-linux-* sabdopalon-macos-*; do tar czf "$f.tar.gz" "$f"; done
+          rm -f sabdopalon-linux-* sabdopalon-macos-* sabdopalon-windows-*.exe
+          echo "Assets ready:"; ls -lh
 
       - name: Verify assets exist (fail loud, never ship an empty release)
         run: |
