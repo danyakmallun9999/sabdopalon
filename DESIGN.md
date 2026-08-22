@@ -389,8 +389,14 @@ https_port = 8443
 binary = "/path/to/php"         # empty = auto-detect
 
 [database]
-engine = "sqlite"              # sqlite | mariadb | mysql | postgresql
+engine = "mariadb"             # primary (wizard default, backup target)
 path = "./data/sabdopalon.db"
+port = 3306                    # legacy alias → mariadb_port
+# Multi-daemon: every database may run at once ("default aktif semua").
+mariadb_enabled = true
+mariadb_port = 3306
+pg_enabled = true
+pg_port = 5433                 # avoids a system postgres on 5432
 
 [services]
 mailpit = false                # local e-mail catcher (:1025 SMTP, :8025 UI)

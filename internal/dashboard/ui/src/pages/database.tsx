@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import { HardDriveDownload, Play, RotateCw, Square } from "lucide-react"
 
-import api, { poll, type Backup, type ConfigPayload, type Status } from "@/lib/api"
+import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,13 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
   Table,
   TableBody,
@@ -31,26 +25,42 @@ import {
 
 type DbAction = "start" | "stop" | "restart"
 
-// Engines offered in the picker. MySQL is deliberately absent — MariaDB is a
-// drop-in replacement; a legacy config value still renders correctly below.
-const ENGINES = [
-  { id: "sqlite", label: "SQLite" },
-  { id: "mariadb", label: "MariaDB" },
-  { id: "postgresql", label: "PostgreSQL" },
-]
+type DaemonCfg = {
+  key: "mariadb" | "postgresql"
+  label: string
+  enabled?: boolean
+  port?: number
+  installed?: boolean
+}
+
+// Every daemon gets its own card and can run at the same time — each with
+// its own port ("default aktif semua").
+function daemonCards(cfg: ConfigPayload): DaemonCfg[] {
+  return [
+    {
+      key: "mariadb",
+      label: "MariaDB",
+      enabled: cfg.db_mariadb_enabled ?? true,
+      port: cfg.db_mariadb_port ?? 3306,
+      installed: cfg.db_installed?.mariadb ?? false,
+    },
+    {
+      key: "postgresql",
+      label: "PostgreSQL",
+      enabled: cfg.db_pg_enabled ?? true,
+      port: cfg.db_pg_port ?? 5433,
+      installed: cfg.db_installed?.postgresql ?? false,
+    },
+  ]
+}
 
 export default function DatabasePage() {
   const [cfg, setCfg] = useState<ConfigPayload>({})
-  const [status, setStatus] = useState<Status | null>(null)
   const [backups, setBackups] = useState<Backup[]>([])
-  const [busyAction, setBusyAction] = useState<DbAction | null>(null)
+  const [busyKey, setBusyKey] = useState<string | null>(null)
   const [busyBackup, setBusyBackup] = useState(false)
-  const [saving, setSaving] = useState(false)
-
-  // Draft edits are saved explicitly (engine/port need a restart anyway).
-  const [draftEngine, setDraftEngine] = useState("sqlite")
-  const [draftPort, setDraftPort] = useState<number | "">("")
-  // Sync drafts only once per fresh page load — never while the user edits.
+  const [ports, setPorts] = useState<Record<string, number | "">>({})
+  // Port drafts sync once per load; polling never clobbers edits.
   const syncedRef = useRef(false)
 
   useEffect(() => {
@@ -59,58 +69,68 @@ export default function DatabasePage() {
       if (c) {
         setCfg(c)
         if (!syncedRef.current) {
-          setDraftEngine(c.db_engine || "sqlite")
-          setDraftPort(c.db_port ?? "")
+          setPorts({
+            mariadb: c.db_mariadb_port ?? 3306,
+            postgresql: c.db_pg_port ?? 5433,
+          })
           syncedRef.current = true
         }
       }
-      setStatus(await api.status().catch(() => null))
       const b = await api.listBackups().catch(() => [])
       setBackups(Array.isArray(b) ? b : [])
     }
     first()
     const t = poll(async () => {
       api.getConfig().then(setCfg).catch(() => {})
-      api.status().then(setStatus).catch(() => {})
       const b = await api.listBackups().catch(() => [])
       setBackups(Array.isArray(b) ? b : [])
     }, 6000)
     return () => clearInterval(t)
   }, [])
 
-  const engine = cfg.db_engine || "sqlite"
-  const running =
-    engine === "sqlite" || engine === "" ? true : (status?.db_running ?? false)
+  function setPort(key: string, v: number | "") {
+    setPorts((p) => ({ ...p, [key]: v }))
+  }
 
-  async function save() {
-    setSaving(true)
+  async function savePort(key: "mariadb" | "postgresql") {
+    const field = key === "mariadb" ? "db_mariadb_port" : "db_pg_port"
+    const v = ports[key]
+    if (v === "" || !v) return
     try {
-      await api.saveConfig({
-        db_engine: draftEngine,
-        db_port: draftPort === "" ? undefined : Number(draftPort),
-      })
-      toast.success("Pengaturan database disimpan", {
-        description:
-          draftEngine !== engine
-            ? `Engine ${engine} → ${draftEngine}. Restart Sabdopalon untuk menerapkan.`
-            : "Perubahan port berlaku setelah restart.",
+      await api.saveConfig({ [field]: Number(v) })
+      toast.success(`Port ${key} disimpan`, {
+        description: "Berlaku setelah restart daemon (Restart di kartu ini) atau restart Sabdopalon.",
       })
     } catch {
-      toast.error("Gagal menyimpan pengaturan")
-    } finally {
-      setSaving(false)
+      toast.error("Gagal menyimpan port")
     }
   }
 
-  async function doAction(a: DbAction) {
-    setBusyAction(a)
+  async function toggleEnabled(key: "mariadb" | "postgresql", enabled: boolean) {
+    const field = key === "mariadb" ? "db_mariadb_enabled" : "db_pg_enabled"
     try {
-      const r = await api.databaseControl(a)
-      if (r.error) toast.error(`${a}: ${r.error}`)
-      else toast.success(`Database ${a} — OK`)
-      setStatus(await api.status().catch(() => null))
+      await api.saveConfig({ [field]: enabled })
+      toast.success(
+        `${key} ${enabled ? "diaktifkan" : "dinonaktifkan"}`,
+        { description: enabled ? "Daemon sedang dinyalakan…" : undefined },
+      )
+      setTimeout(async () => {
+        const c = await api.getConfig().catch(() => null)
+        if (c) setCfg(c)
+        }, 1500)
+    } catch {
+      toast.error("Gagal mengubah status")
+    }
+  }
+
+  async function doAction(key: "mariadb" | "postgresql", a: DbAction) {
+    setBusyKey(key + a)
+    try {
+      const r = await api.databaseControl(key, a)
+      if (r.error) toast.error(`${key} ${a}: ${r.error}`)
+      else toast.success(`${key}: ${a} OK`)
     } finally {
-      setBusyAction(null)
+      setBusyKey(null)
     }
   }
 
@@ -127,103 +147,123 @@ export default function DatabasePage() {
     }
   }
 
-  const dirty =
-    draftEngine !== engine || Number(draftPort) !== (cfg.db_port ?? -1)
-
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-col gap-1.5">
-              <CardTitle>Engine</CardTitle>
-              <CardDescription>
-                {engine === "sqlite"
-                  ? "SQLite siap pakai tanpa setup — filenya di data/sabdopalon.db."
-                  : `Daemon ${engine} berjalan sebagai bagian dari Sabdopalon.`}
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={running ? "default" : "outline"}>
-                {running ? "berjalan" : "berhenti"}
-              </Badge>
-              <span className="text-muted-foreground text-sm font-medium">{engine}</span>
-            </div>
-          </div>
+      {/* One card per database engine — all can run simultaneously. */}
+      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+        {daemonCards(cfg).map((d) => {
+          const running = cfg.db_states?.[d.key] ?? false
+          const err = cfg.db_errors?.[d.key]
+          const dirty = ports[d.key] !== undefined && Number(ports[d.key]) !== d.port
+          return (
+            <Card key={d.key}>
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <CardTitle>{d.label}</CardTitle>
+                    <CardDescription>
+                      Port {running ? `aktif di :${d.port}` : `: ${d.port}`}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={running ? "default" : "outline"}>
+                      {running ? "berjalan" : "berhenti"}
+                    </Badge>
+                    <Switch
+                      checked={!!d.enabled}
+                      onCheckedChange={(v) => toggleEnabled(d.key, v === true)}
+                      title={d.enabled ? "Nonaktifkan daemon ini" : "Aktifkan daemon ini"}
+                    />
+                  </div>
+                </div>
 
-          {/* Lifecycle controls for daemon engines */}
-          {engine !== "sqlite" && engine !== "" && (
-            <div className="mt-3 flex items-center gap-2">
-              {!running && (
-                <Button size="sm" disabled={busyAction !== null} onClick={() => doAction("start")}>
-                  <Play /> Start
-                </Button>
-              )}
-              {running && (
-                <Button size="sm" variant="outline" disabled={busyAction !== null} onClick={() => doAction("stop")}>
-                  <Square /> Stop
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={busyAction !== null || !running}
-                onClick={() => doAction("restart")}
-              >
-                <RotateCw /> Restart
-              </Button>
-              {busyAction && (
-                <span className="text-muted-foreground text-xs">{busyAction}…</span>
-              )}
-            </div>
-          )}
-          {cfg.db_error && (
-            <p className="text-destructive mt-2 text-xs">Gagal start: {cfg.db_error}</p>
-          )}
+                {!d.installed && (
+                  <p className="text-destructive mt-2 text-xs">
+                    Belum terpasang — pasang dulu di halaman Packages.
+                  </p>
+                )}
+                {err && <p className="text-destructive mt-2 text-xs">Gagal start: {err}</p>}
 
-          {/* Engine + port picker — saved explicitly; needs restart */}
-          <div className="mt-4 grid grid-cols-1 items-end gap-3 @xl/main:grid-cols-[1fr_10rem_auto]">
-            <div className="flex flex-col gap-2">
-              <Label>Engine database</Label>
-              <Select value={ENGINES.some((e) => e.id === draftEngine) ? draftEngine : "__legacy"} onValueChange={(v) => { if (v) setDraftEngine(v) }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ENGINES.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.label}
-                      {cfg.db_installed?.[e.id] === false ? " — belum terpasang (Packages)" : ""}
-                    </SelectItem>
-                  ))}
-                  {!ENGINES.some((e) => e.id === draftEngine) && (
-                    <SelectItem value="__legacy">{draftEngine}</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+                {d.enabled && (
+                  <>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {!running && (
+                        <Button
+                          size="sm"
+                          disabled={!d.installed || busyKey !== null}
+                          onClick={() => doAction(d.key, "start")}
+                        >
+                          <Play /> Start
+                        </Button>
+                      )}
+                      {running && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={busyKey !== null}
+                          onClick={() => doAction(d.key, "stop")}
+                        >
+                          <Square /> Stop
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={!d.installed || busyKey !== null || !running}
+                        onClick={() => doAction(d.key, "restart")}
+                      >
+                        <RotateCw /> Restart
+                      </Button>
+                      {(busyKey === d.key + "start" || busyKey === d.key + "restart") && (
+                        <span className="text-muted-foreground text-xs">
+                          {busyKey === d.key + "start" ? "starting…" : "restarting…"}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-2">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor={"port-" + d.key} className="text-xs">
+                          Port (butuh restart daemon)
+                        </Label>
+                        <Input
+                          id={"port-" + d.key}
+                          type="number"
+                          value={ports[d.key] ?? ""}
+                          onChange={(e) =>
+                            setPort(d.key, e.target.value === "" ? "" : Number(e.target.value))
+                          }
+                        />
+                      </div>
+                      <Button size="sm" variant="secondary" disabled={!dirty} onClick={() => savePort(d.key)}>
+                        Simpan port
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardHeader>
+            </Card>
+          )
+        })}
+
+        {/* SQLite — zero setup, always available */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>SQLite</CardTitle>
+              <Badge variant="secondary">selalu aktif</Badge>
             </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="dbport">Port</Label>
-              <Input
-                id="dbport"
-                type="number"
-                disabled={draftEngine === "sqlite"}
-                value={draftPort}
-                onChange={(e) =>
-                  setDraftPort(e.target.value === "" ? "" : Number(e.target.value))
-                }
-              />
-            </div>
-            <Button onClick={save} disabled={!dirty || saving}>
-              {saving ? "Menyimpan…" : "Simpan"}
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Perubahan engine/port berlaku setelah restart Sabdopalon. Engine belum terpasang?
-            Pasang dulu di halaman Packages.
-          </p>
-        </CardHeader>
-      </Card>
+            <CardDescription>
+              Tanpa daemon — file database di <code>data/sabdopalon.db</code>, langsung dipakai PHP.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <p className="text-muted-foreground text-xs -mt-2 px-1">
+        Semua database bisa hidup bersamaan — situs kamu bebas memakai koneksi mana pun
+        (env <code>SABDOPALON_MARIADB_*</code> dan <code>SABDOPALON_PG_*</code> tersedia untuk semua situs).
+      </p>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

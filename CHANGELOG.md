@@ -3,6 +3,20 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [Unreleased]
+
+### Changed
+- **Every database runs at once** — MariaDB AND PostgreSQL are separate
+  daemons, each with its own card on the Database page (enable switch,
+  port, start/stop/restart, failure reason) and both default ON. Sites get
+  `SABDOPALON_MARIADB_*` and `SABDOPALON_PG_*` env simultaneously; the
+  embedded terminal injects client vars for both engines too. Toggling an
+  engine in the dashboard starts/stops it live — no restart. Legacy
+  `[database] engine/port` keys keep working (primary-engine concept kept
+  for wizard defaults and backup targeting).
+- Settings no longer hosts a database card; the Database page is the single
+  home for engine choice + lifecycle + backups.
+
 ## [0.7.3] — 2026-08-23
 
 ### Fixed

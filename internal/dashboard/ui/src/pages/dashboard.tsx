@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import {
   Activity,
@@ -10,7 +11,6 @@ import {
   LayoutDashboard,
   Play,
   RefreshCw,
-  RotateCw,
   ScrollText,
   Square,
 } from "lucide-react"
@@ -84,56 +84,6 @@ function StatCard({
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
         {sub && <p className="text-muted-foreground text-xs">{sub}</p>}
-      </CardContent>
-    </Card>
-  )
-}
-
-function DatabaseCard({
-  engine,
-  running,
-  busy,
-  onStart,
-  onStop,
-  onRestart,
-}: {
-  engine: string
-  running: boolean
-  busy: boolean
-  onStart: () => void
-  onStop: () => void
-  onRestart: () => void
-}) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium">Database</CardTitle>
-        <Database className="text-muted-foreground size-4" />
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2">
-          <div className="text-2xl font-bold">{engine || "—"}</div>
-          <Badge variant={running ? "default" : "destructive"}>
-            {running ? "aktif" : "berhenti"}
-          </Badge>
-        </div>
-        <div className="mt-2 flex items-center gap-1">
-          {running ? (
-            <Button size="sm" variant="outline" disabled={busy || engine === "sqlite"} onClick={onStop}>
-              <Square /> Stop
-            </Button>
-          ) : (
-            <Button size="sm" disabled={busy || engine === "sqlite"} onClick={onStart}>
-              <Play /> Start
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" disabled={busy || engine === "sqlite"} onClick={onRestart}>
-            <RotateCw /> Restart
-          </Button>
-        </div>
-        {engine === "sqlite" && (
-          <p className="text-muted-foreground mt-1 text-xs">SQLite selalu aktif (file-based).</p>
-        )}
       </CardContent>
     </Card>
   )
@@ -457,17 +407,8 @@ export default function DashboardPage() {
     )
   }
 
-  async function dbAction(action: "start" | "stop" | "restart") {
-    setBusy("db")
-    try {
-      const r = await api.databaseControl(action)
-      if (r.error) toast.error(r.error)
-      else toast.success(r.message ?? `Database ${action}`)
-      loadAllRef.current()
-    } finally {
-      setBusy(null)
-    }
-  }
+  // Lifecycle controls live on the Database page — this card links there.
+  const navigate = useNavigate()
 
   // Hanya tool yang sudah terinstall yang ditampilkan & bisa di-start.
   const installed = services.filter((s) => s.installed)
@@ -492,15 +433,28 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         <StatCard icon={Globe} label="Sites" value={String(status?.sites_count ?? 0)} sub={`*.${status?.tld ?? "localhost"}`} />
         <StatCard icon={Boxes} label="Services" value={`${runningCount}/${installed.length}`} sub={`${installed.length} terinstall`} />
-        <DatabaseCard
-          engine={dbEngine}
-          running={dbRunning}
-          busy={busy === "db"}
-          onStart={() => dbAction("start")}
-          onStop={() => dbAction("stop")}
-          onRestart={() => dbAction("restart")}
-        />
         <StatCard icon={Activity} label="Requests" value={String(trafficTotal)} sub={`HTTP :${status?.http_port ?? "?"} · HTTPS :${status?.https_port ?? "?"}`} />
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate("/database")}
+          onKeyDown={(e) => e.key === "Enter" && navigate("/database")}
+          className="cursor-pointer transition-shadow hover:shadow-md rounded-xl"
+          title="Kelola database — start/stop/restart"
+        >
+          <StatCard
+            icon={Database}
+            label="Databases"
+            value={Object.entries(status?.db_states ?? {}).filter(([, v]) => v).length + "/2"}
+            sub={
+              Object.keys(status?.db_states ?? {}).length > 0
+                ? Object.entries(status?.db_states ?? {})
+                    .map(([k, v]) => `${k} ${v ? "✓" : "✗"}`)
+                    .join(" · ")
+                : "mariadb · postgresql"
+            }
+          />
+        </div>
       </div>
 
       {/* Error banner (port conflict etc.) */}

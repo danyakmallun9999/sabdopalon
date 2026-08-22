@@ -29,9 +29,16 @@ type Engine struct {
 	}
 
 	Database struct {
-		Engine string
+		Engine string // primary engine (legacy field; wizard default, backup default)
 		Path   string // sqlite: db file path
-		Port   int    // mysql/mariadb: port
+		Port   int    // legacy single port → mariadb port
+
+		// Multi-daemon: every database can run at once, each with its own
+		// port. Defaults to ALL enabled ("default aktif semua").
+		MariaDBEnabled bool
+		MariaDBPort    int
+		PGEnabled      bool
+		PGPort         int
 	}
 
 	Dashboard struct {
@@ -82,6 +89,20 @@ func Load(baseDir string) (*Engine, error) {
 	e.Database.Engine = t.GetString("database", "engine", "sqlite")
 	e.Database.Path = resolve(baseDir, t.GetString("database", "path", "./data/sabdopalon.db"))
 	e.Database.Port = t.GetInt("database", "port", 3306)
+	// Multi-daemon defaults: every database enabled. Explicit false in
+	// engine.toml wins; absent keys mean ON.
+	e.Database.MariaDBEnabled = t.GetBool("database", "mariadb_enabled", true)
+	mariaPortDefault := 3306
+	if e.Database.Port != 0 {
+		mariaPortDefault = e.Database.Port
+	}
+	e.Database.MariaDBPort = t.GetInt("database", "mariadb_port", mariaPortDefault)
+	e.Database.PGEnabled = t.GetBool("database", "pg_enabled", true)
+	pgDefault := 5433 // avoid clashing with a system postgres on 5432
+	if e.Database.Port != 0 && e.Database.Port != 3306 && e.Database.Engine == "postgresql" {
+		pgDefault = e.Database.Port
+	}
+	e.Database.PGPort = t.GetInt("database", "pg_port", pgDefault)
 
 	e.Dashboard.Enabled = t.GetBool("dashboard", "enabled", true)
 	e.Dashboard.Port = t.GetInt("dashboard", "port", 9900)
@@ -130,6 +151,11 @@ binary = "%s"
 engine = "%s"
 path = "%s"
 port = %d
+# Multi-daemon: every database may run at once, each with its own port.
+mariadb_enabled = %t
+mariadb_port = %d
+pg_enabled = %t
+pg_port = %d
 
 [dashboard]
 enabled = %t
@@ -152,6 +178,10 @@ meilisearch = %t
 		e.Database.Engine,
 		rel(e.Database.Path, "./data/sabdopalon.db"),
 		e.Database.Port,
+		e.Database.MariaDBEnabled,
+		e.Database.MariaDBPort,
+		e.Database.PGEnabled,
+		e.Database.PGPort,
 		e.Dashboard.Enabled,
 		e.Dashboard.Port,
 		e.Dashboard.AutoOpen,

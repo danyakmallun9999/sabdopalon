@@ -275,16 +275,16 @@ func (a *App) serve() int {
 	_ = os.MkdirAll(a.Cfg.Data, 0o755)
 	_ = os.MkdirAll(a.Cfg.Logs, 0o755)
 
-	// Start database daemon if engine is not sqlite.
+	// Start every enabled database daemon (mariadb AND postgresql can run
+	// side by side, each with its own port). Failures don't kill the server:
+	// the reason shows up in the dashboard and the daemon can be retried.
 	dbMgr := database.New(a.Cfg)
 	dbMgr.Verbose = a.Verbose
-	if a.Cfg.Database.Engine != "sqlite" && a.Cfg.Database.Engine != "" {
-		fmt.Printf("  ⏳ starting database (%s)…\n", a.Cfg.Database.Engine)
-		if err := dbMgr.Start(); err != nil {
-			fmt.Fprintf(os.Stderr, "✗ database: %v\n", err)
-			fmt.Fprintf(os.Stderr, "  (set [database] engine = \"sqlite\" in config/engine.toml for zero-setup)\n")
-			return 1
+	if errs := dbMgr.StartAll(); len(errs) > 0 {
+		for eng, err := range errs {
+			fmt.Fprintf(os.Stderr, "⚠ database %s: %v\n", eng, err)
 		}
+		fmt.Fprintf(os.Stderr, "  (lanjut tanpa database bermasalah — cek halaman Database)\n")
 	}
 
 	// Optional bundled services (mail catcher, cache, storage, search…).
@@ -339,7 +339,7 @@ func (a *App) serve() int {
 		<-sigCh
 		fmt.Println("\n\nStopping Sabdopalon...")
 		n := srv.StopAll()
-		_ = dbMgr.Stop()
+		dbMgr.StopAll()
 		if svcMgr != nil {
 			svcMgr.StopAll()
 		}
@@ -415,7 +415,7 @@ func (a *App) doctor() int {
 	}
 	fmt.Println()
 	fmt.Println("  Database")
-	fmt.Printf("    engine  : %s\n", a.Cfg.Database.Engine)
+	fmt.Printf("    engine  : %s (primary)\n", a.Cfg.Database.Engine)
 	fmt.Printf("    path    : %s\n", a.Cfg.Database.Path)
 	if a.Cfg.Database.Engine == "sqlite" {
 		if fileExists(a.Cfg.Database.Path) {
@@ -423,6 +423,19 @@ func (a *App) doctor() int {
 		} else {
 			fmt.Printf("    status  : will be created on first use\n")
 		}
+	}
+	for _, eng := range []string{"mariadb", "postgresql"} {
+		if !a.Cfg.Database.MariaDBEnabled && eng == "mariadb" {
+			continue
+		}
+		if eng == "postgresql" && !a.Cfg.Database.PGEnabled {
+			continue
+		}
+		inst := "✓"
+		if !database.Installed(a.Cfg, eng) {
+			inst = "✗ not installed ('sabdopalon add " + eng + "')"
+		}
+		fmt.Printf("    %-11s: port %d  %s\n", eng, database.EffectivePort(a.Cfg, eng), inst)
 	}
 	fmt.Println()
 	fmt.Println("  SSL")

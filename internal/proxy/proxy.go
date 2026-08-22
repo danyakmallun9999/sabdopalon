@@ -495,17 +495,23 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	}
 
 	extraEnv := []string{
+		// Primary engine (legacy names kept for existing sites).
 		fmt.Sprintf("SABDOPALON_DB_ENGINE=%s", s.cfg.Database.Engine),
 	}
-	if s.cfg.Database.Engine == "postgresql" {
-		pgPort := database.EffectivePort(s.cfg)
-		extraEnv = append(extraEnv,
-			"SABDOPALON_PG_HOST=127.0.0.1",
-			fmt.Sprintf("SABDOPALON_PG_PORT=%d", pgPort),
-			"SABDOPALON_PG_USER=sabdopalon",
-			"SABDOPALON_PG_DB=postgres",
-		)
-	}
+	// EVERY running database is reachable: MariaDB and PostgreSQL inject
+	// their connection info simultaneously so a site can use both.
+	mariaPort := database.EffectivePort(s.cfg, "mariadb")
+	pgPort := database.EffectivePort(s.cfg, "postgresql")
+	extraEnv = append(extraEnv,
+		"SABDOPALON_MARIADB_HOST=127.0.0.1",
+		fmt.Sprintf("SABDOPALON_MARIADB_PORT=%d", mariaPort),
+		fmt.Sprintf("SABDOPALON_MARIADB_USER=%s", database.DatabaseRootUser),
+		fmt.Sprintf("SABDOPALON_MARIADB_PASSWORD=%s", database.DatabaseRootPassword),
+		"SABDOPALON_PG_HOST=127.0.0.1",
+		fmt.Sprintf("SABDOPALON_PG_PORT=%d", pgPort),
+		"SABDOPALON_PG_USER=sabdopalon",
+		"SABDOPALON_PG_DB=postgres",
+	)
 	if s.EnvProvider != nil {
 		extraEnv = append(extraEnv, s.EnvProvider()...)
 	}

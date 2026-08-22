@@ -9,6 +9,8 @@ export type Status = {
   tld: string
   database: string
   db_running?: boolean
+  db_states?: Record<string, boolean>
+  db_errors?: Record<string, string>
   php?: string
   sites_count: number
   services: boolean
@@ -96,9 +98,14 @@ export type ConfigPayload = {
   https_port?: number
   db_engine?: string
   db_port?: number
+  db_mariadb_enabled?: boolean
+  db_mariadb_port?: number
+  db_pg_enabled?: boolean
+  db_pg_port?: number
   db_installed?: Record<string, boolean>
   db_running?: boolean
-  db_error?: string
+  db_states?: Record<string, boolean>
+  db_errors?: Record<string, string>
   dashboard_enabled?: boolean
   dashboard_port?: number
   auto_open?: boolean
@@ -249,9 +256,9 @@ const api = {
 
   traffic: () => request<TrafficStats>("/api/stats/traffic"),
 
-  databaseControl: (action: "start" | "stop" | "restart") =>
-    post<{ ok: boolean; engine: string; db_running: boolean; message?: string; error?: string }>(
-      `/api/database/${action}`,
+  databaseControl: (engine: "mariadb" | "postgresql", action: "start" | "stop" | "restart") =>
+    post<{ ok: boolean; engine: string; db_states?: Record<string, boolean>; message?: string; error?: string }>(
+      `/api/database/${engine}/${action}`,
     ),
 }
 

@@ -92,8 +92,9 @@ func (s *Server) routes() {
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
 
-	// API: database control
-	s.mux.HandleFunc("/api/database/{action}", s.handleAPIDatabaseControl)
+	// API: database control — /api/database/{engine}/{action} (legacy
+	// /api/database/{action} maps to the primary engine).
+	s.mux.HandleFunc("/api/database/", s.handleAPIDatabaseControl)
 
 	// API: setup (first-run wizard; setup-mode server)
 	s.mux.HandleFunc("/api/setup/status", s.handleAPISetupStatus)

@@ -1,11 +1,9 @@
 // Package database manages the lifecycle of database server daemons
-// (MariaDB/MySQL) as supervised child processes. SQLite is handled directly
-// by PHP (no daemon needed); this package launches real server daemons when
-// the engine config requests mysql/mariadb/postgresql.
+// (MariaDB and PostgreSQL) as supervised child processes — ALL at the same
+// time, each with its own port ("default aktif semua"). SQLite is handled
+// directly by PHP (no daemon needed).
 //
-// The daemon is started on demand (when the proxy first starts or when a DB
-// connection is needed), using a bundled or system binary. Data is stored in
-// data/<engine>/ to keep it isolated and portable.
+// Data lives in data/<engine>/ so every daemon stays isolated and portable.
 package database
 
 import (
@@ -16,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,57 +33,89 @@ const (
 	DatabaseRootPassword = ""
 )
 
-// Manager owns the database daemon process.
-type Manager struct {
-	cfg     *config.Engine
-	cmd     *exec.Cmd
-	ready   bool
-	Verbose bool
-	lastErr string // last Start() failure, surfaced in the dashboard
+// Daemon engines managed by this package (sqlite needs no daemon).
+var Engines = []string{"mariadb", "postgresql"}
+
+type daemonProc struct {
+	cmd   *exec.Cmd
+	ready bool
 }
 
-// LastError returns the most recent Start() failure ("", when healthy).
-func (m *Manager) LastError() string { return m.lastErr }
+// Manager owns one daemon process per database engine.
+type Manager struct {
+	cfg      *config.Engine
+	mu       sync.Mutex
+	procs    map[string]*daemonProc // engine -> process
+	lastErrs map[string]string      // engine -> last Start() failure
+	Verbose  bool
+}
 
 // New creates a DB Manager.
 func New(cfg *config.Engine) *Manager {
-	return &Manager{cfg: cfg}
+	return &Manager{
+		cfg:      cfg,
+		procs:    make(map[string]*daemonProc),
+		lastErrs: make(map[string]string),
+	}
 }
 
-// EffectivePort returns the daemon listen port for the configured engine,
-// applying engine-specific defaults when the config still carries the
-// generic MySQL default.
-func EffectivePort(cfg *config.Engine) int {
-	if cfg.Database.Engine == "postgresql" && cfg.Database.Port == 3306 {
-		return 5432
+// Enabled reports whether the engine should run (multi-daemon config).
+func (m *Manager) Enabled(engine string) bool {
+	switch engine {
+	case "mariadb", "mysql":
+		return m.cfg.Database.MariaDBEnabled
+	case "postgresql":
+		return m.cfg.Database.PGEnabled
 	}
-	if cfg.Database.Port == 0 {
-		if cfg.Database.Engine == "postgresql" {
-			return 5432
+	return false
+}
+
+// EffectivePort returns the listen port for one engine, falling back to the
+// legacy single-port field and per-engine defaults.
+func EffectivePort(cfg *config.Engine, engine string) int {
+	switch engine {
+	case "postgresql":
+		if cfg.Database.PGPort != 0 {
+			return cfg.Database.PGPort
+		}
+		if cfg.Database.Port != 0 && cfg.Database.Port != 3306 && cfg.Database.Engine == "postgresql" {
+			return cfg.Database.Port
+		}
+		return 5433 // avoid clashing with a system postgres on 5432
+	default: // mariadb / mysql
+		if cfg.Database.MariaDBPort != 0 {
+			return cfg.Database.MariaDBPort
+		}
+		if cfg.Database.Port != 0 {
+			return cfg.Database.Port
 		}
 		return 3306
 	}
-	return cfg.Database.Port
 }
 
-// Start launches the database daemon if the engine requires one (not sqlite).
-// For sqlite it is a no-op. The failure reason is kept in LastError so the
-// dashboard can explain a "disconnected" database instead of staying mute.
-func (m *Manager) Start() (err error) {
-	defer func() {
-		if err != nil {
-			m.lastErr = err.Error()
-		} else {
-			m.lastErr = ""
-		}
-	}()
-	engine := m.cfg.Database.Engine
-	if engine == "sqlite" || engine == "" {
-		m.ready = true
-		return nil
+// PrimaryEngine returns the configured primary engine (legacy concept kept
+// for the setup wizard default and backup targeting).
+func PrimaryEngine(cfg *config.Engine) string {
+	if e := cfg.Database.Engine; e != "" {
+		return e
 	}
+	return "sqlite"
+}
 
-	binary, err := m.findBinary()
+// Start launches ONE engine's daemon. The failure reason is stored per
+// engine (LastError) so the dashboard can explain a stopped daemon.
+func (m *Manager) Start(engine string) (err error) {
+	defer func() {
+		m.mu.Lock()
+		if err != nil {
+			m.lastErrs[engine] = err.Error()
+		} else {
+			delete(m.lastErrs, engine)
+		}
+		m.mu.Unlock()
+	}()
+
+	binary, err := binaryFor(m.cfg, engine)
 	if err != nil {
 		return err
 	}
@@ -98,10 +129,10 @@ func (m *Manager) Start() (err error) {
 	// initialize data dir on first run
 	if !dirHasFiles(dataDir) {
 		fmt.Printf("  •  initializing %s data dir at %s\n", engine, dataDir)
-		if err := m.initialize(binary, dataDir); err != nil {
+		if err := initialize(binary, dataDir, engine); err != nil {
 			return fmt.Errorf("init db: %w", err)
 		}
-		if err := m.writeInitMarker(engine, dataDir); err != nil {
+		if err := writeInitMarker(engine, dataDir); err != nil {
 			return fmt.Errorf("write init marker: %w", err)
 		}
 	}
@@ -113,11 +144,12 @@ func (m *Manager) Start() (err error) {
 		return err
 	}
 
+	port := EffectivePort(m.cfg, engine)
 	socket := filepath.Join(socketDir, "mysqld.sock")
-	args := m.startArgs(binary, dataDir, socket)
+	args := startArgs(binary, dataDir, socket, engine, port)
 
 	if m.Verbose {
-		fmt.Printf("  ▶  %s starting on port %d ...\n", engine, m.cfg.Database.Port)
+		fmt.Printf("  ▶  %s starting on port %d ...\n", engine, port)
 	}
 	cmd := exec.Command(binary, args...)
 	cmd.Stdout = logFile
@@ -129,60 +161,123 @@ func (m *Manager) Start() (err error) {
 		logFile.Close()
 		return fmt.Errorf("start %s: %w", engine, err)
 	}
-	m.cmd = cmd
+
+	p := &daemonProc{cmd: cmd}
+	m.mu.Lock()
+	m.procs[engine] = p
+	m.mu.Unlock()
 
 	// wait for readiness
 	var ready bool
 	if engine == "postgresql" {
-		ready = m.waitTCPPort(EffectivePort(m.cfg), 30*time.Second)
+		ready = waitTCPPort(port, 30*time.Second)
 	} else {
-		ready = m.waitForSocket(socket, 30*time.Second)
+		ready = waitForSocket(socket, 30*time.Second)
 	}
 	if !ready {
 		logFile.Close()
-		_ = m.Stop()
+		_ = m.Stop(engine)
 		return fmt.Errorf("%s did not start (see logs/%s.log)", engine, engine)
 	}
-	m.ready = true
-	fmt.Printf("  ✓  %s ready on port %d\n", engine, EffectivePort(m.cfg))
+	p.ready = true
+	fmt.Printf("  ✓  %s ready on port %d\n", engine, port)
 	return nil
 }
 
-// Stop terminates the DB daemon.
-func (m *Manager) Stop() error {
-	if m.cmd == nil || m.cmd.Process == nil {
+// Stop terminates one engine's daemon (no-op when not running).
+func (m *Manager) Stop(engine string) error {
+	m.mu.Lock()
+	p := m.procs[engine]
+	delete(m.procs, engine)
+	m.mu.Unlock()
+	if p == nil || p.cmd.Process == nil {
 		return nil
 	}
-	killProcessGroup(m.cmd.Process)
-	signalTerm(m.cmd.Process)
+	killProcessGroup(p.cmd.Process)
+	signalTerm(p.cmd.Process)
 	time.Sleep(500 * time.Millisecond)
-	_ = m.cmd.Process.Kill()
+	_ = p.cmd.Process.Kill()
 	if m.Verbose {
-		fmt.Printf("  ◾  %s stopped\n", m.cfg.Database.Engine)
+		fmt.Printf("  ◾  %s stopped\n", engine)
 	}
-	m.cmd = nil
-	m.ready = false
 	return nil
 }
 
-// Restart stops and starts the database daemon (no-op for sqlite).
-func (m *Manager) Restart() error {
-	if m.cfg.Database.Engine == "sqlite" || m.cfg.Database.Engine == "" {
-		m.ready = true
-		return nil
+// Restart stops then starts one engine's daemon.
+func (m *Manager) Restart(engine string) error {
+	_ = m.Stop(engine)
+	return m.Start(engine)
+}
+
+// StartAll starts every ENABLED engine that is not already running,
+// returning per-engine failures without aborting the rest.
+func (m *Manager) StartAll() map[string]error {
+	errs := map[string]error{}
+	for _, e := range Engines {
+		if !m.Enabled(e) || m.Ready(e) {
+			continue
+		}
+		if _, err := binaryFor(m.cfg, e); err != nil {
+			continue // not installed — silently skipped, doctor reports it
+		}
+		if err := m.Start(e); err != nil {
+			errs[e] = err
+		}
 	}
-	_ = m.Stop()
-	return m.Start()
+	return errs
 }
 
-// Ready reports whether the DB is available (true for sqlite).
-func (m *Manager) Ready() bool { return m.ready }
-
-// --- helpers ---
-
-func (m *Manager) findBinary() (string, error) {
-	return binaryFor(m.cfg, m.cfg.Database.Engine)
+// StopAll terminates every running daemon.
+func (m *Manager) StopAll() {
+	for _, e := range Engines {
+		_ = m.Stop(e)
+	}
 }
+
+// Running lists engines with a live process (ready or still starting).
+func (m *Manager) Running() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.procs))
+	for e, p := range m.procs {
+		if p.cmd != nil && p.cmd.Process != nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// Ready reports whether the engine's daemon is up (sqlite: always true).
+func (m *Manager) Ready(engine string) bool {
+	if engine == "sqlite" || engine == "" {
+		return true
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.procs[engine] != nil && m.procs[engine].ready
+}
+
+// States snapshots readiness per daemon engine.
+func (m *Manager) States() map[string]bool {
+	out := map[string]bool{}
+	for _, e := range Engines {
+		out[e] = m.Ready(e)
+	}
+	return out
+}
+
+// Errors snapshots the last start failure per daemon engine.
+func (m *Manager) Errors() map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make(map[string]string, len(m.lastErrs))
+	for k, v := range m.lastErrs {
+		out[k] = v
+	}
+	return out
+}
+
+// --- availability ---
 
 // Installed reports whether the engine's daemon binary is available
 // (bundled in bin/ or on PATH). sqlite needs no daemon and is always true.
@@ -219,8 +314,10 @@ func binaryFor(cfg *config.Engine, engine string) (string, error) {
 	return "", fmt.Errorf("%s binary not found (install via 'sabdopalon add %s' or system package)", engine, engine)
 }
 
-func (m *Manager) initialize(binary, dataDir string) error {
-	if m.cfg.Database.Engine == "postgresql" {
+// --- first-run initialization & launch args ---
+
+func initialize(binary, dataDir, engine string) error {
+	if engine == "postgresql" {
 		initdb := filepath.Join(filepath.Dir(binary), "initdb"+extSuffix())
 		cmd := exec.Command(initdb, "-D", dataDir, "-U", "sabdopalon",
 			"--auth=trust", "-E", "utf8")
@@ -267,21 +364,21 @@ func (m *Manager) initialize(binary, dataDir string) error {
 	return nil
 }
 
-func (m *Manager) startArgs(binary, dataDir, socket string) []string {
-	port := strconv.Itoa(EffectivePort(m.cfg))
-	switch m.cfg.Database.Engine {
+func startArgs(binary, dataDir, socket, engine string, port int) []string {
+	ps := strconv.Itoa(port)
+	switch engine {
 	case "mariadb", "mysql":
 		return []string{
 			"--datadir=" + dataDir,
 			"--socket=" + socket,
-			"--port=" + port,
+			"--port=" + ps,
 			"--bind-address=127.0.0.1",
 			"--pid-file=" + filepath.Join(dataDir, "pid"),
 			"--skip-networking=false",
 			"--innodb-buffer-pool-size=64M",
 		}
 	case "postgresql":
-		return []string{"-D", dataDir, "-p", port,
+		return []string{"-D", dataDir, "-p", ps,
 			"-c", "listen_addresses=127.0.0.1",
 			"-c", "unix_socket_directories=" + filepath.Dir(socket)}
 	default:
@@ -289,7 +386,7 @@ func (m *Manager) startArgs(binary, dataDir, socket string) []string {
 	}
 }
 
-func (m *Manager) waitForSocket(socket string, timeout time.Duration) bool {
+func waitForSocket(socket string, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if fileExists(socket) {
@@ -319,7 +416,7 @@ func serverBinary(engine string) string {
 const initMarkerName = ".sabdopalon-initialized"
 
 // writeInitMarker records that the engine's data dir was initialized.
-func (m *Manager) writeInitMarker(engine, dataDir string) error {
+func writeInitMarker(engine, dataDir string) error {
 	return os.WriteFile(
 		filepath.Join(dataDir, initMarkerName),
 		[]byte("initialized "+engine+" "+time.Now().Format(time.RFC3339)+"\n"),
@@ -347,7 +444,7 @@ func extSuffix() string {
 }
 
 // waitTCPPort polls a TCP port until it accepts connections.
-func (m *Manager) waitTCPPort(port int, timeout time.Duration) bool {
+func waitTCPPort(port int, timeout time.Duration) bool {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

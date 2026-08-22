@@ -22,7 +22,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 	httpPort, httpsPort := s.proxy.Ports()
 	dbRunning := false
 	if s.db != nil {
-		dbRunning = s.db.Ready()
+		dbRunning = s.db.Ready(s.cfg.Database.Engine)
 	} else if s.cfg.Database.Engine == "sqlite" || s.cfg.Database.Engine == "" {
 		dbRunning = true // sqlite is always available
 	}
@@ -39,8 +39,9 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		"services":    s.svcRunning(),
 	}
 	if s.db != nil {
-		if e := s.db.LastError(); e != "" {
-			resp["db_error"] = e
+		resp["db_states"] = s.db.States()
+		if errs := s.db.Errors(); len(errs) > 0 {
+			resp["db_errors"] = errs
 		}
 	}
 	if s.cfg.PHP.Binary != "" {
@@ -82,15 +83,19 @@ type configPayload struct {
 	HTTPSPort *int   `json:"https_port,omitempty"`
 	DBEngine  string `json:"db_engine,omitempty"`
 	DBPort    *int   `json:"db_port,omitempty"`
-	// DB state clarity for the Settings page: what IS active/running vs what
-	// is merely selected in the form, plus per-engine availability.
-	DBInstalled map[string]bool `json:"db_installed,omitempty"`
-	DBRunning   bool            `json:"db_running"`
-	DBError     string          `json:"db_error,omitempty"`
-	DashEnabled *bool           `json:"dashboard_enabled,omitempty"`
-	DashPort    *int            `json:"dashboard_port,omitempty"`
-	AutoOpen    *bool           `json:"auto_open,omitempty"`
-	Mailpit     *bool           `json:"mailpit_enabled,omitempty"`
+	// Multi-daemon: per-engine switches + live state snapshots.
+	DBMariadbEnabled *bool             `json:"db_mariadb_enabled,omitempty"`
+	DBMariadbPort    *int              `json:"db_mariadb_port,omitempty"`
+	DBPgEnabled      *bool             `json:"db_pg_enabled,omitempty"`
+	DBPgPort         *int              `json:"db_pg_port,omitempty"`
+	DBInstalled      map[string]bool   `json:"db_installed,omitempty"`
+	DBRunning        bool              `json:"db_running"`
+	DBStates         map[string]bool   `json:"db_states,omitempty"`
+	DBErrors         map[string]string `json:"db_errors,omitempty"`
+	DashEnabled      *bool             `json:"dashboard_enabled,omitempty"`
+	DashPort         *int              `json:"dashboard_port,omitempty"`
+	AutoOpen         *bool             `json:"auto_open,omitempty"`
+	Mailpit          *bool             `json:"mailpit_enabled,omitempty"`
 }
 
 // handleAPIConfig serves GET/PUT /api/config — the Settings page.
@@ -103,27 +108,32 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 		if s.cfg.Database.Engine == "sqlite" || s.cfg.Database.Engine == "" {
 			dbRunning = true // sqlite is always available
 		} else if s.db != nil {
-			dbRunning = s.db.Ready()
+			dbRunning = s.db.Ready(s.cfg.Database.Engine)
 		}
 		payload := configPayload{
-			TLD:         s.cfg.TLD,
-			HTTPPort:    intPtr(orActual(httpPort, s.cfg.Proxy.HTTPPort)),
-			HTTPSPort:   intPtr(orActual(httpsPort, s.cfg.Proxy.HTTPSPort)),
-			DBEngine:    s.cfg.Database.Engine,
-			DBPort:      intPtr(s.cfg.Database.Port),
-			DashEnabled: boolPtr(s.cfg.Dashboard.Enabled),
-			DashPort:    intPtr(s.cfg.Dashboard.Port),
-			AutoOpen:    boolPtr(s.cfg.Dashboard.AutoOpen),
-			Mailpit:     boolPtr(s.cfg.Services.Mailpit),
-			DBRunning:   dbRunning,
+			TLD:              s.cfg.TLD,
+			HTTPPort:         intPtr(orActual(httpPort, s.cfg.Proxy.HTTPPort)),
+			HTTPSPort:        intPtr(orActual(httpsPort, s.cfg.Proxy.HTTPSPort)),
+			DBEngine:         s.cfg.Database.Engine,
+			DBPort:           intPtr(s.cfg.Database.Port),
+			DBMariadbEnabled: boolPtr(s.cfg.Database.MariaDBEnabled),
+			DBMariadbPort:    intPtr(s.cfg.Database.MariaDBPort),
+			DBPgEnabled:      boolPtr(s.cfg.Database.PGEnabled),
+			DBPgPort:         intPtr(s.cfg.Database.PGPort),
+			DashEnabled:      boolPtr(s.cfg.Dashboard.Enabled),
+			DashPort:         intPtr(s.cfg.Dashboard.Port),
+			AutoOpen:         boolPtr(s.cfg.Dashboard.AutoOpen),
+			Mailpit:          boolPtr(s.cfg.Services.Mailpit),
+			DBRunning:        dbRunning,
 		}
 		inst := map[string]bool{}
-		for _, eng := range []string{"sqlite", "mariadb", "mysql", "postgresql"} {
+		for _, eng := range []string{"sqlite", "mariadb", "postgresql"} {
 			inst[eng] = database.Installed(s.cfg, eng)
 		}
 		payload.DBInstalled = inst
 		if s.db != nil {
-			payload.DBError = s.db.LastError()
+			payload.DBStates = s.db.States()
+			payload.DBErrors = s.db.Errors()
 		}
 		s.json(w, payload)
 
@@ -153,6 +163,40 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.DBPort != nil && validPort(*p.DBPort) {
 			s.cfg.Database.Port = *p.DBPort
+		}
+		// Multi-daemon: enable/disable applies LIVE (daemon starts/stops
+		// immediately); a port change needs a daemon restart.
+		if p.DBMariadbEnabled != nil && *p.DBMariadbEnabled != s.cfg.Database.MariaDBEnabled {
+			s.cfg.Database.MariaDBEnabled = *p.DBMariadbEnabled
+			if s.db != nil {
+				if *p.DBMariadbEnabled {
+					go func() { _ = s.db.Start("mariadb") }()
+				} else {
+					_ = s.db.Stop("mariadb")
+				}
+			}
+		}
+		if p.DBMariadbPort != nil && validPort(*p.DBMariadbPort) && *p.DBMariadbPort != s.cfg.Database.MariaDBPort {
+			s.cfg.Database.MariaDBPort = *p.DBMariadbPort
+			if s.db != nil && s.db.Ready("mariadb") {
+				restart = true
+			}
+		}
+		if p.DBPgEnabled != nil && *p.DBPgEnabled != s.cfg.Database.PGEnabled {
+			s.cfg.Database.PGEnabled = *p.DBPgEnabled
+			if s.db != nil {
+				if *p.DBPgEnabled {
+					go func() { _ = s.db.Start("postgresql") }()
+				} else {
+					_ = s.db.Stop("postgresql")
+				}
+			}
+		}
+		if p.DBPgPort != nil && validPort(*p.DBPgPort) && *p.DBPgPort != s.cfg.Database.PGPort {
+			s.cfg.Database.PGPort = *p.DBPgPort
+			if s.db != nil && s.db.Ready("postgresql") {
+				restart = true
+			}
 		}
 		if p.DashEnabled != nil {
 			s.cfg.Dashboard.Enabled = *p.DashEnabled

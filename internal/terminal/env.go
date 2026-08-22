@@ -41,27 +41,21 @@ func envFor(cfg *config.Engine, extraEnv []string) []string {
 	}
 	env = append(env, "COLORTERM=truecolor")
 
-	// DB clients: point them at OUR daemon instead of build-time defaults
-	// (/tmp/mysql.sock etc.), mirroring internal/database start paths.
-	switch cfg.Database.Engine {
-	case "mariadb", "mysql":
-		sock := filepath.Join(cfg.Data, cfg.Database.Engine+"-sock", "mysqld.sock")
-		port := strconv.Itoa(database.EffectivePort(cfg))
-		env = append(env,
-			"MYSQL_UNIX_PORT="+sock,
-			"MARIADB_UNIX_PORT="+sock,
-			"MYSQL_TCP_PORT="+port,
-			"MARIADB_TCP_PORT="+port,
-			"MYSQL_HOST=127.0.0.1",
-		)
-	case "postgresql":
-		env = append(env,
-			"PGHOST=127.0.0.1",
-			"PGPORT="+strconv.Itoa(database.EffectivePort(cfg)),
-			"PGUSER=sabdopalon",
-			"PGDATABASE=postgres",
-		)
-	}
+	// DB clients: point them at OUR daemons instead of build-time defaults
+	// (/tmp/mysql.sock etc.), mirroring internal/database start paths. Both
+	// engines are injected at once — each has its own port.
+	mariaSock := filepath.Join(cfg.Data, "mariadb-sock", "mysqld.sock")
+	env = append(env,
+		"MYSQL_UNIX_PORT="+mariaSock,
+		"MARIADB_UNIX_PORT="+mariaSock,
+		"MYSQL_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
+		"MARIADB_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
+		"MYSQL_HOST=127.0.0.1",
+		"PGHOST=127.0.0.1",
+		"PGPORT="+strconv.Itoa(database.EffectivePort(cfg, "postgresql")),
+		"PGUSER=sabdopalon",
+		"PGDATABASE=postgres",
+	)
 
 	for _, kv := range extraEnv {
 		if i := strings.Index(kv, "="); i > 0 {
