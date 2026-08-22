@@ -38,9 +38,9 @@ func (s *Server) handleAPIDatabaseControl(w http.ResponseWriter, r *http.Request
 		return
 	}
 	s.json(w, map[string]any{
-		"ok":        true,
-		"engine":    s.cfg.Database.Engine,
+		"ok":         true,
+		"engine":     s.cfg.Database.Engine,
 		"db_running": s.db.Ready(),
-		"message":   "database " + action + " OK",
+		"message":    "database " + action + " OK",
 	})
 }
