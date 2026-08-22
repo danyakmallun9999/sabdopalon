@@ -3,6 +3,41 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.7.2] — 2026-08-23
+
+### Terminal that just works + Sites page revamp
+
+### Added
+- **Sites page revamp** — app-frame layout: content column and terminal dock
+  scroll internally and span exactly header→bottom (no dead gap under the
+  fold); persistent right-hand **terminal dock** (collapsible, width
+  persisted) with site-context dropdown, connection indicator, clear &
+  restart-shell buttons; hybrid responsive site list (table on desktop,
+  cards on mobile), site filter box, dismissible clean-URL banner.
+- **Terminal tabs** — `/terminal` hosts multiple concurrent shell sessions;
+  switching tabs keeps background sessions alive.
+- **Terminal UX** — bundled JetBrains Mono font, clipboard integration
+  (`Ctrl+Shift+C/V`, OSC52), auto-reconnect with status indicator.
+
+### Fixed
+- **`mariadb`/`psql` now connect from the embedded terminal without flags**
+  — sessions get DB client env (`MYSQL_UNIX_PORT`,
+  `MARIADB_UNIX_PORT`, `MYSQL_TCP_PORT`, `MYSQL_HOST`, PG* equivalents)
+  pointing at Sabdopalon's own daemon; previously clients died with
+  `ERROR 2002 … /tmp/mysql.sock`.
+- **`TERM environment variable not set`** (`clear`, vim, htop…) — sessions
+  default to `TERM=xterm-256color` + `COLORTERM=truecolor`; the desktop
+  sidecar has no TERM of its own.
+- **Windows terminal is a real terminal** — pipe fallback replaced by
+  ConPTY (`internal/terminal/conpty_windows.go`): colors, resize and
+  interactive programs work; resize frames now go out instantly via xterm's
+  `onResize` instead of a 2 s poll.
+- **CI: desktop linux job** — AppImage bundling failed twice: linuxdeploy
+  needs FUSE missing on ubuntu-24.04 runners (install `libfuse2`(t64) +
+  `APPIMAGE_EXTRACT_AND_RUN=1`) and MariaDB's Galera/engine-plugin ELFs
+  link OpenSSL 1.0 that no runner ships (dropped at download time; never
+  loaded by local dev).
+
 ## [0.7.1] — 2026-08-23
 
 ### Fixed

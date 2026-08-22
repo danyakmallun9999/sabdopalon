@@ -37,7 +37,7 @@ Cukup jalankan `sabdopalon`, lalu:
 
 ## Status
 
-`v0.7.1` — rilis one-click install + perbaikan desktop. Saat pertama
+`v0.7.2` — terminal utuh + revamp halaman situs. Saat pertama
 dijalankan, muncul wizard
 instalasi interaktif (di terminal maupun di aplikasi desktop) yang menyiapkan
 semua yang dibutuhkan. Ada juga installer satu perintah
@@ -66,7 +66,7 @@ Unduh installer desktop dari halaman
 
 | Platform | File |
 |---|---|
-| Windows x86_64 | `Sabdopalon_0.7.1_x64-setup.exe` (NSIS) |
+| Windows x86_64 | `Sabdopalon_0.7.2_x64-setup.exe` (NSIS) |
 | macOS (Apple Silicon) | `Sabdopalon.app.tar.gz` / `.dmg` |
 | Linux | `.deb` / `.AppImage` |
 

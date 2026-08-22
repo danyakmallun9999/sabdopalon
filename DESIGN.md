@@ -201,11 +201,19 @@ echo "404 Not Found";
   polls :9900, then points the native window at the dashboard. Tray menu:
   Open Dashboard / Open Sites / Restart / Start-at-Login / Quit. Data lives
   in the OS user-data dir (Herd-style) so the app itself stays read-only.
-- **Terminal**: `internal/terminal` wraps a PTY child (creack/pty on Unix,
-  pipe fallback on Windows) with Sabdopalon's `bin/` dirs prepended to PATH.
-  `GET /api/terminal/ws` (coder/websocket) streams frames
-  (`{type:"input"|"resize"}`); the SPA renders it with xterm.js at `/terminal`
-  and per-site via a right-side Sheet on the Sites page (`?dir=<site folder>`).
+- **Terminal**: `internal/terminal` wraps a PTY child — creack/pty on Unix,
+  a real ConPTY on Windows (`conpty_windows.go`, adapted from go-pty MIT) so
+  colors, resize and interactive programs work everywhere. Sessions get
+  Sabdopalon's `bin/` dirs prepended to PATH, `TERM=xterm-256color`
+  (the desktop sidecar has none), DB **client** defaults
+  (`MYSQL_UNIX_PORT` → `data/<engine>-sock/mysqld.sock`, `*_TCP_PORT`,
+  `PGHOST/PGPORT/PGUSER/PGDATABASE`) so `mariadb`/`psql` connect without
+  flags, and running services' env (same as PHP injection). Resize frames go
+  out instantly via xterm's `onResize` (no polling); dropped WebSockets
+  auto-reconnect. `/terminal` hosts multiple tabbed sessions; the Sites page
+  keeps a persistent right-hand terminal dock (collapsible, persisted width)
+  in an app-frame layout that spans exactly header→bottom with per-pane
+  scrolling.
 - **PHP configuration**: every `php -S` process gets `PHPRC` set to
   `config/php.ini` (created automatically with memory/upload defaults) so
   users can tune global PHP settings without touching the bundled binary.

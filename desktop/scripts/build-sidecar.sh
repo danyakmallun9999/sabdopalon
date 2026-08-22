@@ -5,7 +5,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.7.1}"
+VERSION="${VERSION:-0.7.2}"
 
 if [ -n "${TARGET_TRIPLE:-}" ]; then
   TRIPLE="$TARGET_TRIPLE"
