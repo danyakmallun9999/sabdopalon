@@ -279,8 +279,12 @@ jobs:
               # linuxdeploy scans every ELF under the AppDir and fails when a
               # bundled binary links a lib the runner lacks (libaio…). The
               # sidecar extracts it into the writable bin dir on first run.
-              tar czf "$CORE/core.tar.gz" -C "$CORE" .
-              find "$CORE" -mindepth 1 ! -name 'core.tar.gz' -delete
+              # Archive is staged OUTSIDE $CORE — tar cannot read and write
+              # the same file inside the tree it is walking.
+              tar czf /tmp/sabdopalon-core.tar.gz -C "$CORE" .
+              rm -rf "$CORE"
+              mkdir -p "$CORE"
+              mv /tmp/sabdopalon-core.tar.gz "$CORE/core.tar.gz"
               ;;
           esac
 

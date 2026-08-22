@@ -3,19 +3,23 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
-## [Unreleased]
+## [0.7.4] — 2026-08-23
+
+### Fixed
+- **CI: linux desktop download step** — the core archive was written into
+  the very tree tar was walking ("file changed as we read it"); staged via
+  /tmp now.
+- **React #310 crash** — `useNavigate` ran after DashboardPage's setup-mode
+  early return; all page hooks audited to be unconditional.
+- **Embedded terminal could not be typed into** (input wiring lost in a
+  refactor) and Settings' database card confusion (moved wholesale to the
+  Database page).
 
 ### Changed
-- **Every database runs at once** — MariaDB AND PostgreSQL are separate
-  daemons, each with its own card on the Database page (enable switch,
-  port, start/stop/restart, failure reason) and both default ON. Sites get
-  `SABDOPALON_MARIADB_*` and `SABDOPALON_PG_*` env simultaneously; the
-  embedded terminal injects client vars for both engines too. Toggling an
-  engine in the dashboard starts/stops it live — no restart. Legacy
-  `[database] engine/port` keys keep working (primary-engine concept kept
-  for wizard defaults and backup targeting).
-- Settings no longer hosts a database card; the Database page is the single
-  home for engine choice + lifecycle + backups.
+- **Every database runs at once** — MariaDB AND PostgreSQL are independent
+  daemons, each with its own card (enable switch, port, start/stop/restart,
+  failure reason), both default ON; live toggle without restart. Sites and
+  the embedded terminal receive connection info for BOTH engines.
 
 ## [0.7.3] — 2026-08-23
 
