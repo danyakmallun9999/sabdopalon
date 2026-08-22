@@ -158,7 +158,6 @@ echo "404 Not Found";
   requires a system install (PATH fallback).
 
 ### 3.6 Optional services (framework)
-
 - Generic `Spec`-driven service framework in `internal/services` (v0.5+):
   each service is declared declaratively — binary discovery (bundled
   `bin/<name>/` then PATH fallback), ports, run args, readiness probe
@@ -170,6 +169,46 @@ echo "404 Not Found";
   toggles apply at runtime and persist.
 - PHP env injection: `proxy.EnvProvider` callback gathers env only from
   *running* services — a stopped service contributes nothing.
+
+### 3.7 First-run & setup (v0.7)
+
+- `config.Load` returns the sentinel `ErrNotBootstrapped` when
+  `config/engine.toml` is missing; `main.go` routes to the **CLI wizard**
+  (`sabdopalon setup`) or to **setup-mode** (bare `sabdopalon` runs with
+  `--setup-mode` injected).
+- `internal/bootstrap.EnsureLayout` creates the canonical layout
+  (`sites/ logs/ data/ bin/ certs/ backups/ config/ config/vhosts/
+  config/profiles/ packages/`) — idempotent, called on every start.
+- Setup-mode server boots *only* the dashboard on :9900 (no proxy/DB/services)
+  and exposes `GET /api/setup/status`, `POST /api/setup` (async job) and
+  `GET /api/setup/job`. The SPA redirects to `/setup` while
+  `bootstrapped == false`.
+- Wizard defaults: **PHP + MariaDB** core stack (XAMPP-style), **PostgreSQL
+  optional**, ports 8080/8443, optional sample site. All downloads go through
+  `pkgmgr` (SHA-256 verified).
+- DB root credential: **root without password** (XAMPP/Laragon convention),
+  bound to 127.0.0.1/socket only. `data/<engine>/.sabdopalon-initialized`
+  marks a completed first initialization; constants
+  `database.DatabaseRootUser/Password` are reused by backup + WP template.
+
+### 3.8 Desktop app (Tauri v2) & embedded terminal
+
+- **Mode selection**: `SABDOPALON_DIR` env (set by the desktop sidecar)
+  overrides `baseDir()`; CLI keeps its portable exe-dir behavior. One
+  codebase, two modes.
+- **Sidecar**: the desktop app ships the Go binary via `externalBin`; it
+  spawns it with `SABDOPALON_DIR=<user-data-dir> --no-open --setup-mode`,
+  polls :9900, then points the native window at the dashboard. Tray menu:
+  Open Dashboard / Open Sites / Restart / Start-at-Login / Quit. Data lives
+  in the OS user-data dir (Herd-style) so the app itself stays read-only.
+- **Terminal**: `internal/terminal` wraps a PTY child (creack/pty on Unix,
+  pipe fallback on Windows) with Sabdopalon's `bin/` dirs prepended to PATH.
+  `GET /api/terminal/ws` (coder/websocket) streams frames
+  (`{type:"input"|"resize"}`); the SPA renders it with xterm.js at `/terminal`
+  and per-site via a right-side Sheet on the Sites page (`?dir=<site folder>`).
+- **PHP configuration**: every `php -S` process gets `PHPRC` set to
+  `config/php.ini` (created automatically with memory/upload defaults) so
+  users can tune global PHP settings without touching the bundled binary.
 
 ### 3.5 SSL
 
@@ -286,6 +325,40 @@ lifecycle) — not decompilation of any executable.
 - [ ] System tray (cross-platform) (future)
 - [ ] Auto PATH injection (future)
 - [ ] Optional container-lite via Podman (future)
+
+### Phase 6 — One-click install, desktop app & terminal (v0.7) ✅ COMPLETE
+- [x] **`internal/bootstrap`** — canonical layout (`EnsureLayout`), first-run
+      detection (`FirstRun`, state-based: no `engine.toml` / empty `sites/` /
+      no SQLite db), default config writer, wizard banner.
+- [x] **Config sentinel** — `config.Load` returns `ErrNotBootstrapped` when
+      `engine.toml` is missing; `app.New()` surfaces it, `main.go` routes to
+      the wizard or setup-mode.
+- [x] **CLI wizard** (`sabdopalon setup` / `init`) — interactive, stdlib-only:
+      stack (PHP+MariaDB default, optional PostgreSQL), DB engine, ports,
+      sample site, then `pkgmgr.Download` with checksums.
+- [x] **DB init marker** — `data/<engine>/.sabdopalon-initialized` after first
+      `initialize()`; root-without-password constants
+      (`DatabaseRootUser`/`DatabaseRootPassword`) reused by backup + WP template.
+- [x] **Setup-mode server** — `--setup-mode` (or bare first run) boots only the
+      dashboard on :9900 with `GET /api/setup/status`, `POST /api/setup`
+      (async job + `GET /api/setup/job`), no proxy/DB/services.
+- [x] **SPA setup wizard** — `/setup` route; `App.tsx` redirects there while
+      `bootstrapped == false`.
+- [x] **One-click installers** — `scripts/install.sh` (curl|bash: extract →
+      `~/sabdopalon` → `~/.local/bin` symlink → wizard) and `install.ps1`
+      (Expand-Archive → persistent user PATH → wizard); release bundles now
+      ship full layout + installer + `packages.toml` + `.gitkeep` dirs.
+- [x] **Desktop app (Tauri v2)** — `desktop/`: Rust shell + Go sidecar with
+      `SABDOPALON_DIR` (OS user-data dir, Herd-style), tray menu (open
+      dashboard/sites, restart, autostart, quit), NSIS/dmg/deb/AppImage
+      bundles in CI (`release.yml` desktop matrix). Window shows the existing
+      dashboard; never opens a browser (sidecar runs `--no-open --setup-mode`).
+- [x] **Embedded terminal** — `internal/terminal` (PTY via creack/pty, pipe
+      fallback on Windows) + `GET /api/terminal/ws` (coder/websocket,
+      input/resize frames) + SPA `/terminal` page (xterm.js + fit addon).
+- [ ] Code-signing (macOS notarization / Windows Authenticode) — needs paid
+      accounts; documented in README.
+- [ ] `packages.toml` → `go:embed` (fully self-contained binary) (future)
 
 ---
 

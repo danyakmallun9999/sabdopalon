@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/sabdopalon/sabdopalon/internal/database"
 )
 
 // Template describes a project template.
@@ -140,8 +142,8 @@ func setupWordPress(sitesDir, name string) error {
 	config := "<?php\n" +
 		"// Sabdopalon-generated wp-config.php\n" +
 		"define('DB_NAME', 'sabdopalon');\n" +
-		"define('DB_USER', 'root');\n" +
-		"define('DB_PASSWORD', '');\n" +
+		"define('DB_USER', '" + database.DatabaseRootUser + "');\n" +
+		"define('DB_PASSWORD', '" + database.DatabaseRootPassword + "');\n" +
 		"define('DB_HOST', '127.0.0.1:3306');\n" +
 		"define('DB_CHARSET', 'utf8mb4');\n" +
 		"define('DB_COLLATE', '');\n\n" +

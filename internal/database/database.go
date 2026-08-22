@@ -22,6 +22,17 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
 
+// DatabaseRootUser / DatabaseRootPassword are the credentials Sabdopalon
+// uses for its MariaDB/MySQL instances: root with NO password, following the
+// XAMPP/Laragon convention for local dev. The daemon binds only to
+// 127.0.0.1 and the unix socket, so the passwordless root is never exposed
+// beyond the machine. These constants are reused by the backup dumper and
+// the WordPress template.
+const (
+	DatabaseRootUser     = "root"
+	DatabaseRootPassword = ""
+)
+
 // Manager owns the database daemon process.
 type Manager struct {
 	cfg     *config.Engine
@@ -76,6 +87,9 @@ func (m *Manager) Start() error {
 		fmt.Printf("  •  initializing %s data dir at %s\n", engine, dataDir)
 		if err := m.initialize(binary, dataDir); err != nil {
 			return fmt.Errorf("init db: %w", err)
+		}
+		if err := m.writeInitMarker(engine, dataDir); err != nil {
+			return fmt.Errorf("write init marker: %w", err)
 		}
 	}
 
@@ -255,6 +269,21 @@ func serverBinary(engine string) string {
 	}
 }
 
+// initMarkerName is written into the data dir after a successful first
+// initialization so setup/doctor flows can distinguish "initialized" from
+// "empty dir that simply lost its files".
+const initMarkerName = ".sabdopalon-initialized"
+
+// writeInitMarker records that the engine's data dir was initialized.
+func (m *Manager) writeInitMarker(engine, dataDir string) error {
+	return os.WriteFile(
+		filepath.Join(dataDir, initMarkerName),
+		[]byte("initialized "+engine+" "+time.Now().Format(time.RFC3339)+"\n"),
+		0o644,
+	)
+}
+
+// dirHasFiles reports whether a directory contains any entries.
 func dirHasFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	return err == nil && len(entries) > 0

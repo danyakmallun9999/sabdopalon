@@ -89,6 +89,11 @@ func (s *Server) routes() {
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
 
+	// API: setup (first-run wizard; setup-mode server)
+	s.mux.HandleFunc("/api/setup/status", s.handleAPISetupStatus)
+	s.mux.HandleFunc("/api/setup", s.handleAPISetup)
+	s.mux.HandleFunc("/api/setup/job", s.handleAPISetupJob)
+
 	// API: services
 	s.mux.HandleFunc("/api/services", s.handleAPIServices)
 	s.mux.HandleFunc("/api/services/", func(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +111,9 @@ func (s *Server) routes() {
 
 	// API: logs
 	s.mux.HandleFunc("/api/logs/", s.handleAPILogs)
+
+	// API: terminal (WebSocket PTY)
+	s.mux.HandleFunc("/api/terminal/ws", s.handleAPITerminalWS)
 
 	// Unknown API path → JSON 404 (registered last, /api/* falls through).
 	s.mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {

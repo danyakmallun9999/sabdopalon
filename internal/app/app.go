@@ -2,6 +2,7 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
+	"github.com/sabdopalon/sabdopalon/internal/bootstrap"
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/dashboard"
 	"github.com/sabdopalon/sabdopalon/internal/database"
@@ -26,16 +28,23 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.6.0"
+var Version = "0.7.0"
 
 // App holds the resolved config and CLI options.
 type App struct {
 	Cfg     *config.Engine
 	Profile string // --profile overlay applied at serve-time
 	Verbose bool   // --verbose keeps detailed per-event console output
+
+	NoOpen     bool // --no-open: don't open the browser (desktop sidecar)
+	SetupMode  bool // --setup-mode: boot config-less and serve only the dashboard
+	SetupFlags bool // --setup-mode or bare first run: serve in setup mode
 }
 
 // New loads config relative to the executable (or cwd) and builds an App.
+// On a fresh install (no config/engine.toml yet) it returns an App without a
+// config so the caller can run the setup wizard; a nil error means the
+// install is bootstrapped.
 func New() (*App, error) {
 	base, err := baseDir()
 	if err != nil {
@@ -43,12 +52,26 @@ func New() (*App, error) {
 	}
 	cfg, err := config.Load(base)
 	if err != nil {
+		if errors.Is(err, config.ErrNotBootstrapped) {
+			// Not set up yet — caller decides: wizard or setup-mode.
+			return &App{}, nil
+		}
 		return nil, err
 	}
 	return &App{Cfg: cfg}, nil
 }
 
+// Bootstrapped reports whether config could be loaded (i.e. the install was
+// set up at least once). A fresh App without a config is not bootstrapped.
+func (a *App) Bootstrapped() bool { return a.Cfg != nil }
+
 func baseDir() (string, error) {
+	// Desktop mode: the Tauri sidecar overrides the data dir so the app can
+	// live read-only in its install location while data lives in the OS
+	// user-data dir (Herd-style).
+	if d := os.Getenv("SABDOPALON_DIR"); d != "" {
+		return d, nil
+	}
 	if exe, err := os.Executable(); err == nil {
 		// Resolve symlinks so that a symlinked binary finds the real project root.
 		if real, err := filepath.EvalSymlinks(exe); err == nil {
@@ -76,6 +99,10 @@ func (a *App) Run(args []string) int {
 			a.Profile = args[i]
 		case strings.HasPrefix(args[i], "--profile="):
 			a.Profile = strings.TrimPrefix(args[i], "--profile=")
+		case args[i] == "--no-open":
+			a.NoOpen = true
+		case args[i] == "--setup-mode":
+			a.SetupMode = true
 		default:
 			rest = append(rest, args[i])
 		}
@@ -89,6 +116,8 @@ func (a *App) Run(args []string) int {
 	case "version", "-v", "--version":
 		fmt.Printf("sabdopalon %s\n", Version)
 		return 0
+	case "setup", "init":
+		return a.setup()
 	case "help", "-h", "--help":
 		return a.usage()
 	case "serve", "start", "up":
@@ -140,7 +169,9 @@ func (a *App) usage() int {
 
 Usage:
   sabdopalon [serve]            Start everything; open the web dashboard
-                                (flags: --profile <name>, --verbose)
+                                (flags: --profile <name>, --verbose, --no-open,
+                                 --setup-mode)
+  sabdopalon setup              First-run wizard: configure + install the stack
   sabdopalon doctor             Health check: PHP, ports, database, SSL
   sabdopalon sites              List discovered sites
   sabdopalon new <tmpl> <name>  Create a project (templates: ` + templates.ListNames() + `)
@@ -179,6 +210,20 @@ Sites are served at http://<name>.` + a.Cfg.TLD + ` — no Apache/Nginx needed.
 // web dashboard.
 func (a *App) serve() int {
 	fmt.Printf("🐫 Sabdopalon v%s\n\n", Version)
+
+	// Setup mode: config-less first run — serve only the dashboard so the
+	// browser/desktop wizard can run the setup (POST /api/setup).
+	if a.SetupMode || a.Cfg == nil {
+		return a.serveSetupMode()
+	}
+
+	// Safety net: guarantee the layout exists even when the config predates
+	// the bootstrap step (older installs).
+	if err := bootstrap.EnsureLayout(a.Cfg.RootDir); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ layout: %v\n", err)
+		return 1
+	}
+	_ = os.MkdirAll(a.Cfg.Root, 0o755)
 
 	// Apply profile overlay (--profile name) before anything starts.
 	if a.Profile != "" && a.Profile != "default" {
@@ -297,7 +342,7 @@ func (a *App) serve() int {
 
 	if a.Cfg.Dashboard.Enabled {
 		fmt.Printf("\n  🖥  Open your dashboard  →  %s\n\n", dashURL)
-		if a.Cfg.Dashboard.AutoOpen {
+		if a.Cfg.Dashboard.AutoOpen && !a.NoOpen {
 			openBrowser(dashURL)
 		}
 	} else {

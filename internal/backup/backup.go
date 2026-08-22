@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/database"
 )
 
 // Manager handles database backups.
@@ -95,7 +96,7 @@ func (m *Manager) backupMariaDB(dest string) error {
 		return fmt.Errorf("dump binary not found (mariadb-dump or mysqldump)")
 	}
 
-	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", "root", "--all-databases")
+	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", database.DatabaseRootUser, "--all-databases")
 	dumpOut, err := dumpCmd.StdoutPipe()
 	if err != nil {
 		return err

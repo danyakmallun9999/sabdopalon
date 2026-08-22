@@ -40,10 +40,12 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          LDFLAGS="-s -w -X github.com/sabdopalon/sabdopalon/internal/app.Version=${VERSION}"
           mkdir -p dist
           build() {
             echo "::group::build $3 ($1/$2)"
-            GOOS="$1" GOARCH="$2" go build -ldflags="-s -w" -o "dist/$3" ./cmd/sabdopalon
+            GOOS="$1" GOARCH="$2" go build -ldflags="$LDFLAGS" -o "dist/$3" ./cmd/sabdopalon
             echo "::endgroup::"
           }
           build linux   amd64 sabdopalon-linux-x86_64
@@ -53,15 +55,71 @@ jobs:
           build windows amd64 sabdopalon-windows-x86_64.exe
           echo "binaries:"; ls -lh dist
 
-      - name: Package release assets
+      - name: Package release assets (full bundles)
         run: |
           set -e
-          cd dist
-          shopt -s nullglob
-          for f in sabdopalon-windows-*.exe; do zip -q "$f.zip" "$f"; done
-          for f in sabdopalon-linux-* sabdopalon-macos-*; do tar czf "$f.tar.gz" "$f"; done
-          rm -f sabdopalon-windows-*.exe
-          echo "archives:"; ls -lh
+          # Each archive contains a complete, runnable Sabdopalon install:
+          # binary + default config + package registry + empty data dirs +
+          # the one-click installer scripts.
+          STAGE=$(mktemp -d)
+          mkdir -p "$STAGE/bundle"
+
+          # Default (clean, machine-agnostic) engine.toml + package registry.
+          cat > "$STAGE/bundle/config/engine.toml" <<'EOF'
+# Sabdopalon configuration — fresh install defaults.
+# Run `sabdopalon setup` (or the desktop wizard) to configure your stack.
+
+[sabdopalon]
+tld = "localhost"
+root = "./sites"
+logs = "./logs"
+data = "./data"
+
+[proxy]
+http_port = 8080
+https_port = 8443
+
+[php]
+binary = ""
+
+[database]
+engine = "sqlite"
+path = "./data/sabdopalon.db"
+port = 3306
+
+[dashboard]
+enabled = true
+port = 9900
+auto_open = true
+
+[services]
+mailpit = false
+redis = false
+minio = false
+meilisearch = false
+EOF
+
+          cp -r packages "$STAGE/bundle/packages"
+          cp scripts/install.sh scripts/install.ps1 "$STAGE/bundle/"
+
+          # Empty but present data dirs (the binary self-heals, but shipping
+          # them avoids any first-run surprise).
+          for d in sites logs data bin certs backups config/vhosts config/profiles; do
+            mkdir -p "$STAGE/bundle/$d"
+            touch "$STAGE/bundle/$d/.gitkeep"
+          done
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          for f in sabdopalon-linux-* sabdopalon-macos-*; do
+            cp "dist/$f" "$STAGE/bundle/sabdopalon"
+            tar czf "dist/$f.tar.gz" -C "$STAGE" bundle
+          done
+          for f in sabdopalon-windows-*.exe; do
+            cp "dist/$f" "$STAGE/bundle/sabdopalon.exe"
+            (cd "$STAGE" && zip -q "$OLDPWD/dist/$f.zip" -r bundle)
+          done
+          rm -f dist/sabdopalon-windows-*.exe dist/sabdopalon-linux-* dist/sabdopalon-macos-*
+          echo "archives:"; ls -lh dist
 
       - name: Verify assets exist (fail loud, never ship an empty release)
         run: |
@@ -80,3 +138,76 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.zip
+
+  desktop:
+    name: Desktop app (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    needs: release
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            args: --bundles nsis
+          - name: macos
+            os: macos-latest
+            target: x86_64-apple-darwin
+            args: --bundles dmg
+          - name: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            args: --bundles deb,appimage
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build React dashboard
+        working-directory: internal/dashboard/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+
+      - name: Build sidecar (Go)
+        shell: bash
+        working-directory: desktop
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          # Strip the leading "v" so the version string is "0.7.0" not "v0.7.0".
+          VERSION="${VERSION#v}" bash scripts/build-sidecar.sh
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install Tauri deps (Linux)
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Tauri build
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build -- --target ${{ matrix.target }} ${{ matrix.args }}
+
+      - name: Upload artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/src-tauri/target/release/bundle/**/*

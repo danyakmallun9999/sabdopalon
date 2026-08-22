@@ -8,6 +8,7 @@ import {
   ScrollText,
   Settings,
   ShieldCheck,
+  TerminalSquare,
 } from "lucide-react"
 import {
   Sidebar,
@@ -30,6 +31,7 @@ export const NAV_ITEMS = [
   { title: "Packages", url: "/packages", icon: Package },
   { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Terminal", url: "/terminal", icon: TerminalSquare },
   { title: "Logs", url: "/logs", icon: ScrollText },
 ]
 

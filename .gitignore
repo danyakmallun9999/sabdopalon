@@ -50,3 +50,9 @@ desktop.ini
 /internal/dashboard/ui/dist/*
 !/internal/dashboard/ui/dist/
 !/internal/dashboard/ui/dist/index.placeholder.html
+
+# Desktop (Tauri) — built sidecar binaries, target dir, generated schemas
+/desktop/src-tauri/binaries/*
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
+/desktop/node_modules/

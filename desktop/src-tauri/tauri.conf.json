@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Sabdopalon",
+  "version": "0.7.0",
+  "identifier": "com.sabdopalon.app",
+  "build": {
+    "beforeDevCommand": "",
+    "devUrl": "http://localhost:9900",
+    "beforeBuildCommand": ""
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Sabdopalon",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "resizable": true,
+        "url": "http://localhost:9900",
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": ["binaries/sabdopalon"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
+    "shortDescription": "Portable local PHP development server",
+    "longDescription": "Sabdopalon desktop app — PHP + databases + tools, managed from a native window with tray support."
+  },
+  "plugins": {
+    "shell": {
+      "open": true
+    }
+  }
+}

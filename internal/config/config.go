@@ -46,11 +46,21 @@ type Engine struct {
 	RootDir string
 }
 
+// ErrNotBootstrapped is returned by Load when config/engine.toml does not
+// exist yet — the install has never been set up. Callers (main, app.New)
+// use it to trigger the first-run wizard or setup-mode instead of failing.
+var ErrNotBootstrapped = fmt.Errorf("sabdopalon is not set up yet — run the setup wizard")
+
 // Load reads config/engine.toml relative to the given base dir.
+// When the file is missing it returns ErrNotBootstrapped (wrapped) instead
+// of a generic error so first-run flows can react to it.
 func Load(baseDir string) (*Engine, error) {
 	cfgPath := filepath.Join(baseDir, "config", "engine.toml")
 	data, err := os.ReadFile(cfgPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%w: %s", ErrNotBootstrapped, cfgPath)
+		}
 		return nil, fmt.Errorf("read config %s: %w", cfgPath, err)
 	}
 	t, err := toml.DecodeString(string(data))

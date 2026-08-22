@@ -38,23 +38,26 @@ take database backups. No config files required.
 
 ## Status
 
-`v0.6.0` — services release. Proxy routing, per-site PHP with version
-pinning, multi-PHP (8.1–8.5), SQLite/MariaDB/PostgreSQL, HTTPS wizard with
-trust detection, full web dashboard, project templates, DB backups, profiles,
-optional services framework (Mailpit / Redis / MinIO / Meilisearch) with a
-dedicated Services page, clean URLs on :80/:443 (`enable-ports`),
-checksum-verified package installs, and graceful shutdown. Unit tests + CI on
-Linux/macOS/Windows.
+`v0.7.0` — one-click install release. First run opens an interactive setup
+wizard (CLI or dashboard); the release bundles a full portable layout plus
+one-click installers (`install.sh` / `install.ps1`); a native desktop app
+(Tauri v2) wraps the dashboard with tray + autostart + GUI wizard; an
+embedded terminal (xterm.js + PTY) runs shells with Sabdopalon's bin/ on
+PATH. Everything from v0.6 stays: proxy routing, per-site PHP with version
+pinning, multi-PHP (8.1–8.5), SQLite/MariaDB/PostgreSQL, HTTPS wizard,
+dashboard, templates, backups, profiles, optional services (Mailpit / Redis
+/ MinIO / Meilisearch), clean URLs, checksum-verified installs, unit tests +
+CI on Linux/macOS/Windows.
 
 ## Prerequisites
 
 **None.** Sabdopalon is fully self-contained — no Go, no PHP, no MariaDB
-needed on your system. Just download the binary and run it:
+needed on your system. Just install and run it:
 
-- **PHP** — auto-downloaded on first run (8.4.8, ~8MB, 30+ extensions)
-- **MariaDB** — auto-downloaded when you run `sabdopalon add mariadb`
-- **PostgreSQL** — auto-downloaded when you run `sabdopalon add postgresql`
-  (Linux/macOS; Windows uses a system install)
+- **PHP** — auto-downloaded by the setup wizard / on first serve
+  (8.4, ~8MB, 30+ extensions)
+- **MariaDB** — auto-downloaded by the setup wizard (default stack)
+- **PostgreSQL** — optional, one click in the wizard
 - **Go** — only needed if you want to build from source yourself
 
 > If you already have PHP installed, Sabdopalon detects and uses it
@@ -62,7 +65,22 @@ needed on your system. Just download the binary and run it:
 
 ## Installation
 
-### Option A: Download pre-built binary (recommended — no Go needed)
+### Option A: One-click installer (recommended)
+
+```bash
+# Linux / macOS:
+curl -sSL https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.sh | bash
+
+# Windows (PowerShell):
+irm https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.ps1 | iex
+```
+
+The installer downloads the bundle for your OS, extracts it to `~/sabdopalon`
+(`%USERPROFILE%\sabdopalon` on Windows), adds it to your PATH, and runs the
+interactive **setup wizard** — you just answer a few questions (stack: PHP +
+MariaDB default, optional PostgreSQL, ports, sample site).
+
+### Option B: Download pre-built binary
 
 Download the latest release for your OS from the
 [Releases page](https://github.com/danyakmallun9999/sabdopalon/releases).
@@ -75,6 +93,10 @@ Binaries are built automatically via GitHub Actions for all platforms:
 | macOS x86_64 (Intel) | `sabdopalon-macos-x86_64.tar.gz` |
 | macOS aarch64 (Apple Silicon) | `sabdopalon-macos-aarch64.tar.gz` |
 | Windows x86_64 | `sabdopalon-windows-x86_64.zip` |
+
+Every archive is a **full bundle**: binary + default config + package
+registry + empty data dirs + installer scripts. Extract anywhere, then run
+`./sabdopalon` — the setup wizard starts automatically on first run.
 
 ```bash
 # Example (Linux x86_64):
@@ -123,35 +145,13 @@ sudo ln -s "$(pwd)/sabdopalon" /usr/local/bin/sabdopalon
 
 ## Quick start
 
-After installing (download or build), just run it — PHP downloads automatically:
+After installing, the **setup wizard runs automatically** on first launch.
+You can also run it manually any time:
 
 ```bash
-# 1. Start Sabdopalon — PHP auto-downloads on first run if not found
-./sabdopalon
-#    You'll see: "⬇ PHP not found — downloading automatically..."
-#    Then: "✓ PHP ready: bin/php/php" (PHP 8.4.8, ~8MB, with 30+ extensions)
-#    Press Ctrl+C to stop.
-
-# 2. (Optional) Use MariaDB instead of the default SQLite
-./sabdopalon add mariadb          # auto-downloads MariaDB 11.4.12
-#    Then edit config/engine.toml:
-#    [database]
-#    engine = "mariadb"
-
-# 3. (Optional) Enable HTTPS with trusted local certs
-./sabdopalon ssl:ca              # generate local root CA
-./sabdopalon ssl:wildcard        # issue *.localhost wildcard cert
-sudo ./sabdopalon ssl:trust      # install CA into OS trust store (Linux/macOS)
-#    On Windows, run as Administrator:
-#    sabdopalon.exe ssl:trust
-
-# 4. (Optional) Create a new project from a template
-./sabdopalon new blank myapp
-#    Templates: blank, laravel (needs composer), wordpress, codeigniter (needs composer)
-
-# 5. Check everything is ready
-./sabdopalon doctor
-#    Shows: PHP version, proxy ports, DB engine, discovered sites
+./sabdopalon setup        # interactive wizard (PHP + MariaDB default)
+./sabdopalon              # normal start — dashboard + proxy + DB
+./sabdopalon doctor       # health check: PHP, ports, database, SSL
 ```
 
 ## Running your sites
@@ -286,6 +286,7 @@ Everything below is also clickable in the dashboard — the CLI is optional.
 | `sabdopalon backup` / `backup:list` | Database backups |
 | `sabdopalon profile:create/list/delete` | Environment profiles |
 | `sabdopalon vhost` | Print reference Apache vhosts |
+| `sabdopalon setup` | Re-run the interactive setup wizard |
 | `sabdopalon version` / `help` | Meta |
 
 ### Per-site configuration (`.sabdopalon.yml`)
@@ -317,7 +318,12 @@ The dashboard binds to `127.0.0.1` only and is the single control surface:
 | 📦 Packages | Install MariaDB, PostgreSQL, Mailpit, PHP 8.1–8.5 with live progress |
 | 🔒 SSL | CA → wildcard → trust wizard; detects stale/untrusted CAs |
 | ⚙️ Settings | TLD, ports, DB engine, auto-open; apply profiles |
+| 🖥️ Terminal | Embedded shell (xterm.js + PTY) with bin/ on PATH — run php, mysql, composer |
 | 📜 Logs | Live per-site PHP, DB and Mailpit logs |
+
+> **First run / desktop app:** when no config exists yet the dashboard boots
+> in **setup mode** and shows the setup wizard at `/setup` (also the landing
+> page of the Tauri desktop app).
 
 ### Developing / building the dashboard UI
 
@@ -338,7 +344,36 @@ JSON API (used by the UI, also handy for scripting): `/api/status`, `/api/sites`
 (GET/POST), `/api/sites/<name>/start|stop|restart` (POST), `/api/sites/<name>`
 (DELETE), `/api/packages`, `/api/packages/install` + `/api/packages/job`,
 `/api/ssl` (+ `/ca`, `/wildcard`, `/trust`), `/api/config` (GET/PUT),
-`/api/profiles` (+ `/apply`), `/api/services`, `/api/backup(s)`, `/api/logs/<name>`.
+`/api/profiles` (+ `/apply`), `/api/services`, `/api/setup/status` +
+`/api/setup` + `/api/setup/job`, `/api/terminal/ws` (WebSocket PTY),
+`/api/backup(s)`, `/api/logs/<name>`.
+
+## Desktop app (Tauri v2)
+
+A native desktop app wraps the same dashboard — a real OS window (WebView2 /
+WebKit, no URL bar), tray icon, "Start at Login" autostart, and a **GUI setup
+wizard** on first run (no CLI needed, especially on Windows).
+
+- **Windows** — NSIS installer (per-user, no admin), Start Menu shortcut.
+- **macOS** — `.dmg` drag-to-Applications, menu-bar app.
+- **Linux** — `.deb` + `.AppImage`.
+
+Data lives in the OS user-data dir (Herd-style) via `SABDOPALON_DIR`
+(`%LOCALAPPDATA%\Sabdopalon`, `~/Library/Application Support/Sabdopalon`,
+`~/.local/share/sabdopalon`) — the app itself installs read-only.
+
+Build it yourself:
+
+```bash
+cd desktop
+npm install
+bash scripts/build-sidecar.sh   # builds the Go sidecar for your platform
+npm run dev                     # tauri dev (needs Rust toolchain)
+```
+
+> **Signing note:** unsigned macOS/Windows builds show a warning on first
+> launch (right-click-open / "More info"). Signing requires a paid Apple
+> Developer ID / Authenticode certificate — out of scope for now.
 
 ### Clean URLs (`https://myapp.localhost` — no port)
 
@@ -348,6 +383,22 @@ back to 8080/8443. To allow low ports permanently:
 ```bash
 ./sabdopalon enable-ports   # Linux: sudo setcap cap_net_bind_service=+ep <binary>
 ```
+
+## PHP configuration
+
+Every PHP process (all sites) is started with `PHPRC` pointing at
+`config/php.ini`, created automatically on first run with sensible defaults:
+
+```ini
+memory_limit = 256M
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 120
+date.timezone = UTC
+```
+
+Edit the file and restart Sabdopalon (or just the site) to apply. Per-site
+overrides live in `.sabdopalon.yml` (PHP version, docroot, env vars).
 
 ## Environment variables (available in PHP)
 

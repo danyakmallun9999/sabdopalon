@@ -44,6 +44,7 @@ export type Site = {
   name: string
   url: string
   https: string
+  dir?: string
   running: boolean
   php: string
   docroot: string
@@ -126,6 +127,21 @@ export type LogResponse = {
   error?: string
 }
 
+export type SetupStatus = {
+  bootstrapped: boolean
+  dirs_ok: boolean
+  php_installed: boolean
+  db_engine: string
+  root_dir: string
+}
+
+export type SetupJob = {
+  running: boolean
+  done: boolean
+  output: string
+  error?: string
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
   const data = (await res.json()) as T & { error?: string }
@@ -202,6 +218,11 @@ const api = {
   listBackups: () => request<Backup[]>("/api/backups"),
 
   logs: (name: string) => request<LogResponse>(`/api/logs/${encodeURIComponent(name)}`),
+
+  setupStatus: () => request<SetupStatus>("/api/setup/status"),
+  runSetup: (payload: Record<string, unknown>) =>
+    post<{ ok: boolean; message?: string; error?: string }>("/api/setup", payload),
+  setupJob: () => request<SetupJob>("/api/setup/job"),
 }
 
 export default api

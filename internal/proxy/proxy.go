@@ -412,7 +412,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	}
 	sort.Strings(extraEnv)
 
-	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv)
+	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir)
 	if err != nil {
 		lf.Close()
 		return nil, err

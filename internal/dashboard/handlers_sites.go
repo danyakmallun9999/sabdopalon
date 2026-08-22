@@ -41,6 +41,7 @@ func (s *Server) listSites(w http.ResponseWriter) {
 			"name":    name,
 			"url":     u,
 			"https":   h,
+			"dir":     filepath.Join(s.cfg.Root, name),
 			"running": s.proxy.IsRunning(name),
 			"php":     "",
 			"docroot": "",

@@ -15,6 +15,7 @@ import {
   Settings2,
   ShieldAlert,
   Square,
+  TerminalSquare,
   Trash2,
 } from "lucide-react"
 
@@ -24,6 +25,7 @@ import api, {
   type SiteConfigPayload,
   type Status,
 } from "@/lib/api"
+import TerminalPanel from "@/components/terminal-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -61,6 +63,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
 import {
   Table,
   TableBody,
@@ -110,6 +119,7 @@ export default function SitesPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
+  const [termSite, setTermSite] = useState<Site | null>(null)
   const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
   const [savingCfg, setSavingCfg] = useState(false)
@@ -408,6 +418,9 @@ export default function SitesPage() {
                         <DropdownMenuItem onClick={() => openConfigure(s)}>
                           <Settings2 /> Configure…
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setTermSite(s)}>
+                          <TerminalSquare /> Terminal
+                        </DropdownMenuItem>
                         <DropdownMenuItem render={<Link to={`/logs?site=${s.name}`} />}>
                           <ScrollText /> Logs
                         </DropdownMenuItem>
@@ -426,6 +439,24 @@ export default function SitesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Sheet open={!!termSite} onOpenChange={(v) => !v && setTermSite(null)}>
+        <SheetContent side="right" className="w-[min(42rem,95vw)] sm:max-w-none">
+          <SheetHeader>
+            <SheetTitle className="inline-flex items-center gap-2">
+              <TerminalSquare className="size-4" /> Terminal — {termSite?.name}
+            </SheetTitle>
+            <SheetDescription>
+              Shell opened in <code className="bg-muted rounded px-1 py-0.5 text-xs">{termSite?.dir}</code>
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            {termSite && (
+              <TerminalPanel dir={termSite.dir} heightClass="h-[calc(100vh-10rem)] min-h-[28rem]" />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={!!cfgSite} onOpenChange={(v) => !v && setCfgSite(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">

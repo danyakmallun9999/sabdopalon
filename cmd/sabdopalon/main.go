@@ -23,6 +23,18 @@ func main() {
 		os.Stderr.WriteString("hint: run this binary from the Sabdopalon root dir (where config/engine.toml lives)\n")
 		os.Exit(1)
 	}
+
+	if !a.Bootstrapped() {
+		// First run: no config yet. `sabdopalon setup` runs the wizard;
+		// any other command (including bare `sabdopalon`) boots the
+		// dashboard in setup mode so the browser/desktop wizard can
+		// configure the install.
+		if len(os.Args) >= 2 && (os.Args[1] == "setup" || os.Args[1] == "init") {
+			os.Exit(a.Run(os.Args[1:]))
+		}
+		os.Exit(a.Run(append([]string{"--setup-mode"}, os.Args[1:]...)))
+	}
+
 	os.Exit(a.Run(os.Args[1:]))
 }
 

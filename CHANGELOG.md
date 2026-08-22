@@ -3,6 +3,44 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.7.0] — 2026-08-22
+
+### One-click install + desktop app + terminal release
+
+### Added
+- **One-click installers** — `scripts/install.sh` (curl|bash) & `install.ps1`
+  (irm|iex): download → extract to `~/sabdopalon` → PATH → setup wizard.
+- **Full release bundles** — archives now ship binary + default
+  `config/engine.toml` + `packages/packages.toml` + `.gitkeep` data dirs +
+  installers; version injected via ldflags from the tag.
+- **Interactive CLI wizard** (`sabdopalon setup`) — stack (PHP + MariaDB
+  default, optional PostgreSQL), DB engine, ports, sample site; runs
+  automatically on first launch (config sentinel `ErrNotBootstrapped`).
+- **Setup-mode server** — config-less boot serves only the dashboard with
+  `GET /api/setup/status`, `POST /api/setup` (+ `/api/setup/job` progress).
+- **SPA setup wizard** at `/setup` — auto-redirect while not bootstrapped.
+- **`SABDOPALON_DIR`** override — Herd-style user-data dir for desktop mode.
+- **Desktop app (Tauri v2)** in `desktop/` — native window wrapping the
+  dashboard, tray menu, autostart, GUI wizard on first run; CI matrix builds
+  NSIS/dmg/deb/AppImage.
+- **Embedded terminal** — `internal/terminal` (PTY) + `/api/terminal/ws`
+  (WebSocket) + SPA `/terminal` page (xterm.js).
+- **DB init marker** — `data/<engine>/.sabdopalon-initialized` after first
+  initialization; `database.DatabaseRootUser/Password` constants reused by
+  backup and WordPress template (root, no password — XAMPP-style).
+
+### Changed
+- `config.Load` returns `ErrNotBootstrapped` (not a hard error) when
+  `engine.toml` is missing; `main.go` routes first run to the wizard or
+  setup-mode.
+- `app.New()`/`serve()` call `bootstrap.EnsureLayout` (fixes missing
+  `sites/` on fresh installs) and create `cfg.Root`.
+- Go deps added: `creack/pty` (terminal), `coder/websocket` (terminal WS).
+
+### Fixed
+- Fresh install no longer dies with "no such file or directory" — layout is
+  self-healing.
+
 ## [0.6.0] — 2026-08-22
 
 ### Services & PostgreSQL release
