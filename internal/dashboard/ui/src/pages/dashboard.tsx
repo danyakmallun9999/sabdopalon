@@ -282,15 +282,47 @@ export default function DashboardPage() {
     }
   }
 
-  // Start All / Stop All: start/stop each installed service individually
-  // (toggle would flip the persisted enable flag, which we don't want here).
+  // Runtime start/stop (tidak mengubah config enable).
+  async function startService(svc: ServiceStatus) {
+    setBusy(svc.name)
+    try {
+      const r = await api.startService(svc.name)
+      if (r.error) {
+        toast.error(r.error)
+        setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
+      } else {
+        toast.success(r.message ?? `${svc.name} started`)
+        setErrors((e) => {
+          const n = { ...e }
+          delete n[svc.name]
+          return n
+        })
+      }
+      loadAll()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function stopService(svc: ServiceStatus) {
+    setBusy(svc.name)
+    try {
+      const r = await api.stopService(svc.name)
+      if (r.error) toast.error(r.error)
+      else toast.success(r.message ?? `${svc.name} stopped`)
+      loadAll()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  // Start All / Stop All: hanya service yang terinstall.
   async function startAll() {
     setBusy("all")
     try {
       for (const svc of services) {
-        if (svc.running) continue
-        if (!svc.installed) continue
-        const r = await api.toggleService(svc.name, true)
+        if (svc.running || !svc.installed) continue
+        const r = await api.startService(svc.name)
         if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
       }
       toast.success("Start All selesai")
@@ -305,7 +337,7 @@ export default function DashboardPage() {
     try {
       for (const svc of services) {
         if (!svc.running) continue
-        const r = await api.toggleService(svc.name, false)
+        const r = await api.stopService(svc.name)
         if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
       }
       toast.success("Stop All selesai")
@@ -332,9 +364,12 @@ export default function DashboardPage() {
     )
   }
 
-  const runningCount = services.filter((s) => s.running).length
-  const enabledCount = services.filter((s) => s.enabled).length
+  // Hanya tool yang sudah terinstall yang ditampilkan & bisa di-start.
+  const installed = services.filter((s) => s.installed)
+  const runningCount = installed.filter((s) => s.running).length
   const anyError = Object.values(errors).some(Boolean)
+  // DB engine selalu aktif selama server jalan (sqlite/mariadb dikelola otomatis).
+  const dbStatus = status?.database ? `${status.database} ✓` : "—"
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
@@ -350,8 +385,8 @@ export default function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         <StatCard icon={Globe} label="Sites" value={String(status?.sites_count ?? 0)} sub={`*.${status?.tld ?? "localhost"}`} />
-        <StatCard icon={Boxes} label="Services" value={`${runningCount}/${services.length}`} sub={`${enabledCount} enabled`} />
-        <StatCard icon={Database} label="Database" value={status?.database ?? "—"} sub="engine" />
+        <StatCard icon={Boxes} label="Services" value={`${runningCount}/${installed.length}`} sub={`${installed.length} terinstall`} />
+        <StatCard icon={Database} label="Database" value={dbStatus} sub="berjalan otomatis" />
         <StatCard icon={Activity} label="Requests" value={String(trafficTotal)} sub={`HTTP :${status?.http_port ?? "?"} · HTTPS :${status?.https_port ?? "?"}`} />
       </div>
 
@@ -380,11 +415,11 @@ export default function DashboardPage() {
               </CardTitle>
               <CardDescription>
                 {runningCount > 0 ? `${runningCount} service berjalan` : "Tidak ada service berjalan"} · DB{" "}
-                {status?.database ?? "—"} · Proxy :{status?.http_port ?? "?"}
+                {dbStatus} · Proxy :{status?.http_port ?? "?"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={startAll} disabled={busy === "all"}>
+              <Button size="sm" onClick={startAll} disabled={busy === "all" || installed.length === 0}>
                 <Play /> Start All
               </Button>
               <Button size="sm" variant="outline" onClick={stopAll} disabled={busy === "all"}>
@@ -395,20 +430,33 @@ export default function DashboardPage() {
         </CardHeader>
       </Card>
 
-      {/* Service grid */}
-      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
-        {services.map((svc) => (
-          <ServiceCard
-            key={svc.name}
-            svc={svc}
-            busy={busy === svc.name || busy === "all"}
-            onToggle={(v) => toggleService(svc, v)}
-            onStart={() => toggleService(svc, true)}
-            onStop={() => toggleService(svc, false)}
-            onLogs={() => setLogFor(svc.name)}
-          />
-        ))}
-      </div>
+      {/* Service grid — hanya tool yang terinstall */}
+      {installed.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
+          {installed.map((svc) => (
+            <ServiceCard
+              key={svc.name}
+              svc={svc}
+              busy={busy === svc.name || busy === "all"}
+              onToggle={(v) => toggleService(svc, v)}
+              onStart={() => startService(svc)}
+              onStop={() => stopService(svc)}
+              onLogs={() => setLogFor(svc.name)}
+            />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Layanan tambahan</CardTitle>
+            <CardDescription>
+              Belum ada tool tambahan yang terinstall. Pasang lewat halaman{" "}
+              <a href="/packages" className="text-primary hover:underline">Packages</a>{" "}
+              (Mailpit, Redis, MinIO, Meilisearch, Adminer).
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
@@ -477,8 +525,8 @@ export default function DashboardPage() {
       {/* Service table (compact overview) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Semua service</CardTitle>
-          <CardDescription>Status ringkas semua layanan terdaftar.</CardDescription>
+          <CardTitle className="text-base">Layanan terinstall</CardTitle>
+          <CardDescription>Status ringkas tool yang sudah terpasang.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -492,23 +540,23 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {services.map((svc) => (
+                {installed.map((svc) => (
                   <TableRow key={svc.name}>
                     <TableCell className="font-medium">{svc.label}</TableCell>
                     <TableCell className="font-mono text-xs">{svc.ports?.join("  ")}</TableCell>
                     <TableCell>
                       <Badge variant={svc.running ? "default" : "outline"}>
-                        {svc.running ? "running" : svc.enabled ? "enabled" : "off"}
+                        {svc.running ? "running" : svc.enabled ? "enabled" : "stopped"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-1">
                         {svc.running ? (
-                          <Button size="sm" variant="outline" onClick={() => toggleService(svc, false)} disabled={busy === svc.name}>
+                          <Button size="sm" variant="outline" onClick={() => stopService(svc)} disabled={busy === svc.name}>
                             <Square /> Stop
                           </Button>
                         ) : (
-                          <Button size="sm" onClick={() => toggleService(svc, true)} disabled={busy === svc.name || !svc.installed}>
+                          <Button size="sm" onClick={() => startService(svc)} disabled={busy === svc.name}>
                             <Play /> Start
                           </Button>
                         )}

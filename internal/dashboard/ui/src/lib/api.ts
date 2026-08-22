@@ -222,6 +222,14 @@ const api = {
       `/api/services/${encodeURIComponent(name)}/toggle`,
       { enabled },
     ),
+  startService: (name: string) =>
+    post<{ ok: boolean; message?: string; status?: ServiceStatus; error?: string }>(
+      `/api/services/${encodeURIComponent(name)}/start`,
+    ),
+  stopService: (name: string) =>
+    post<{ ok: boolean; message?: string; status?: ServiceStatus; error?: string }>(
+      `/api/services/${encodeURIComponent(name)}/stop`,
+    ),
 
   backupNow: () =>
     post<{ backup: string; pruned: number; message?: string; error?: string }>("/api/backup"),

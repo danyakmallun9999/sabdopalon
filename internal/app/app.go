@@ -277,6 +277,8 @@ func (a *App) serve() int {
 	}
 
 	// Optional bundled services (mail catcher, cache, storage, search…).
+	// The manager is always created so the dashboard can start/stop any
+	// installed service at runtime, even when none is enabled in config.
 	var svcMgr *services.Manager
 	if a.Cfg.Services.Mailpit || a.Cfg.Services.Redis || a.Cfg.Services.MinIO || a.Cfg.Services.Meilisearch {
 		svcMgr = services.New(a.Cfg)
@@ -295,6 +297,8 @@ func (a *App) serve() int {
 				continue
 			}
 		}
+	} else {
+		svcMgr = services.New(a.Cfg)
 	}
 
 	srv := proxy.New(a.Cfg)

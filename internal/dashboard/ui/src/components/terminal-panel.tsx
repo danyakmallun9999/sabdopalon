@@ -54,10 +54,19 @@ export default function TerminalPanel({ dir = "", heightClass = "h-[24rem]" }: P
     window.addEventListener("resize", onResize)
 
     // Fit the terminal when its container changes size (e.g. the resizable
-    // split-pane on the Sites page) — xterm has no native observer.
+    // split-pane on the Sites page). Guard against the fit→resize→fit loop
+    // ResizeObserver can trigger (scrollbar appears/disappears changing the
+    // container by 1px): only call fit when the proposed cell dimensions
+    // differ from the current ones.
     let ro: ResizeObserver | undefined
     if (typeof ResizeObserver !== "undefined" && host) {
-      ro = new ResizeObserver(() => fit.fit())
+      ro = new ResizeObserver(() => {
+        if (typeof fit.proposeDimensions === "function") {
+          const dims = fit.proposeDimensions()
+          if (dims && dims.cols === term.cols && dims.rows === term.rows) return
+        }
+        fit.fit()
+      })
       ro.observe(host)
     }
 

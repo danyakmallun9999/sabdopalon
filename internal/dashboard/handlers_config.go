@@ -271,5 +271,42 @@ func (s *Server) handleAPIServiceToggle(w http.ResponseWriter, name string, r *h
 	s.json(w, resp)
 }
 
+// handleAPIServiceStart starts a service NOW without touching its config
+// enable flag (runtime-only). Route: POST /api/services/<name>/start
+func (s *Server) handleAPIServiceStart(w http.ResponseWriter, name string, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w, "POST")
+		return
+	}
+	if s.svc == nil {
+		s.json(w, map[string]string{"error": "service manager not available (no service enabled in config)"})
+		return
+	}
+	if err := s.svc.Start(name); err != nil {
+		s.json(w, map[string]string{"error": err.Error()})
+		return
+	}
+	resp := map[string]any{"ok": true, "message": name + " started.", "status": s.svc.Status(name)}
+	if st := s.svc.Status(name); st.UI != "" {
+		resp["message"] = name + " started → " + st.UI
+	}
+	s.json(w, resp)
+}
+
+// handleAPIServiceStop stops a running service NOW (runtime-only, no config
+// change). Route: POST /api/services/<name>/stop
+func (s *Server) handleAPIServiceStop(w http.ResponseWriter, name string, r *http.Request) {
+	if r.Method != http.MethodPost {
+		s.methodNotAllowed(w, "POST")
+		return
+	}
+	if s.svc == nil {
+		s.json(w, map[string]string{"error": "service manager not available"})
+		return
+	}
+	_ = s.svc.Stop(name)
+	s.json(w, map[string]any{"ok": true, "message": name + " stopped.", "status": s.svc.Status(name)})
+}
+
 func intPtr(n int) *int    { return &n }
 func boolPtr(b bool) *bool { return &b }

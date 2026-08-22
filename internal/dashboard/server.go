@@ -97,12 +97,22 @@ func (s *Server) routes() {
 	// API: services
 	s.mux.HandleFunc("/api/services", s.handleAPIServices)
 	s.mux.HandleFunc("/api/services/", func(w http.ResponseWriter, r *http.Request) {
-		name := strings.TrimPrefix(strings.TrimSuffix(r.URL.Path, "/toggle"), "/api/services/")
-		if name == "" || strings.Contains(name, "/") {
+		base := strings.TrimPrefix(r.URL.Path, "/api/services/")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/start"):
+			s.handleAPIServiceStart(w, strings.TrimSuffix(base, "/start"), r)
+		case strings.HasSuffix(r.URL.Path, "/stop"):
+			s.handleAPIServiceStop(w, strings.TrimSuffix(base, "/stop"), r)
+		case strings.HasSuffix(r.URL.Path, "/toggle"):
+			name := strings.TrimSuffix(base, "/toggle")
+			if name == "" || strings.Contains(name, "/") {
+				http.NotFound(w, r)
+				return
+			}
+			s.handleAPIServiceToggle(w, name, r)
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		s.handleAPIServiceToggle(w, name, r)
 	})
 
 	// API: backups

@@ -497,12 +497,16 @@ export default function SitesPage() {
             <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
           </div>
 
-          {/* Panel terminal */}
+          {/* Panel terminal — tinggi pasti agar xterm fit tidak memperluas panel */}
           <div
             className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background lg:border-l"
-            style={isDesktop ? { width: termWidth } : { height: termHeight }}
+            style={
+              isDesktop
+                ? { width: termWidth, height: "calc(100vh - 11rem)" }
+                : { height: termHeight }
+            }
           >
-            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
               <span className="inline-flex items-center gap-2 text-sm font-medium">
                 <TerminalSquare className="size-4" /> Terminal — {termSite.name}
               </span>
@@ -510,8 +514,8 @@ export default function SitesPage() {
                 {termSite.dir}
               </span>
             </div>
-            <div className="min-h-0 flex-1 p-2">
-              <TerminalPanel dir={termSite.dir} heightClass="h-full min-h-[12rem]" />
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+              <TerminalPanel dir={termSite.dir} heightClass="absolute inset-0" />
             </div>
           </div>
         </div>
