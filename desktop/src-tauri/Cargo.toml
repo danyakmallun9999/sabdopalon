@@ -1,6 +1,6 @@
 [package]
 name = "sabdopalon-desktop"
-version = "0.7.0"
+version = "0.7.1"
 description = "Sabdopalon desktop app"
 edition = "2021"
 

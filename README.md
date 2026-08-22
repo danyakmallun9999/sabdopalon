@@ -37,7 +37,8 @@ Cukup jalankan `sabdopalon`, lalu:
 
 ## Status
 
-`v0.7.0` — rilis one-click install. Saat pertama dijalankan, muncul wizard
+`v0.7.1` — rilis one-click install + perbaikan desktop. Saat pertama
+dijalankan, muncul wizard
 instalasi interaktif (di terminal maupun di aplikasi desktop) yang menyiapkan
 semua yang dibutuhkan. Ada juga installer satu perintah
 (`install.sh` / `install.ps1`), aplikasi desktop native (tray icon +
@@ -58,13 +59,30 @@ PHP, atau MariaDB secara manual. Cukup unduh dan jalankan:
 
 ## Instalasi
 
-### Cara A: Installer satu perintah (disarankan)
+### Cara A: Aplikasi desktop (tanpa terminal — disarankan untuk Windows)
+
+Unduh installer desktop dari halaman
+[Releases](https://github.com/danyakmallun9999/sabdopalon/releases):
+
+| Platform | File |
+|---|---|
+| Windows x86_64 | `Sabdopalon_0.7.1_x64-setup.exe` (NSIS) |
+| macOS (Apple Silicon) | `Sabdopalon.app.tar.gz` / `.dmg` |
+| Linux | `.deb` / `.AppImage` |
+
+Klik dua kali → wizard instalasi GUI standar → selesai. **Sepanjang instalasi
+dan pemakaian kamu tidak perlu menyentuh terminal sama sekali** — setup
+pertama berjalan sebagai wizard di dalam jendela aplikasi, PHP/MariaDB/
+phpMyAdmin sudah ikut ter-bundle di dalam installer, dan tidak ada jendela
+konsol yang muncul saat proses berjalan.
+
+### Cara B: Installer satu perintah (via terminal)
 
 ```bash
 # Linux / macOS:
 curl -sSL https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.sh | bash
 
-# Windows (PowerShell):
+# Windows (PowerShell) — opsional, untuk yang terbiasa dengan terminal:
 irm https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.ps1 | iex
 ```
 
@@ -74,7 +92,7 @@ lalu menjalankan **wizard instalasi** — kamu tinggal jawab beberapa
 pertanyaan (PHP + MariaDB sebagai bawaan, PostgreSQL opsional, port, situs
 contoh).
 
-### Cara B: Unduh binary langsung
+### Cara C: Unduh binary langsung (via terminal)
 
 Unduh rilis terbaru untuk sistem operasi kamu dari halaman
 [Releases](https://github.com/danyakmallun9999/sabdopalon/releases).
@@ -107,7 +125,7 @@ chmod +x sabdopalon
 .\sabdopalon.exe version
 ```
 
-### Cara C: Membangun dari kode sumber (butuh Go 1.22+)
+### Cara D: Membangun dari kode sumber (butuh Go 1.22+)
 
 ```bash
 # 1. Clone repository
@@ -316,8 +334,13 @@ diakses dari komputer sendiri (`127.0.0.1`).
 
 Sabdopalon punya aplikasi desktop native — jendela OS sungguhan (tanpa bilah
 URL), tray icon, autostart saat login, dan **wizard instalasi bergaya GUI**
-pada saat pertama dijalankan (tanpa perlu menyentuh terminal, terutama di
-Windows).
+pada saat pertama dijalankan (tanpa perlu menyentuh terminal).
+
+**Jaminan bebas-konsol di Windows:** sidecar Go dibangun sebagai aplikasi
+GUI (`-H windowsgui`) dan seluruh proses anak (PHP, MariaDB, certutil, dll.)
+dijalankan dengan flag `CREATE_NO_WINDOW`, jadi tidak ada jendela konsol
+hitam yang muncul atau berkedip — pengguna Windows sepenuhnya berinteraksi
+lewat GUI saja.
 
 - **Windows** — installer NSIS (per-user, tanpa admin), shortcut Start Menu.
 - **macOS** — `.dmg`, tinggal seret ke Applications.

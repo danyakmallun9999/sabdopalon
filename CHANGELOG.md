@@ -3,6 +3,20 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.7.1] — 2026-08-23
+
+### Fixed
+- **Windows: no console flashes** — child processes (php, MariaDB,
+  mariadb-install-db, certutil, tar, composer, php version probes) are now
+  spawned with `CREATE_NO_WINDOW` + `HideWindow`, so the desktop app never
+  pops up a console window; sidecar stays `-H windowsgui`. New shared helper
+  `internal/winproc`. README now presents the NSIS desktop installer as the
+  primary terminal-free Windows install path.
+- **CI: AppImage bundling on ubuntu-latest (24.04)** — the linuxdeploy
+  AppImage needs FUSE which GH runners no longer preinstall; install
+  `libfuse2`(t64) and set `APPIMAGE_EXTRACT_AND_RUN=1` so bundling works
+  headless.
+
 ## [0.7.0] — 2026-08-22
 
 ### One-click install + desktop app + terminal release
