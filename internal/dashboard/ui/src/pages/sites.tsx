@@ -16,7 +16,6 @@ import {
   ScrollText,
   Search,
   Settings2,
-  ShieldAlert,
   Square,
   TerminalSquare,
   Trash2,
@@ -86,7 +85,6 @@ const TEMPLATES = [
 ]
 
 const DOCK_KEY = "sabdopalon.sites.terminalDock" // { open, width }
-const BANNER_KEY = "sabdopalon.sites.cleanUrlDismissed"
 
 type DockState = { open: boolean; width: number }
 
@@ -101,47 +99,6 @@ function loadDock(): DockState {
     /* fresh */
   }
   return { open: true, width: 480 }
-}
-
-function CleanUrlBanner({ tld }: { tld?: string }) {
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem(BANNER_KEY) === "1",
-  )
-  if (dismissed) return null
-  return (
-    <div className="bg-card relative mb-4 flex flex-col gap-2 rounded-xl border p-4 pr-10 sm:flex-row sm:items-center">
-      <ShieldAlert className="text-amber-500 size-5 shrink-0" />
-      <p className="text-muted-foreground flex-1 text-sm">
-        URLs currently include a port. Run{" "}
-        <code className="bg-muted rounded px-1.5 py-0.5">sudo ./sabdopalon enable-ports</code>{" "}
-        once and restart to unlock clean URLs like{" "}
-        <code className="bg-muted rounded px-1.5 py-0.5">
-          https://my-app.{tld ?? "localhost"}
-        </code>
-        .
-      </p>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => {
-          navigator.clipboard.writeText("sudo ./sabdopalon enable-ports")
-          toast.success("Command copied — run it, then restart Sabdopalon")
-        }}
-      >
-        <Copy /> Copy command
-      </Button>
-      <button
-        aria-label="Dismiss"
-        onClick={() => {
-          localStorage.setItem(BANNER_KEY, "1")
-          setDismissed(true)
-        }}
-        className="text-muted-foreground hover:text-foreground absolute top-2 right-2 text-sm"
-      >
-        ✕
-      </button>
-    </div>
-  )
 }
 
 function StatusDot({ s }: { s: TermStatus }) {
@@ -445,7 +402,6 @@ export default function SitesPage() {
 
   const listing = (
     <>
-      {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
       {/* Desktop/tablet: table */}
       <div className="bg-card hidden overflow-hidden rounded-xl border md:block">
         <div className="overflow-x-auto">
