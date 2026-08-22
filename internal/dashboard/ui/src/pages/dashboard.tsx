@@ -222,6 +222,7 @@ function LogDialog({
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const [setup, setSetup] = useState<SetupStatus | null>(null)
   const [status, setStatus] = useState<Status | null>(null)
   const [services, setServices] = useState<ServiceStatus[]>([])
@@ -408,7 +409,6 @@ export default function DashboardPage() {
   }
 
   // Lifecycle controls live on the Database page — this card links there.
-  const navigate = useNavigate()
 
   // Hanya tool yang sudah terinstall yang ditampilkan & bisa di-start.
   const installed = services.filter((s) => s.installed)
