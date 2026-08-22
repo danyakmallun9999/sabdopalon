@@ -62,7 +62,8 @@ jobs:
           # binary + default config + package registry + empty data dirs +
           # the one-click installer scripts.
           STAGE=$(mktemp -d)
-          mkdir -p "$STAGE/bundle"
+          mkdir -p "$STAGE/bundle/config"
+          DIST=$(pwd)/dist
 
           # Default (clean, machine-agnostic) engine.toml + package registry.
           cat > "$STAGE/bundle/config/engine.toml" <<'EOF'
@@ -110,16 +111,19 @@ jobs:
           done
 
           VERSION="${GITHUB_REF_NAME#v}"
-          for f in sabdopalon-linux-* sabdopalon-macos-*; do
-            cp "dist/$f" "$STAGE/bundle/sabdopalon"
-            tar czf "dist/$f.tar.gz" -C "$STAGE" bundle
+          for f in "$DIST"/sabdopalon-linux-* "$DIST"/sabdopalon-macos-*; do
+            cp "$f" "$STAGE/bundle/sabdopalon"
+            tar czf "$f.tar.gz" -C "$STAGE" bundle
           done
-          for f in sabdopalon-windows-*.exe; do
-            cp "dist/$f" "$STAGE/bundle/sabdopalon.exe"
-            (cd "$STAGE" && zip -q "$OLDPWD/dist/$f.zip" -r bundle)
+          for f in "$DIST"/sabdopalon-windows-*.exe; do
+            cp "$f" "$STAGE/bundle/sabdopalon.exe"
+            (cd "$STAGE" && zip -q "${f}.zip" -r bundle)
           done
-          rm -f dist/sabdopalon-windows-*.exe dist/sabdopalon-linux-* dist/sabdopalon-macos-*
-          echo "archives:"; ls -lh dist
+          # Remove the bare binaries (archives are the deliverables) — but
+          # never the archives themselves: `sabdopalon-linux-*` would also
+          # match the .tar.gz files just created.
+          find "$DIST" -maxdepth 1 -type f ! -name '*.tar.gz' ! -name '*.zip' -delete
+          echo "archives:"; ls -lh "$DIST"
 
       - name: Verify assets exist (fail loud, never ship an empty release)
         run: |
