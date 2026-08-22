@@ -283,9 +283,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          # AppImage bundling executes the linuxdeploy AppImage, which needs
+          # FUSE at runtime. ubuntu-latest (24.04) no longer preinstalls it;
+          # the t64 rename means the package name differs across releases.
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
 
       - name: Tauri build
         working-directory: desktop
+        env:
+          # Belt-and-braces: make every AppImage (linuxdeploy included)
+          # self-extract instead of requiring FUSE on headless runners.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: |
           npm ci
           npm run build -- --target ${{ matrix.target }} ${{ matrix.args }}
