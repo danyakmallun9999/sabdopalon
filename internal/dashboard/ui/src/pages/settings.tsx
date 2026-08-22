@@ -12,13 +12,6 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -97,63 +90,6 @@ export default function SettingsPage() {
             Sabdopalon automatically tries ports 80/443 for clean URLs first — these are fallbacks.
             Enable permanently: <code>sabdopalon enable-ports</code>.
           </p>
-        </CardHeader>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Database</CardTitle>
-          <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <Label>Engine</Label>
-              <Select value={cfg.db_engine || "sqlite"} onValueChange={(v) => set("db_engine", v ?? "sqlite")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[
-                    { id: "sqlite", label: "SQLite — zero setup" },
-                    { id: "mariadb", label: "MariaDB" },
-                    { id: "postgresql", label: "PostgreSQL" },
-                    { id: "mysql", label: "MySQL" },
-                  ].map((e) => {
-                    const installed = cfg.db_installed?.[e.id] ?? e.id === "sqlite"
-                    return (
-                      <SelectItem key={e.id} value={e.id}>
-                        {e.label}
-                        {installed ? "" : " — belum terpasang (Packages)"}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-              <p className="text-muted-foreground text-xs">
-                Aktif sekarang:{" "}
-                <span className="text-foreground font-medium">{cfg.db_engine || "sqlite"}</span>
-                {" · "}
-                {cfg.db_running
-                  ? "berjalan"
-                  : (cfg.db_engine || "sqlite") === "sqlite"
-                    ? "selalu aktif"
-                    : "belum berjalan"}
-                . Ganti engine berlaku setelah restart Sabdopalon.
-              </p>
-              {cfg.db_error && (
-                <p className="text-destructive text-xs">
-                  Gagal start database: {cfg.db_error}
-                </p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="dbport">Port (mariadb/mysql)</Label>
-              <Input
-                id="dbport"
-                type="number"
-                value={cfg.db_port ?? ""}
-                onChange={(e) => set("db_port", Number(e.target.value))}
-              />
-            </div>
-          </div>
         </CardHeader>
       </Card>
 
