@@ -95,6 +95,59 @@ strip_root = false
 type = "tar.gz"
 license = "MIT"
 
+# PostgreSQL (embedded builds from zonky — tiny, includes initdb/pg_ctl).
+# Inner archive is tar.xz; extraction shells out to system tar+xz.
+[postgresql]
+version = "17.10.0"
+url = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-{goos}-{march}/{version}/embedded-postgres-binaries-{goos}-{march}-{version}.jar"
+url_linux_arm64 = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-linux-arm64v8/{version}/embedded-postgres-binaries-linux-arm64v8-{version}.jar"
+sha256_linux_x86_64 = "a6c44794a7a258621b8cb98c196bf621cdd705d9fa73c3628166b658c419877a"
+target = "postgresql"
+strip_root = false
+type = "zip-txz"
+license = "PostgreSQL License"
+
+# MinIO — S3-compatible object storage (single static binary).
+[minio]
+version = "RELEASE.2025-09-07T16-13-09Z"
+url = "https://dl.min.io/server/minio/release/{goos}-{march}/minio.{version}"
+url_windows = "https://dl.min.io/server/minio/release/windows-amd64/minio.{version}.exe"
+sha256_linux_x86_64 = "7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+target = "minio"
+binary_name = "minio"
+type = "binary"
+license = "AGPL-3.0"
+
+# Meilisearch — instant search engine (single binary).
+[meilisearch]
+version = "latest"
+url = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-{goos}-{march}"
+url_windows = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-windows-amd64.exe"
+sha256_linux_x86_64 = ""
+target = "meilisearch"
+binary_name = "meilisearch"
+type = "binary"
+license = "MIT"
+
+# Redis — in-memory cache & queue (Windows bundled port; Linux/macOS use
+# the system redis-server via PATH fallback — see the redis service spec).
+[redis]
+version = "5.0.14.1"
+url_windows = "https://github.com/tporadowski/redis/releases/download/v{version}/Redis-x64-{version}.zip"
+target = "redis"
+strip_root = true
+type = "zip"
+license = "BSD-3-Clause"
+
+# Adminer — single-file database web GUI (served as a site).
+[adminer]
+version = "5.3.0"
+url = "https://github.com/vrana/adminer/releases/download/v{version}/adminer-{version}.php"
+sha256_linux_x86_64 = ""
+target = "adminer"
+type = "binary"
+license = "Apache-2.0 / GPL-2.0"
+
 # [mysql]
 # version = "8.4.11"
 # url = "https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.11-linux-glibc2.17-x86_64.tar.xz"

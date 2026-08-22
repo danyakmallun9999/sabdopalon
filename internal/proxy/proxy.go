@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
@@ -41,6 +42,10 @@ type Server struct {
 	stopCh   chan struct{}
 	aliases  map[string]string // alias hostname -> canonical site name
 	Verbose  bool              // print per-site start/stop events
+
+	// EnvProvider optionally supplies extra env vars for PHP processes
+	// (used to expose running optional services, e.g. Redis/MinIO).
+	EnvProvider func() []string
 
 	// Actual bound ports after low-port auto-attempt (may differ from config).
 	httpPortActual  int
@@ -385,7 +390,21 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		return nil, err
 	}
 
-	extraEnv := []string{}
+	extraEnv := []string{
+		fmt.Sprintf("SABDOPALON_DB_ENGINE=%s", s.cfg.Database.Engine),
+	}
+	if s.cfg.Database.Engine == "postgresql" {
+		pgPort := database.EffectivePort(s.cfg)
+		extraEnv = append(extraEnv,
+			"SABDOPALON_PG_HOST=127.0.0.1",
+			fmt.Sprintf("SABDOPALON_PG_PORT=%d", pgPort),
+			"SABDOPALON_PG_USER=sabdopalon",
+			"SABDOPALON_PG_DB=postgres",
+		)
+	}
+	if s.EnvProvider != nil {
+		extraEnv = append(extraEnv, s.EnvProvider()...)
+	}
 	if scErr == nil {
 		for k, v := range sc.Env {
 			extraEnv = append(extraEnv, fmt.Sprintf("%s=%s", k, v))

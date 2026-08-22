@@ -2,12 +2,14 @@ package dashboard
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
+	"github.com/sabdopalon/sabdopalon/internal/services"
 )
 
 // handleAPIStatus reports overall system state for the header/status card.
@@ -26,7 +28,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		"tld":         s.cfg.TLD,
 		"database":    s.cfg.Database.Engine,
 		"sites_count": len(s.proxy.RunningSites()),
-		"mailpit":     s.svcRunning(),
+		"services":    s.svcRunning(),
 	}
 	if s.cfg.PHP.Binary != "" {
 		resp["php"] = baseName(s.cfg.PHP.Binary)
@@ -202,26 +204,23 @@ func (s *Server) handleAPIProfileApply(w http.ResponseWriter, r *http.Request) {
 	s.json(w, map[string]any{"ok": true, "message": msg})
 }
 
-// handleAPIServices reports optional service status (Mailpit).
+// handleAPIServices lists every optional managed service with live state.
 func (s *Server) handleAPIServices(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.methodNotAllowed(w, "GET")
 		return
 	}
-	resp := map[string]any{
-		"mailpit_enabled": s.cfg.Services.Mailpit,
-	}
+	var list []services.Status
 	if s.svc != nil {
-		resp["mailpit"] = s.svc.Status()
-	} else {
-		resp["mailpit"] = map[string]any{"installed": false, "running": false}
+		list = s.svc.All()
 	}
-	s.json(w, resp)
+	s.json(w, map[string]any{"services": list})
 }
 
-// handleAPIMailpitToggle enables/disables Mailpit {enabled}. Applies
-// immediately when the service manager is available, and persists to config.
-func (s *Server) handleAPIMailpitToggle(w http.ResponseWriter, r *http.Request) {
+// handleAPIServiceToggle enables/disables a service {enabled}. Persists to
+// engine.toml and applies immediately when the service manager is wired.
+// Route: POST /api/services/<name>/toggle
+func (s *Server) handleAPIServiceToggle(w http.ResponseWriter, name string, r *http.Request) {
 	if r.Method != http.MethodPost {
 		s.methodNotAllowed(w, "POST")
 		return
@@ -233,26 +232,30 @@ func (s *Server) handleAPIMailpitToggle(w http.ResponseWriter, r *http.Request) 
 		s.json(w, map[string]string{"error": "invalid JSON"})
 		return
 	}
-	s.cfg.Services.Mailpit = req.Enabled
+	if !services.SetEnabled(s.cfg, name, req.Enabled) {
+		s.json(w, map[string]string{"error": "unknown service: " + name})
+		return
+	}
 
 	var msg string
 	switch {
 	case req.Enabled && s.svc == nil:
-		// Service manager not wired (mailpit disabled at startup) — needs restart.
-		msg = "Mailpit enabled in config — it will start after restarting Sabdopalon."
+		msg = fmt.Sprintf("%s enabled in config — it will start after restarting Sabdopalon.", name)
 	case req.Enabled:
-		if err := s.svc.Start(); err != nil {
-			if err := s.cfg.Save(); err != nil {
-				s.json(w, map[string]string{"error": err.Error()})
-				return
-			}
+		if err := s.cfg.Save(); err != nil {
+			s.json(w, map[string]string{"error": err.Error()})
+			return
+		}
+		if err := s.svc.Start(name); err != nil {
 			msg = "Enabled in config, but could not start now: " + err.Error()
+		} else if st := s.svc.Status(name); st.UI != "" {
+			msg = name + " started → " + st.UI
 		} else {
-			msg = "Mailpit started → " + s.svc.Status().UI
+			msg = name + " started."
 		}
 	default:
-		_ = s.svc.Stop()
-		msg = "Mailpit stopped and disabled."
+		_ = s.svc.Stop(name)
+		msg = name + " stopped and disabled."
 	}
 
 	if err := s.cfg.Save(); err != nil {
@@ -261,7 +264,7 @@ func (s *Server) handleAPIMailpitToggle(w http.ResponseWriter, r *http.Request) 
 	}
 	resp := map[string]any{"ok": true, "message": msg}
 	if s.svc != nil {
-		resp["mailpit"] = s.svc.Status()
+		resp["status"] = s.svc.Status(name)
 	}
 	s.json(w, resp)
 }

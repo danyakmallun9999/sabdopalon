@@ -10,6 +10,7 @@ import api, { type Status } from "@/lib/api"
 import DatabasePage from "@/pages/database"
 import LogsPage from "@/pages/logs"
 import PackagesPage from "@/pages/packages"
+import ServicesPage from "@/pages/services"
 import SettingsPage from "@/pages/settings"
 import SitesPage from "@/pages/sites"
 import SslPage from "@/pages/ssl"
@@ -46,6 +47,7 @@ export function App() {
                 <Route path="/sites" element={<SitesPage />} />
                 <Route path="/database" element={<DatabasePage />} />
                 <Route path="/packages" element={<PackagesPage />} />
+                <Route path="/services" element={<ServicesPage />} />
                 <Route path="/ssl" element={<SslPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/logs" element={<LogsPage />} />

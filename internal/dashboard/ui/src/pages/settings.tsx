@@ -2,11 +2,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Save } from "lucide-react"
 
-import api, {
-  type ConfigPayload as Config,
-  type MailpitStatus,
-  type Profile,
-} from "@/lib/api"
+import api, { type ConfigPayload as Config, type Profile } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -36,13 +32,11 @@ import {
 export default function SettingsPage() {
   const [cfg, setCfg] = useState<Config>({})
   const [profiles, setProfiles] = useState<Profile[]>([])
-  const [mailpit, setMailpit] = useState<MailpitStatus | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     api.getConfig().then(setCfg).catch(() => {})
     api.listProfiles().then((p) => setProfiles(Array.isArray(p) ? p : [])).catch(() => {})
-    api.services().then((s) => setMailpit(s.mailpit)).catch(() => {})
   }, [])
 
   function set<K extends keyof Config>(key: K, value: Config[K]) {
@@ -137,7 +131,7 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Dashboard &amp; services</CardTitle>
+          <CardTitle>Dashboard</CardTitle>
           <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
             <div className="flex flex-col gap-2">
               <Label htmlFor="dashport">Dashboard port</Label>
@@ -156,22 +150,6 @@ export default function SettingsPage() {
                 id="autoopen"
                 checked={!!cfg.auto_open}
                 onCheckedChange={(v) => set("auto_open", v)}
-              />
-            </div>
-            <div className="flex flex-row items-center justify-between rounded-lg border p-3">
-              <Label htmlFor="mailpit" className="font-normal">
-                Mailpit catcher
-                {mailpit?.running && (
-                  <span className="text-muted-foreground block text-xs">running now</span>
-                )}
-              </Label>
-              <Switch
-                id="mailpit"
-                checked={!!cfg.mailpit_enabled}
-                onCheckedChange={async (v) => {
-                  set("mailpit_enabled", v)
-                  await api.toggleMailpit(v)
-                }}
               />
             </div>
           </div>

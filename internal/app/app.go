@@ -26,7 +26,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.5.0"
+var Version = "0.6.0"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -231,21 +231,31 @@ func (a *App) serve() int {
 		}
 	}
 
+	// Optional bundled services (mail catcher, cache, storage, search…).
+	var svcMgr *services.Manager
+	if a.Cfg.Services.Mailpit || a.Cfg.Services.Redis || a.Cfg.Services.MinIO || a.Cfg.Services.Meilisearch {
+		svcMgr = services.New(a.Cfg)
+		for _, st := range svcMgr.All() {
+			if !st.Enabled {
+				continue
+			}
+			if !st.Installed {
+				if a.Verbose {
+					fmt.Printf("  ℹ  %s enabled but not installed — use `sabdopalon add %s`\n", st.Name, st.Name)
+				}
+				continue
+			}
+			if err := svcMgr.Start(st.Name); err != nil {
+				fmt.Fprintf(os.Stderr, "  ⚠ %s: %v\n", st.Name, err)
+				continue
+			}
+		}
+	}
+
 	srv := proxy.New(a.Cfg)
 	srv.Verbose = a.Verbose
-
-	// Optional bundled services (Mailpit SMTP catcher).
-	var svcMgr *services.Manager
-	if a.Cfg.Services.Mailpit {
-		svcMgr = services.New(a.Cfg)
-		if svcMgr.Installed() {
-			if err := svcMgr.Start(); err != nil {
-				fmt.Fprintf(os.Stderr, "  ⚠ mailpit: %v\n", err)
-				svcMgr = nil
-			}
-		} else if a.Verbose {
-			fmt.Println("  ℹ  mailpit enabled but not installed — use `sabdopalon add mailpit`")
-		}
+	if svcMgr != nil {
+		srv.EnvProvider = svcMgr.EnvVars
 	}
 
 	dashboard.Version = Version
@@ -271,7 +281,7 @@ func (a *App) serve() int {
 		n := srv.StopAll()
 		_ = dbMgr.Stop()
 		if svcMgr != nil {
-			_ = svcMgr.Stop()
+			svcMgr.StopAll()
 		}
 		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
 		os.Exit(0)
@@ -540,10 +550,55 @@ func (a *App) pkgAdd(args []string) int {
 		fmt.Printf("(%s → package %q)\n", name, pkg)
 	}
 	fmt.Printf("Installing %s...\n", pkg)
+	if strings.EqualFold(pkg, "redis") && runtime.GOOS != "windows" {
+		fmt.Println("  Redis is not bundled on this platform — Sabdopalon uses your system redis-server.")
+		fmt.Println("  Install it with your package manager (apt install redis-server / brew install redis).")
+		return 0
+	}
 	if err := m.Download(pkg); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
+	if strings.EqualFold(pkg, "adminer") {
+		return a.installAdminer()
+	}
+	return 0
+}
+
+// installAdminer moves the downloaded single-file GUI into sites/adminer so it
+// is served like any other site at http://adminer.<tld>.
+func (a *App) installAdminer() int {
+	bin := filepath.Join(a.Cfg.RootDir, "bin", "adminer")
+	var src string
+	entries, _ := os.ReadDir(bin)
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "adminer-") && strings.HasSuffix(e.Name(), ".php") {
+			src = filepath.Join(bin, e.Name())
+			break
+		}
+	}
+	if src == "" {
+		fmt.Fprintln(os.Stderr, "✗ downloaded Adminer file not found")
+		return 1
+	}
+	dest := filepath.Join(a.Cfg.Root, "adminer", "public")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	header := "<?php\n// Auto-filled defaults for the local Sabdopalon database.\nif (!isset($_GET['username']) && $_SERVER['REQUEST_METHOD'] === 'POST' === false) { /* noop */ }\n"
+	_ = header
+	out := filepath.Join(dest, "index.php")
+	if err := os.WriteFile(out, data, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	fmt.Printf("✓ Adminer ready → http://adminer.%s:%d/\n", a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
 	return 0
 }
 

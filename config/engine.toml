@@ -16,7 +16,7 @@ https_port = 8443
 binary = "/home/danyakmallun/.config/herd-lite/bin/php"
 
 [database]
-engine = "sqlite"
+engine = "postgresql"
 path = "./data/sabdopalon.db"
 port = 3306
 

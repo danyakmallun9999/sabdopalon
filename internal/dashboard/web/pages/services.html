@@ -1,0 +1,89 @@
+{{define "content"}}
+<h1>🧩 Services</h1>
+<p class="sub">Optional local services, bundled inside <code class="inline">bin/</code> — toggles apply immediately.</p>
+
+<div id="services" class="grid"></div>
+
+<div class="card" id="env-card" style="display:none">
+  <h2>Laravel .env suggestions</h2>
+  <div class="tabs" id="env-tabs"></div>
+  <pre class="progress" id="env-body"></pre>
+  <button class="btn small secondary" style="margin-top:.6rem" onclick="copyEnv()">Copy</button>
+</div>
+
+<script>
+const LARAVEL_ENV = {
+  mailpit: `MAIL_MAILER=smtp
+MAIL_HOST=127.0.0.1
+MAIL_PORT=1025`,
+  redis: `CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+REDIS_CLIENT=predis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379`,
+  minio: `FILESYSTEM_DISK=s3
+AWS_ENDPOINT=http://127.0.0.1:9000
+AWS_ACCESS_KEY_ID=sabdopalon
+AWS_SECRET_ACCESS_KEY=sabdopalon-secret
+AWS_DEFAULT_REGION=us-east-1
+AWS_BUCKET=sabdopalon-bucket`,
+  meilisearch: `SCOUT_DRIVER=meilisearch
+MEILISEARCH_HOST=http://127.0.0.1:7700`,
+};
+
+let currentEnvSvc = null;
+
+async function loadServices() {
+  const d = await api('/api/services');
+  const list = (d && d.services) || [];
+  const el = document.getElementById('services');
+  if (!list.length) { el.innerHTML = '<div class="empty">No services registered.</div>'; return; }
+
+  el.innerHTML = list.map(s => {
+    const dot = s.running ? 'ok' : (s.installed ? '' : 'off');
+    const stateBadge = s.running ? '<span class="badge">running</span>'
+      : (s.installed ? '<span class="badge warn">installed — enable to start</span>'
+                     : '<span class="badge off">not installed</span>');
+    return `
+    <div class="site-card">
+      <div class="head" style="justify-content:space-between;width:100%">
+        <span class="name">${esc(s.label)}</span>
+        <span class="dot ${dot}" title="${s.running?'running':(s.installed?'installed':'not installed')}"></span>
+      </div>
+      <div class="hint">${(s.ports||[]).map(p=>'<code class="inline">'+esc(p)+'</code>').join(' ')}</div>
+      ${s.running && s.ui ? `<a class="btn small" href="${esc(s.ui)}" target="_blank">Open UI ↗</a>` : ''}
+      <div class="actions" style="margin-top:.4rem">
+        <label class="hint" style="display:flex;align-items:center;gap:.5rem">
+          <input type="checkbox" ${s.enabled?'checked':''} data-svc="${esc(s.name)}" onchange="toggleSvc('${esc(s.name)}', this.checked)">
+          enabled (auto-start)
+        </label>
+      </div>
+      ${!s.installed ? `<p class="hint" style="margin-top:.4rem">${esc(s.hint||'')}</p>` : ''}
+    </div>`;
+  }).join('');
+
+  // Laravel .env card for running services
+  const running = list.filter(x => x.running && LARAVEL_ENV[x.name]);
+  const card = document.getElementById('env-card');
+  if (!running.length) { card.style.display = 'none'; currentEnvSvc = null; return; }
+  if (!currentEnvSvc || !running.some(r => r.name === currentEnvSvc)) currentEnvSvc = running[0].name;
+  card.style.display = '';
+  document.getElementById('env-tabs').innerHTML = running.map(r =>
+    `<span class="tab ${r.name===currentEnvSvc?'active':''}" onclick="pickEnv('${esc(r.name)}')">${esc(r.label.split(' — ')[0])}</span>`).join('');
+  document.getElementById('env-body').textContent = LARAVEL_ENV[currentEnvSvc] ?? '';
+}
+poll(loadServices, 5000);
+
+function pickEnv(name){ currentEnvSvc = name; loadServices(); }
+async function copyEnv(){
+  await navigator.clipboard.writeText(document.getElementById('env-body').textContent);
+  toast('Laravel .env snippet copied');
+}
+
+async function toggleSvc(name, enabled){
+  const r = await post(`/api/services/${encodeURIComponent(name)}/toggle`, {enabled});
+  if (r.error) toast(r.error, true); else toast(r.message || `${name}: ${enabled?'on':'off'}`);
+  loadServices();
+}
+</script>
+{{end}}

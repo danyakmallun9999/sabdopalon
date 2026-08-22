@@ -37,7 +37,7 @@ type Server struct {
 	cfg     *config.Engine
 	proxy   *proxy.Server
 	backup  *backup.Manager
-	svc     *services.Manager // may be nil when mailpit is disabled
+	svc     *services.Manager // nil when no optional service is enabled
 	mux     *http.ServeMux
 	started time.Time
 }
@@ -91,7 +91,14 @@ func (s *Server) routes() {
 
 	// API: services
 	s.mux.HandleFunc("/api/services", s.handleAPIServices)
-	s.mux.HandleFunc("/api/services/mailpit", s.handleAPIMailpitToggle)
+	s.mux.HandleFunc("/api/services/", func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(strings.TrimSuffix(r.URL.Path, "/toggle"), "/api/services/")
+		if name == "" || strings.Contains(name, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		s.handleAPIServiceToggle(w, name, r)
+	})
 
 	// API: backups
 	s.mux.HandleFunc("/api/backup", s.handleAPIBackup)
@@ -162,8 +169,8 @@ func baseName(p string) string {
 	return p
 }
 
-// svcRunning reports whether the optional services manager is active.
-func (s *Server) svcRunning() bool { return s.svc != nil && s.svc.Status().Running }
+// svcRunning reports whether any optional managed service is running.
+func (s *Server) svcRunning() bool { return s.svc != nil && s.svc.AnyRunning() }
 
 // readBody reads and limits a request body (kept for future endpoints).
 func readBody(r *http.Request) ([]byte, error) {

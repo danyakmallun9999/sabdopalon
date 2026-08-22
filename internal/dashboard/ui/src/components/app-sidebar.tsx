@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom"
 
 import {
+  Boxes,
   Database,
   Globe,
   Package,
@@ -25,6 +26,7 @@ import type { Status } from "@/lib/api"
 export const NAV_ITEMS = [
   { title: "Sites", url: "/sites", icon: Globe },
   { title: "Database", url: "/database", icon: Database },
+  { title: "Services", url: "/services", icon: Boxes },
   { title: "Packages", url: "/packages", icon: Package },
   { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
   { title: "Settings", url: "/settings", icon: Settings },

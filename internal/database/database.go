@@ -10,9 +10,11 @@ package database
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -31,6 +33,22 @@ type Manager struct {
 // New creates a DB Manager.
 func New(cfg *config.Engine) *Manager {
 	return &Manager{cfg: cfg}
+}
+
+// EffectivePort returns the daemon listen port for the configured engine,
+// applying engine-specific defaults when the config still carries the
+// generic MySQL default.
+func EffectivePort(cfg *config.Engine) int {
+	if cfg.Database.Engine == "postgresql" && cfg.Database.Port == 3306 {
+		return 5432
+	}
+	if cfg.Database.Port == 0 {
+		if cfg.Database.Engine == "postgresql" {
+			return 5432
+		}
+		return 3306
+	}
+	return cfg.Database.Port
 }
 
 // Start launches the database daemon if the engine requires one (not sqlite).
@@ -86,14 +104,20 @@ func (m *Manager) Start() error {
 	}
 	m.cmd = cmd
 
-	// wait for the socket to appear (DB is ready)
-	if !m.waitForSocket(socket, 30*time.Second) {
+	// wait for readiness
+	var ready bool
+	if engine == "postgresql" {
+		ready = m.waitTCPPort(EffectivePort(m.cfg), 30*time.Second)
+	} else {
+		ready = m.waitForSocket(socket, 30*time.Second)
+	}
+	if !ready {
 		logFile.Close()
 		_ = m.Stop()
 		return fmt.Errorf("%s did not start (see logs/%s.log)", engine, engine)
 	}
 	m.ready = true
-	fmt.Printf("  ✓  %s ready on port %d\n", engine, m.cfg.Database.Port)
+	fmt.Printf("  ✓  %s ready on port %d\n", engine, EffectivePort(m.cfg))
 	return nil
 }
 
@@ -120,9 +144,14 @@ func (m *Manager) Ready() bool { return m.ready }
 func (m *Manager) findBinary() (string, error) {
 	engine := m.cfg.Database.Engine
 	// Look in bundled bin/, then PATH.
+	sb := serverBinary(engine)
 	candidates := []string{
-		filepath.Join(m.cfg.RootDir, "bin", engine, "bin", serverBinary(engine)),
-		filepath.Join(m.cfg.RootDir, "bin", engine, serverBinary(engine)),
+		filepath.Join(m.cfg.RootDir, "bin", engine, "bin", sb),
+		filepath.Join(m.cfg.RootDir, "bin", engine, sb),
+	}
+	if engine == "postgresql" {
+		candidates = append(candidates,
+			filepath.Join(m.cfg.RootDir, "bin", "postgresql", "bin", sb+".exe"))
 	}
 	for _, c := range candidates {
 		if fileExists(c) {
@@ -136,6 +165,16 @@ func (m *Manager) findBinary() (string, error) {
 }
 
 func (m *Manager) initialize(binary, dataDir string) error {
+	if m.cfg.Database.Engine == "postgresql" {
+		initdb := filepath.Join(filepath.Dir(binary), "initdb"+extSuffix())
+		cmd := exec.Command(initdb, "-D", dataDir, "-U", "sabdopalon",
+			"--auth=trust", "-E", "utf8")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("initdb: %w: %s", err, string(out))
+		}
+		return nil
+	}
 	binDir := filepath.Dir(binary)
 	rootDir := filepath.Dir(binDir) // bin/mariadb/ root
 	// MariaDB/MySQL: use mariadb-install-db or mysqld --initialize-insecure
@@ -171,7 +210,7 @@ func (m *Manager) initialize(binary, dataDir string) error {
 }
 
 func (m *Manager) startArgs(binary, dataDir, socket string) []string {
-	port := strconv.Itoa(m.cfg.Database.Port)
+	port := strconv.Itoa(EffectivePort(m.cfg))
 	switch m.cfg.Database.Engine {
 	case "mariadb", "mysql":
 		return []string{
@@ -184,7 +223,9 @@ func (m *Manager) startArgs(binary, dataDir, socket string) []string {
 			"--innodb-buffer-pool-size=64M",
 		}
 	case "postgresql":
-		return []string{"-D", dataDir, "-p", port, "-c", "unix_socket_directories=" + filepath.Dir(socket)}
+		return []string{"-D", dataDir, "-p", port,
+			"-c", "listen_addresses=127.0.0.1",
+			"-c", "unix_socket_directories=" + filepath.Dir(socket)}
 	default:
 		return []string{}
 	}
@@ -222,4 +263,27 @@ func dirHasFiles(dir string) bool {
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+// extSuffix returns ".exe" on Windows for bundled binaries.
+func extSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
+}
+
+// waitTCPPort polls a TCP port until it accepts connections.
+func (m *Manager) waitTCPPort(port int, timeout time.Duration) bool {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return false
 }

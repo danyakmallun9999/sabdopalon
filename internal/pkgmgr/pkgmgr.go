@@ -46,8 +46,10 @@ type PackageDef struct {
 	URL        string // supports {os}, {arch}, {version}, {version_short} placeholders
 	URLWindows string // optional: Windows-specific URL (overrides URL on Windows)
 	Target     string // relative dir under bin/, supports {version_short}
+	BinaryName string // optional clean filename when Type=="binary"
 	SHA256     string // generic fallback checksum
 	SHAByPlat  map[string]string
+	URLByPlat  map[string]string // optional url_linux_arm64-style overrides
 	License    string
 	StripRoot  bool   // strip top-level directory in archive
 	Type       string // "tar.gz" (default), "binary" (single executable), "zip"
@@ -114,15 +116,24 @@ func (m *Manager) loadRegistry() error {
 			URL:        getStr(kv, "url"),
 			URLWindows: getStr(kv, "url_windows"),
 			Target:     getStr(kv, "target"),
+			BinaryName: getStr(kv, "binary_name"),
 			SHA256:     getStr(kv, "sha256"),
 			SHAByPlat:  map[string]string{},
+			URLByPlat:  map[string]string{},
 			License:    getStr(kv, "license"),
 			StripRoot:  getBool(kv, "strip_root"),
 			Type:       getStr(kv, "type"),
 		}
 		for k, v := range kv {
-			if s, ok := v.(string); ok && strings.HasPrefix(k, "sha256_") {
-				p.SHAByPlat[strings.TrimPrefix(k, "sha256_")] = s
+			if str, ok := v.(string); ok && strings.HasPrefix(k, "sha256_") {
+				p.SHAByPlat[strings.TrimPrefix(k, "sha256_")] = str
+			}
+			if str, ok := v.(string); ok && strings.HasPrefix(k, "url_") && !strings.HasPrefix(k, "url_windows_generic") {
+				// url_<os>_<arch> overrides, e.g. url_linux_arm64
+				suffix := strings.TrimPrefix(k, "url_")
+				if suffix != "windows" { // legacy key handled separately below
+					p.URLByPlat[suffix] = str
+				}
 			}
 		}
 		if p.Type == "" {
@@ -268,16 +279,22 @@ func (m *Manager) Download(name string) error {
 	}
 	isWindows := runtime.GOOS == "windows"
 
-	// Resolve URL: use url_windows on Windows, then expand placeholders.
+	// Resolve URL: exact platform override → url_windows → base template.
 	downloadURL := p.URL
 	ver := p.Version
-	if isWindows && p.URLWindows != "" {
+	if over, ok := p.URLByPlat[platformKey()]; ok && over != "" {
+		downloadURL = over
+	} else if isWindows && p.URLWindows != "" {
 		downloadURL = p.URLWindows
 		if p.VersionWin != "" {
 			ver = p.VersionWin
 		}
 	}
 	downloadURL = expandPlaceholders(downloadURL, ver)
+
+	if downloadURL == "" {
+		return fmt.Errorf("no download source for %s on this platform (check packages/packages.toml)", name)
+	}
 
 	target := expandTarget(p.Target, ver)
 	fullTarget := filepath.Join(m.binRoot, target)
@@ -346,10 +363,15 @@ func (m *Manager) Download(name string) error {
 
 	switch pkgType {
 	case "binary":
-		binName := filepath.Base(downloadURL)
-		binName = strings.TrimSuffix(binName, ".tar.gz")
-		binName = strings.TrimSuffix(binName, ".zip")
-		if isWindows && !strings.HasSuffix(binName, ".exe") {
+		binName := p.BinaryName
+		if binName == "" {
+			binName = filepath.Base(downloadURL)
+			binName = strings.TrimSuffix(binName, ".tar.gz")
+			binName = strings.TrimSuffix(binName, ".zip")
+			if isWindows && !strings.HasSuffix(binName, ".exe") {
+				binName += ".exe"
+			}
+		} else if isWindows && !strings.HasSuffix(binName, ".exe") {
 			binName += ".exe"
 		}
 		if err := installBinaryAs(tmpFile, fullTarget, binName); err != nil {
@@ -358,6 +380,13 @@ func (m *Manager) Download(name string) error {
 	case "zip":
 		if err := extractZip(tmpFile, fullTarget, p.StripRoot); err != nil {
 			return fmt.Errorf("extract zip: %w", err)
+		}
+	case "zip-txz":
+		if err := extractZip(tmpFile, fullTarget, p.StripRoot); err != nil {
+			return fmt.Errorf("extract outer zip: %w", err)
+		}
+		if err := extractInnerTxz(fullTarget); err != nil {
+			return err
 		}
 	default: // tar.gz
 		m.printf("  📦  extracting to %s ...\n", fullTarget)
@@ -992,4 +1021,31 @@ func ResolveDefaultPHP(cfg *config.Engine) (string, error) {
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+// extractInnerTxz unpacks a nested *.txz (tar.xz) that sits at the root of a
+// freshly extracted directory (e.g. Maven-hosted PostgreSQL binaries), using
+// the system tar. Fails loudly with per-OS guidance when xz is unavailable.
+func extractInnerTxz(dir string) error {
+	matches, _ := filepath.Glob(filepath.Join(dir, "*.txz"))
+	for _, inner := range matches {
+		cmd := exec.Command("tar", "-xJf", inner, "-C", dir)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			hint := "install XZ Utils and retry"
+			switch runtime.GOOS {
+			case "linux":
+				hint = "run 'sudo apt install xz-utils' (most distros ship it) and retry"
+			case "darwin":
+				hint = "run 'brew install xz' and retry"
+			case "windows":
+				hint = "install XZ Utils (winget install -e --id xz-utils) or extract manually"
+			}
+			_ = os.Remove(inner)
+			return fmt.Errorf("extracting %s needs system tar+xz (%s): %s",
+				filepath.Base(inner), hint, strings.TrimSpace(string(out)))
+		}
+		_ = os.Remove(inner)
+	}
+	return nil
 }

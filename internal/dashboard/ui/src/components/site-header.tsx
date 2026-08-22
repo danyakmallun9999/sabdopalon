@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom"
-import { ExternalLink, Mail } from "lucide-react"
+import { ExternalLink, Boxes } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
@@ -41,9 +41,9 @@ export default function SiteHeader({ status }: { status: Status | null }) {
               PHP {status?.php_version ?? status?.php}
             </Badge>
           )}
-          {status?.mailpit && (
-            <Badge variant="secondary" render={<a href="http://localhost:8025" target="_blank" rel="noreferrer" />}>
-              <Mail /> Mailpit <ExternalLink />
+          {status?.services && (
+            <Badge variant="secondary" render={<a href="/services" />}>
+              <Boxes /> Services aktif <ExternalLink />
             </Badge>
           )}
           <span

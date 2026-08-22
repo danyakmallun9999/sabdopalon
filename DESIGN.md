@@ -149,6 +149,27 @@ echo "404 Not Found";
   The daemon is stopped gracefully on Ctrl+C.
 - MariaDB binary is downloaded via `sabdopalon add mariadb` (package manager
   verifies SHA-256, extracts to `bin/mariadb/` with `strip_root`).
+- **PostgreSQL (v0.6, Linux/macOS):** `sabdopalon add postgresql` downloads the
+  zonky embedded build (includes `initdb`/`postgres`). First run initializes
+  `data/postgresql/` via `initdb -U sabdopalon --auth=trust -E utf8`; the daemon
+  listens on `127.0.0.1:5432` with a Unix socket in `data/postgresql-sock/`.
+  PHP apps connect via PDO `pgsql` using the injected `SABDOPALON_PG_*` env
+  vars. Caveat: zonky publishes no Windows binaries, so PostgreSQL on Windows
+  requires a system install (PATH fallback).
+
+### 3.6 Optional services (framework)
+
+- Generic `Spec`-driven service framework in `internal/services` (v0.5+):
+  each service is declared declaratively — binary discovery (bundled
+  `bin/<name>/` then PATH fallback), ports, run args, readiness probe
+  (`tcp`/`http`), optional console UI, and the env vars injected into PHP
+  sites while the service is running.
+- Registry: **Mailpit**, **Redis** (Windows bundled port + system fallback),
+  **MinIO** (S3-compatible), **Meilisearch** (search). Toggled per-service in
+  `config/engine.toml` under `[services]` or from the dashboard Services page;
+  toggles apply at runtime and persist.
+- PHP env injection: `proxy.EnvProvider` callback gathers env only from
+  *running* services — a stopped service contributes nothing.
 
 ### 3.5 SSL
 
@@ -245,6 +266,22 @@ lifecycle) — not decompilation of any executable.
 - [x] **Database backup** (SQLite: file copy; MariaDB: dump+gzip, auto-prune)
 - [x] **Backup management** (`backup`, `backup:list`, dashboard one-click)
 - [x] **Profiles** (`profile:create`, `profile:list`, `profile:delete`)
+
+### Phase 5 — Services framework & PostgreSQL (v0.6) ✅ COMPLETE
+- [x] **Generic `Spec`-driven service framework** (`internal/services`): binary
+      discovery (bundled + PATH fallback), ports, args, readiness probe,
+      console UI, PHP env injection via `proxy.EnvProvider`.
+- [x] **Mailpit** as the first service spec (SMTP catcher + web UI).
+- [x] **Redis** hybrid: Windows bundled port (`add redis`) + system
+      `redis-server` fallback on Linux/macOS.
+- [x] **MinIO** S3-compatible storage (console on :9001) + PHP env
+      (`SABDOPALON_S3_*`), round-trip probe (`s3check.php`).
+- [x] **Meilisearch** instant search (:7700) + PHP env + probe
+      (`meilicheck.php`).
+- [x] **PostgreSQL** engine (zonky embedded, `initdb`/start/ready) + PDO probe
+      (`pgcheck.php`); Linux/macOS only (no Windows zonky binaries).
+- [x] **Services page** in dashboard (runtime toggles, .env snippets) + API
+      `GET /api/services`, `POST /api/services/<name>/toggle`.
 - [ ] Built-in Cloudflare Tunnel (future)
 - [ ] System tray (cross-platform) (future)
 - [ ] Auto PATH injection (future)
@@ -271,8 +308,14 @@ https_port = 8443
 binary = "/path/to/php"         # empty = auto-detect
 
 [database]
-engine = "sqlite"              # sqlite | mysql | mariadb | postgresql (planned)
+engine = "sqlite"              # sqlite | mariadb | mysql | postgresql
 path = "./data/sabdopalon.db"
+
+[services]
+mailpit = false                # local e-mail catcher (:1025 SMTP, :8025 UI)
+redis = false                  # cache/queue (:6379)
+minio = false                  # S3-compatible storage (:9000 API, :9001 console)
+meilisearch = false            # instant search (:7700)
 
 [dashboard]
 enabled = true
@@ -284,8 +327,13 @@ port = 9900
 | Variable | Value |
 |---|---|
 | `SABDOPALON` | `1` |
-| `SABDOPALON_DB_ENGINE` | `sqlite` / `mysql` / etc. |
+| `SABDOPALON_DB_ENGINE` | `sqlite` / `mysql` / `mariadb` / `postgresql` |
 | `SABDOPALON_DB_PATH` | absolute path to the SQLite file |
+| `SABDOPALON_PG_HOST/PORT/USER/DB` | PostgreSQL connection (engine = postgresql) |
+| `SABDOPALON_MAIL_SMTP/UI` | Mailpit SMTP addr + web UI URL (when running) |
+| `SABDOPALON_REDIS_HOST/PORT` | Redis (when running) |
+| `SABDOPALON_S3_ENDPOINT/KEY/SECRET/BUCKET` | MinIO S3 (when running) |
+| `SABDOPALON_MEILI_HOST` | Meilisearch (when running) |
 
 ---
 

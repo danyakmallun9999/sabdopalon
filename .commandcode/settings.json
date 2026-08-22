@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(go:*)",
+      "Shell(npm:*)",
+      "Shell(rm:*)",
+      "Shell(mkdir:*)",
+      "Shell(cp:*)",
+      "Shell(cd /tmp/sd-smoke && /tmp/sabdopalon-smoke serve --no-open > server.log 2>&1 & echo \"started, waiting for dashboard...\")",
+      "Shell(sleep:*)",
+      "Shell(curl -s http://localhost:9900/api/status)",
+      "Shell(curl -s http://localhost:9900/api/services)",
+      "Shell(for i in $(seq 1 20); do curl -s -o /dev/null http://localhost:9900/api/status && break; sleep 0.5; done; curl -s http://localhost:9900/api/status; echo; echo \"---services---\"; curl -s http://localhost:9900/api/services)",
+      "Shell(cp /tmp/sabdopalon-smoke /tmp/sd-smoke/sabdopalon && cd /tmp/sd-smoke && ./sabdopalon serve > server.log 2>&1 & echo \"bg started\")",
+      "Shell(for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9900/api/status && break; sleep 0.5; done; echo \"== status ==\"; curl -s http://localhost:9900/api/status; echo; echo \"== services ==\"; curl -s http://localhost:9900/api/services; echo; echo \"== log ==\"; tail -5 /tmp/sd-smoke/server.log)",
+      "Shell(sed:*)",
+      "Shell(cd /tmp/sd-smoke && ./sabdopalon serve > server.log 2>&1 & echo \"started\")",
+      "Shell(for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:9900/api/status 2>/dev/null && break; sleep 0.5; done; echo \"== status ==\"; curl -s http://localhost:9900/api/status; echo; echo \"== services ==\"; curl -s http://localhost:9900/api/services)",
+      "Shell(curl -s -X POST http://localhost:9900/api/services/mailpit/toggle -H 'Content-Type: application/json' -d '{\"enabled\":true}')",
+      "Shell(pkill -f 'sd-smoke/sabdopalon' 2>/dev/null; sleep 1; cd /tmp/sd-smoke && ./sabdopalon serve > server.log 2>&1 & echo \"restarted\")",
+      "Shell(for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:9900/api/status 2>/dev/null && break; sleep 0.5; done; echo \"== services ==\"; curl -s http://localhost:9900/api/services | python3 -m json.tool)",
+      "Shell(ps:*)",
+      "Shell(ss:*)",
+      "Shell(grep:*)",
+      "Shell(kill 502452 2>/dev/null; sleep 1; ps aux | grep 'sd-smoke' | grep -v grep || echo \"no sd-smoke process\")",
+      "Shell(cd /tmp/sd-smoke && ./sabdopalon serve > server.log 2>&1 & echo \"started fresh\")",
+      "Shell(for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:9900/api/status 2>/dev/null && break; sleep 0.5; done; echo \"== services ==\"; curl -s http://localhost:9900/api/services | python3 -m json.tool; echo \"== status ==\"; curl -s http://localhost:9900/api/status)",
+      "Shell(pkill -f 'sd-smoke/sabdopalon' 2>/dev/null; pkill -f '\\.\\/sabdopalon serve' 2>/dev/null; sleep 1; go build -o /tmp/sabdopalon-smoke ./cmd/sabdopalon && cp /tmp/sabdopalon-smoke /tmp/sd-smoke/sabdopalon && echo \"built & copied\")",
+      "Shell(kill 502775 2>/dev/null; sleep 1; ps aux | grep 'sd-smoke' | grep -v grep || echo none)",
+      "Shell(echo:*)",
+      "Shell(curl -s -X POST http://localhost:9900/api/services/mailpit/toggle -H Content-Type: application/json -d {\"enabled\":false})",
+      "Shell(curl -s -X POST http://localhost:9900/api/services/mailpit/toggle -H Content-Type: application/json -d {\"enabled\":true})",
+      "Shell(curl -s http://localhost:9900/services)",
+      "Shell(curl -s -o /dev/null -w %{http_code} http://localhost:9900/assets/index-DD-3tHMr.js)",
+      "Shell(kill 503178 2>/dev/null; sleep 1; ps aux | grep 'sd-smoke' | grep -v grep || echo \"smoke processes cleaned\")"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

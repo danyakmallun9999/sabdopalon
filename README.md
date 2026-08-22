@@ -38,11 +38,13 @@ take database backups. No config files required.
 
 ## Status
 
-`v0.5.0` — dashboard-first release. Proxy routing, per-site PHP with version
-pinning, multi-PHP (8.1–8.5), SQLite/MariaDB, HTTPS wizard with trust
-detection, full web dashboard, project templates, DB backups, profiles,
-Mailpit mail catcher, clean URLs on :80/:443 (`enable-ports`), checksum-verified
-package installs, and graceful shutdown. Unit tests + CI on Linux/macOS/Windows.
+`v0.6.0` — services release. Proxy routing, per-site PHP with version
+pinning, multi-PHP (8.1–8.5), SQLite/MariaDB/PostgreSQL, HTTPS wizard with
+trust detection, full web dashboard, project templates, DB backups, profiles,
+optional services framework (Mailpit / Redis / MinIO / Meilisearch) with a
+dedicated Services page, clean URLs on :80/:443 (`enable-ports`),
+checksum-verified package installs, and graceful shutdown. Unit tests + CI on
+Linux/macOS/Windows.
 
 ## Prerequisites
 
@@ -51,6 +53,8 @@ needed on your system. Just download the binary and run it:
 
 - **PHP** — auto-downloaded on first run (8.4.8, ~8MB, 30+ extensions)
 - **MariaDB** — auto-downloaded when you run `sabdopalon add mariadb`
+- **PostgreSQL** — auto-downloaded when you run `sabdopalon add postgresql`
+  (Linux/macOS; Windows uses a system install)
 - **Go** — only needed if you want to build from source yourself
 
 > If you already have PHP installed, Sabdopalon detects and uses it
@@ -187,6 +191,46 @@ echo '<?php echo "Hello!";' > sites/myapp/public/index.php
 Both are verified (SHA-256 where available) and extracted into `bin/` — no
 system-wide installation, no pollution of your OS, completely portable.
 
+## Services (optional)
+
+Optional local services are managed declaratively and start on demand. Toggle
+them in the dashboard **Services** page (applies immediately and persists to
+`config/engine.toml` under `[services]`), or set them in the config file:
+
+```toml
+[services]
+mailpit = false      # local e-mail catcher — SMTP :1025, web UI :8025
+redis = false        # cache & queue — :6379
+minio = false        # S3-compatible storage — API :9000, console :9001
+meilisearch = false  # instant search — :7700
+```
+
+| Service | Install | Ports | When enabled, PHP gets |
+|---|---|---|---|
+| **Mailpit** | `add mailpit` | SMTP 1025 · UI 8025 | `SABDOPALON_MAIL_SMTP`, `SABDOPALON_MAIL_UI` |
+| **Redis** | `add redis` (Windows) or system `redis-server` (Linux/macOS) | 6379 | `SABDOPALON_REDIS_HOST`, `SABDOPALON_REDIS_PORT` |
+| **MinIO** | `add minio` | API 9000 · Console 9001 | `SABDOPALON_S3_ENDPOINT/KEY/SECRET/BUCKET` |
+| **Meilisearch** | `add meilisearch` | 7700 | `SABDOPALON_MEILI_HOST` |
+
+Laravel `.env` snippets for each running service are shown right on the
+Services page (Redis cache/queue, MinIO S3 filesystem, Meilisearch Scout) with
+a copy button. Verification probes live in `sites/example-app/public/`:
+`pgcheck.php`, `s3check.php`, `meilicheck.php`.
+
+### Database engines
+
+- **SQLite** (default) — zero setup, file at `data/sabdopalon.db`.
+- **MariaDB** — `sabdopalon add mariadb`, then `engine = "mariadb"` in
+  `config/engine.toml`. Managed daemon on `:3306`, Unix socket in `data/`.
+- **PostgreSQL** — `sabdopalon add postgresql` (Linux/macOS; Windows needs a
+  system install), then `engine = "postgresql"`. Managed daemon on `:5432`,
+  superuser `sabdopalon` with trust auth on `127.0.0.1`.
+
+Root credentials follow the XAMPP/Laragon convention: **root user with an
+empty password**, only reachable from `127.0.0.1`/the Unix socket — perfect for
+phpMyAdmin-style tooling and the bundled Adminer site (`add adminer` →
+`http://adminer.localhost`).
+
 ### Platform notes
 
 | | Linux | macOS | Windows |
@@ -266,12 +310,13 @@ single self-contained file with no Node.js required at runtime.
 The dashboard binds to `127.0.0.1` only and is the single control surface:
 
 | Page | What you can do |
-|---|---|
+|---|---|---|
 | 🌐 Sites | Create from templates, open, start/stop/restart, delete → `.trash/` |
 | 🗄️ Database | Engine status, one-click backups + retention pruning |
-| 📦 Packages | Install MariaDB, Mailpit, PHP 8.1–8.5 with live progress |
+| 🧩 Services | Toggle Mailpit/Redis/MinIO/Meilisearch live, .env snippets, open consoles |
+| 📦 Packages | Install MariaDB, PostgreSQL, Mailpit, PHP 8.1–8.5 with live progress |
 | 🔒 SSL | CA → wildcard → trust wizard; detects stale/untrusted CAs |
-| ⚙️ Settings | TLD, ports, DB engine, auto-open, Mailpit toggle; apply profiles |
+| ⚙️ Settings | TLD, ports, DB engine, auto-open; apply profiles |
 | 📜 Logs | Live per-site PHP, DB and Mailpit logs |
 
 ### Developing / building the dashboard UI
@@ -309,8 +354,13 @@ back to 8080/8443. To allow low ports permanently:
 | Variable | Example |
 |---|---|
 | `SABDOPALON` | `1` |
-| `SABDOPALON_DB_ENGINE` | `sqlite` / `mariadb` / `mysql` |
+| `SABDOPALON_DB_ENGINE` | `sqlite` / `mariadb` / `mysql` / `postgresql` |
 | `SABDOPALON_DB_PATH` | `/path/to/sabdopalon.db` (sqlite only) |
+| `SABDOPALON_PG_HOST` / `PORT` / `USER` / `DB` | `127.0.0.1` / `5432` / `sabdopalon` / `postgres` (engine = postgresql) |
+| `SABDOPALON_MAIL_SMTP` / `SABDOPALON_MAIL_UI` | Mailpit SMTP + UI (when running) |
+| `SABDOPALON_REDIS_HOST` / `SABDOPALON_REDIS_PORT` | Redis (when running) |
+| `SABDOPALON_S3_ENDPOINT` / `KEY` / `SECRET` / `BUCKET` | MinIO S3 (when running) |
+| `SABDOPALON_MEILI_HOST` | Meilisearch (when running) |
 
 ## Layout
 
@@ -323,8 +373,9 @@ sabdopalon/
 │   ├── config/      # engine.toml loader + PHP auto-detect
 │   ├── toml/        # std-lib TOML parser (zero deps)
 │   ├── proxy/       # multiplexing reverse proxy + PHP manager + HTTPS
-│   ├── database/    # MariaDB/MySQL daemon lifecycle manager
+│   ├── database/    # MariaDB/MySQL/PostgreSQL daemon lifecycle manager
 │   ├── pkgmgr/      # package downloader (download, verify, extract)
+│   ├── services/    # optional managed services (Spec framework: mailpit, redis, minio, meilisearch)
 │   ├── dashboard/   # interactive web UI + JSON API
 │   ├── templates/   # project scaffolding (blank, Laravel, WordPress, CI4)
 │   ├── backup/      # database backup (SQLite copy, MariaDB dump+gzip)

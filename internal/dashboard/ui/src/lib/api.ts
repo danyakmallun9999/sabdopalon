@@ -10,8 +10,20 @@ export type Status = {
   database: string
   php?: string
   sites_count: number
-  mailpit: boolean
+  services: boolean
   php_version?: string
+}
+
+export type ServiceStatus = {
+  name: string
+  label: string
+  installed: boolean
+  running: boolean
+  enabled: boolean
+  ui?: string
+  ports?: string[]
+  env_keys?: string[]
+  hint?: string
 }
 
 export type SystemPHP = {
@@ -178,9 +190,12 @@ const api = {
     post<{ ok: boolean; message?: string; error?: string }>("/api/profiles/apply", { name }),
 
   services: () =>
-    request<{ mailpit_enabled: boolean; mailpit: MailpitStatus }>("/api/services"),
-  toggleMailpit: (enabled: boolean) =>
-    post<{ ok: boolean; message?: string; error?: string }>("/api/services/mailpit", { enabled }),
+    request<{ services: ServiceStatus[] }>("/api/services"),
+  toggleService: (name: string, enabled: boolean) =>
+    post<{ ok: boolean; message?: string; status?: ServiceStatus; error?: string }>(
+      `/api/services/${encodeURIComponent(name)}/toggle`,
+      { enabled },
+    ),
 
   backupNow: () =>
     post<{ backup: string; pruned: number; message?: string; error?: string }>("/api/backup"),

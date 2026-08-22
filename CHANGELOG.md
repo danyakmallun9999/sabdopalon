@@ -3,6 +3,41 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.6.0] — 2026-08-22
+
+### Services & PostgreSQL release
+
+### Added
+- **Generic service framework** (`internal/services`): declarative `Spec`
+  (binary discovery, ports, args, readiness probe, console UI, PHP env
+  injection) — adding a service is one spec + one package entry.
+- **Services dashboard page**: live runtime toggles for Mailpit / Redis /
+  MinIO / Meilisearch, install hints, open consoles, and Laravel `.env`
+  snippets with a copy button.
+- **Redis** hybrid: bundled Windows port (`sabdopalon add redis`, tporadowski
+  5.0.14.1 zip) + system `redis-server` fallback on Linux/macOS; injects
+  `SABDOPALON_REDIS_HOST/PORT` into PHP.
+- **MinIO** S3-compatible storage (API :9000, console :9001, health probe) +
+  `SABDOPALON_S3_*` env into PHP; round-trip probe `s3check.php`.
+- **Meilisearch** instant search (:7700, health probe) + `SABDOPALON_MEILI_HOST`
+  env; probe `meilicheck.php`.
+- **PostgreSQL** engine: zonky embedded 17.10 (Linux/macOS), `initdb` +
+  managed daemon on :5432, TCP readiness, PDO probe `pgcheck.php`.
+- **Adminer** package (`sabdopalon add adminer`) — single-file DB web GUI
+  served at `http://adminer.localhost`.
+- `/api/status` now reports a generic `services` flag (any service running)
+  instead of a Mailpit-specific key.
+
+### Changed
+- Settings page no longer carries a hardcoded Mailpit toggle — services live
+  on the dedicated Services page.
+- `pkgmgr.Download` gives a clear error when a package has no download source
+  for the current platform (e.g. Redis outside Windows).
+
+### Fixed
+- `sabdopalon add redis` on non-Windows now explains the system redis path
+  instead of failing obscurely.
+
 ## [0.5.0] — 2026-08-22
 
 ### Dashboard-first release — manage everything from the browser

@@ -40,9 +40,7 @@ type Engine struct {
 		AutoOpen bool // open the dashboard in the browser on serve
 	}
 
-	Services struct {
-		Mailpit bool // run bundled Mailpit SMTP catcher if installed
-	}
+	Services ServicesConfig
 
 	// RootDir is the absolute path of the Sabdopalon install.
 	RootDir string
@@ -80,6 +78,9 @@ func Load(baseDir string) (*Engine, error) {
 	e.Dashboard.AutoOpen = t.GetBool("dashboard", "auto_open", true)
 
 	e.Services.Mailpit = t.GetBool("services", "mailpit", false)
+	e.Services.Redis = t.GetBool("services", "redis", false)
+	e.Services.MinIO = t.GetBool("services", "minio", false)
+	e.Services.Meilisearch = t.GetBool("services", "meilisearch", false)
 
 	return e, nil
 }
@@ -127,6 +128,9 @@ auto_open = %t
 
 [services]
 mailpit = %t
+redis = %t
+minio = %t
+meilisearch = %t
 `,
 		e.TLD,
 		rel(e.Root, "./sites"),
@@ -142,6 +146,9 @@ mailpit = %t
 		e.Dashboard.Port,
 		e.Dashboard.AutoOpen,
 		e.Services.Mailpit,
+		e.Services.Redis,
+		e.Services.MinIO,
+		e.Services.Meilisearch,
 	)
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		return err
@@ -196,6 +203,30 @@ func resolve(baseDir, p string) string {
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+// ServicesConfig holds [services] toggles for optional managed services.
+type ServicesConfig struct {
+	Mailpit     bool // local e-mail catcher
+	Redis       bool // cache & queue
+	MinIO       bool // S3-compatible storage
+	Meilisearch bool // instant search
+}
+
+// Enabled reports the [services] toggle for a registered optional service.
+func (sv *ServicesConfig) Enabled(name string) bool {
+	switch name {
+	case "mailpit":
+		return sv.Mailpit
+	case "redis":
+		return sv.Redis
+	case "minio":
+		return sv.MinIO
+	case "meilisearch":
+		return sv.Meilisearch
+	default:
+		return false
+	}
 }
 
 // SitesRootTrim returns the root path without trailing separator, used for
