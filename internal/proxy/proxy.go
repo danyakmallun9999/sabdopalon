@@ -51,6 +51,10 @@ type Server struct {
 	httpPortActual  int
 	httpsPortActual int
 	lowPortsBound   bool
+
+	// HTTPS listener state (for auto-reload when a cert appears later).
+	httpsSrv   *http.Server
+	httpsWatch chan struct{} // closed to stop the cert watcher
 }
 
 type siteServer struct {
@@ -133,22 +137,35 @@ func (s *Server) LowPortsBound() bool { return s.lowPortsBound }
 // Returns true if HTTPS was started. TLS handshake rejections from browsers
 // that don't trust the local CA yet are logged once instead of per-request.
 func (s *Server) startHTTPS(errCh chan<- error) bool {
-	caCert := filepath.Join(s.cfg.RootDir, "certs", "sabdopalon-rootCA.crt")
-	// Look for a wildcard or single cert covering the TLD.
+	certPath, keyPath, ok := s.httpsCertPaths()
+	if !ok {
+		// No cert yet — watch for one (user may run ssl:ca + ssl:wildcard
+		// from the dashboard while Sabdopalon is already running) and start
+		// HTTPS automatically the moment it appears.
+		s.watchForCert(errCh)
+		return false
+	}
+	return s.listenHTTPS(errCh, certPath, keyPath)
+}
+
+// httpsCertPaths resolves the wildcard cert for *.<tld>, falling back to a
+// localhost cert. ok=false when neither exists.
+func (s *Server) httpsCertPaths() (cert, key string, ok bool) {
 	wildcard := "*." + s.cfg.TLD
-	certPath := filepath.Join(s.cfg.RootDir, "certs", wildcard+".crt")
-	keyPath := filepath.Join(s.cfg.RootDir, "certs", wildcard+".key")
-	if !fileExists(certPath) || !fileExists(keyPath) {
-		// fall back to localhost cert
-		certPath = filepath.Join(s.cfg.RootDir, "certs", "localhost.crt")
-		keyPath = filepath.Join(s.cfg.RootDir, "certs", "localhost.key")
-		if !fileExists(certPath) || !fileExists(keyPath) {
-			s.httpsPortActual = s.cfg.Proxy.HTTPSPort
-			return false
+	cert = filepath.Join(s.cfg.RootDir, "certs", wildcard+".crt")
+	key = filepath.Join(s.cfg.RootDir, "certs", wildcard+".key")
+	if !fileExists(cert) || !fileExists(key) {
+		cert = filepath.Join(s.cfg.RootDir, "certs", "localhost.crt")
+		key = filepath.Join(s.cfg.RootDir, "certs", "localhost.key")
+		if !fileExists(cert) || !fileExists(key) {
+			return "", "", false
 		}
 	}
-	_ = caCert // referenced for clarity; trust store install is separate
+	return cert, key, true
+}
 
+// listenHTTPS binds the HTTPS listener with the given cert.
+func (s *Server) listenHTTPS(errCh chan<- error, certPath, keyPath string) bool {
 	httpsPort := s.cfg.Proxy.HTTPSPort
 	if s.lowPortsBound && canBind(443) {
 		httpsPort = 443
@@ -164,10 +181,44 @@ func (s *Server) startHTTPS(errCh chan<- error) bool {
 		WriteTimeout: 60 * time.Second,
 		ErrorLog:     quietLog,
 	}
+	s.httpsSrv = httpsSrv
 	go func() {
 		errCh <- httpsSrv.ListenAndServeTLS(certPath, keyPath)
 	}()
 	return true
+}
+
+// watchForCert polls for a wildcard/localhost cert and starts HTTPS the
+// moment one appears (dashboard SSL wizard creates certs while running).
+func (s *Server) watchForCert(errCh chan<- error) {
+	if s.httpsWatch != nil {
+		return // already watching
+	}
+	s.httpsWatch = make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-s.httpsWatch:
+				return
+			case <-ticker.C:
+				cert, key, ok := s.httpsCertPaths()
+				if !ok {
+					continue
+				}
+				port := s.cfg.Proxy.HTTPSPort
+				if s.lowPortsBound && canBind(443) {
+					port = 443
+				}
+				if s.Verbose {
+					fmt.Printf("  🔒  HTTPS cert detected — enabling https://localhost:%d\n", port)
+				}
+				s.listenHTTPS(errCh, cert, key)
+				return
+			}
+		}
+	}()
 }
 
 // handshakeFilter suppresses repetitive client-side TLS handshake errors
@@ -203,6 +254,13 @@ func (f *handshakeFilter) Write(p []byte) (int, error) {
 // Stop signals the proxy to shut down and kills all PHP servers.
 func (s *Server) Stop() {
 	s.StopAll()
+	if s.httpsWatch != nil {
+		close(s.httpsWatch)
+		s.httpsWatch = nil
+	}
+	if s.httpsSrv != nil {
+		_ = s.httpsSrv.Close()
+	}
 	close(s.stopCh)
 }
 
