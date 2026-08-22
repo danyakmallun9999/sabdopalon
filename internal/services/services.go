@@ -92,7 +92,7 @@ func (m *Manager) Start(name string) error {
 	if m.isRunning(name) {
 		return nil
 	}
-	bin := spec.binaryPath(m.cfg.RootDir)
+	bin := spec.binaryPath(m.cfg)
 	if bin == "" {
 		err := fmt.Errorf("%s not installed — use 'sabdopalon add %s'", spec.Label, spec.Package)
 		m.setErr(name, err.Error())
@@ -224,9 +224,9 @@ type Spec struct {
 	PHPEnv      func(cfg *config.Engine) []string // env injected into PHP sites
 }
 
-func (s *Spec) binaryPath(rootDir string) string {
+func (s *Spec) binaryPath(cfg *config.Engine) string {
 	for _, n := range s.BinNames {
-		p := filepath.Join(rootDir, "bin", s.Name, n)
+		p := filepath.Join(cfg.BinDir(), s.Name, n)
 		if _, err := os.Stat(p); err == nil {
 			return p
 		}
@@ -302,7 +302,7 @@ func (m *Manager) findSpec(name string) *Spec {
 // Installed reports whether the service binary is available right now.
 func (m *Manager) Installed(name string) bool {
 	spec := m.findSpec(name)
-	return spec != nil && spec.binaryPath(m.cfg.RootDir) != ""
+	return spec != nil && spec.binaryPath(m.cfg) != ""
 }
 
 // Status returns the dashboard-facing state of one service.
@@ -314,7 +314,7 @@ func (m *Manager) Status(name string) Status {
 	st := Status{
 		Name:      spec.Name,
 		Label:     spec.Label,
-		Installed: spec.binaryPath(m.cfg.RootDir) != "",
+		Installed: spec.binaryPath(m.cfg) != "",
 		Running:   m.isRunning(name),
 		UI:        "",
 		Hint:      spec.Hint,

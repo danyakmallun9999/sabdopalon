@@ -18,9 +18,14 @@ import (
 // sites/phpmyadmin/public and writes a config.inc.php pre-wired to the local
 // MariaDB (root, no password, cookie auth).
 func PHPMyAdmin(cfg *config.Engine) error {
-	src := filepath.Join(cfg.RootDir, "bin", "phpmyadmin")
+	return PHPMyAdminFrom(filepath.Join(cfg.RootDir, "bin", "phpmyadmin"), cfg)
+}
+
+// PHPMyAdminFrom deploys phpMyAdmin from an explicit source dir (writable
+// bin/ or read-only resource dir in desktop mode).
+func PHPMyAdminFrom(src string, cfg *config.Engine) error {
 	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("phpMyAdmin not found in bin/ (run 'sabdopalon add phpmyadmin' first)")
+		return fmt.Errorf("phpMyAdmin not found (run 'sabdopalon add phpmyadmin' first)")
 	}
 	dest := filepath.Join(cfg.Root, "phpmyadmin", "public")
 	if err := copyTree(src, dest); err != nil {

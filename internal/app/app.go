@@ -243,7 +243,7 @@ func (a *App) serve() int {
 
 	// Resolve PHP via the unified resolver: explicit override → system/bundled
 	// (per [php] prefer) → auto-download as a last resort.
-	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
+	pkgmgr.MigrateLegacyPHP(a.Cfg.BinDir())
 	resolved, rerr := pkgmgr.ResolveDefaultPHP(a.Cfg)
 	switch {
 	case rerr != nil:
@@ -442,8 +442,8 @@ func (a *App) doctor() int {
 
 	fmt.Println()
 	fmt.Println("  Bundled PHP versions")
-	pkgmgr.MigrateLegacyPHP(filepath.Join(a.Cfg.RootDir, "bin"))
-	binRoot := filepath.Join(a.Cfg.RootDir, "bin")
+	pkgmgr.MigrateLegacyPHP(a.Cfg.BinDir())
+	binRoot := a.Cfg.BinDir()
 	versions := pkgmgr.InstalledVersions(binRoot)
 	if len(versions) == 0 {
 		fmt.Println("    (none bundled — 'sabdopalon add php' installs one)")
@@ -695,7 +695,7 @@ func (a *App) installPHPMyAdmin() int {
 
 // phpList shows installed bundled PHP versions and the active default.
 func (a *App) phpList() int {
-	binRoot := filepath.Join(a.Cfg.RootDir, "bin")
+	binRoot := a.Cfg.BinDir()
 	pkgmgr.MigrateLegacyPHP(binRoot)
 
 	active := a.Cfg.PHP.Binary

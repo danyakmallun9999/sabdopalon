@@ -194,9 +194,10 @@ type BackupInfo struct {
 
 func (m *Manager) findDumpBinary() string {
 	engine := m.cfg.Database.Engine
+	binRoot := m.cfg.BinDir()
 	candidates := []string{
-		filepath.Join(m.cfg.RootDir, "bin", engine, "bin", "mariadb-dump"),
-		filepath.Join(m.cfg.RootDir, "bin", engine, "bin", "mysqldump"),
+		filepath.Join(binRoot, engine, "bin", "mariadb-dump"),
+		filepath.Join(binRoot, engine, "bin", "mysqldump"),
 	}
 	for _, c := range candidates {
 		if fileExists(c) {

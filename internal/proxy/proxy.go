@@ -465,7 +465,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	// Resolve the PHP binary: per-site version/binary wins over global default.
 	phpBin := s.cfg.PHP.Binary
 	if scErr == nil && sc.PHP != "" {
-		resolved, err := pkgmgr.ResolvePHP(filepath.Join(s.cfg.RootDir, "bin"), sc.PHP)
+		resolved, err := pkgmgr.ResolvePHP(s.cfg.BinDir(), sc.PHP)
 		if err != nil {
 			return nil, fmt.Errorf("%s wants PHP %s: %w", name, sc.PHP, err)
 		}

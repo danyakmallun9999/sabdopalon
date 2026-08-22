@@ -94,13 +94,14 @@ func Welcome() string {
 }
 
 // Bundled reports whether the core stack (PHP + MariaDB + phpMyAdmin) ships
-// inside this install's bin/ — i.e. the app is a full bundle and the wizard
-// does not need to download the core. MariaDB is not bundled on macOS
-// (no official macOS binaries on archive.mariadb.org), so macOS bundles are
-// still considered "bundled" with PHP + phpMyAdmin only.
+// inside the app (bin/ or SABDOPALON_BIN_DIR resource) — i.e. it is a full
+// bundle and the wizard does not need to download the core. MariaDB is not
+// bundled on macOS (no official macOS binaries on archive.mariadb.org), so
+// macOS bundles are still considered "bundled" with PHP + phpMyAdmin only.
 func Bundled(rootDir string) bool {
+	binDir := binDirOf(rootDir)
 	phpOK := false
-	if entries, err := os.ReadDir(filepath.Join(rootDir, "bin", "php")); err == nil {
+	if entries, err := os.ReadDir(filepath.Join(binDir, "php")); err == nil {
 		for _, e := range entries {
 			if e.IsDir() {
 				phpOK = true
@@ -108,26 +109,34 @@ func Bundled(rootDir string) bool {
 			}
 		}
 	}
-	pmaOK := dirHasFiles(filepath.Join(rootDir, "bin", "phpmyadmin"))
+	pmaOK := dirHasFiles(filepath.Join(binDir, "phpmyadmin"))
 	if runtime.GOOS == "darwin" {
 		// macOS: MariaDB via `add mariadb` / Homebrew.
 		return phpOK && pmaOK
 	}
-	mariadbOK := dirHasFiles(filepath.Join(rootDir, "bin", "mariadb"))
+	mariadbOK := dirHasFiles(filepath.Join(binDir, "mariadb"))
 	return phpOK && mariadbOK && pmaOK
+}
+
+// binDirOf resolves the bundled-bin directory honoring SABDOPALON_BIN_DIR.
+func binDirOf(rootDir string) string {
+	if d := os.Getenv("SABDOPALON_BIN_DIR"); d != "" {
+		return d
+	}
+	return filepath.Join(rootDir, "bin")
 }
 
 // DeployBundled deploys bundled web apps (phpMyAdmin) into the sites tree
 // when they ship in bin/ but haven't been deployed yet. Idempotent.
 func DeployBundled(cfg *config.Engine) error {
-	pmaSrc := filepath.Join(cfg.RootDir, "bin", "phpmyadmin")
+	pmaSrc := filepath.Join(binDirOf(cfg.RootDir), "phpmyadmin")
 	if !dirHasFiles(pmaSrc) {
 		return nil // not bundled (classic install) — user can `add phpmyadmin`
 	}
 	if dirHasFiles(filepath.Join(cfg.Root, "phpmyadmin", "public")) {
 		return nil // already deployed
 	}
-	if err := deploy.PHPMyAdmin(cfg); err != nil {
+	if err := deploy.PHPMyAdminFrom(pmaSrc, cfg); err != nil {
 		return fmt.Errorf("deploy bundled phpMyAdmin: %w", err)
 	}
 	return nil

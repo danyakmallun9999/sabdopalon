@@ -43,8 +43,8 @@ func (s *Server) handleAPISetupStatus(w http.ResponseWriter, r *http.Request) {
 	s.json(w, map[string]any{
 		"bootstrapped": bootstrapped,
 		"dirs_ok":      bootstrap.EnsureLayout(s.cfg.RootDir) == nil,
-		"php_installed": pkgmgr.PHPBinaryPath(filepath.Join(s.cfg.RootDir, "bin")) != "" ||
-			pkgmgr.InstalledVersions(filepath.Join(s.cfg.RootDir, "bin")) != nil,
+		"php_installed": pkgmgr.PHPBinaryPath(s.cfg.BinDir()) != "" ||
+			pkgmgr.InstalledVersions(s.cfg.BinDir()) != nil,
 		"db_engine": s.cfg.Database.Engine,
 		"root_dir":  s.cfg.RootDir,
 	})

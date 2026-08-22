@@ -120,11 +120,12 @@ func shellCommand() []string {
 func envFor(cfg *config.Engine) []string {
 	env := os.Environ()
 	path := os.Getenv("PATH")
+	binRoot := cfg.BinDir()
 	binDirs := []string{
-		filepath.Join(cfg.RootDir, "bin", "php"),
-		filepath.Join(cfg.RootDir, "bin", "mariadb", "bin"),
-		filepath.Join(cfg.RootDir, "bin", "postgresql", "bin"),
-		filepath.Join(cfg.RootDir, "bin"),
+		filepath.Join(binRoot, "php"),
+		filepath.Join(binRoot, "mariadb", "bin"),
+		filepath.Join(binRoot, "postgresql", "bin"),
+		binRoot,
 	}
 	for _, d := range binDirs {
 		path = d + string(os.PathListSeparator) + path

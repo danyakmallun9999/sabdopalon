@@ -238,6 +238,41 @@ jobs:
           # Strip the leading "v" so the version string is "0.7.0" not "v0.7.0".
           VERSION="${VERSION#v}" bash scripts/build-sidecar.sh
 
+      - name: Download core stack into desktop resources (${{ matrix.name }})
+        shell: bash
+        working-directory: desktop
+        run: |
+          set -e
+          CORE=src-tauri/resources/core
+          mkdir -p "$CORE/php/8.5" "$CORE/phpmyadmin" "$CORE/mariadb"
+
+          # phpMyAdmin (all platforms)
+          curl -fsSL -o /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
+          tar xzf /tmp/pma.tar.gz -C "$CORE/phpmyadmin" --strip-components=1
+
+          case "${{ matrix.name }}" in
+            windows)
+              curl -fsSL -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+              (cd "$CORE/php/8.5" && unzip -q /tmp/php.zip)
+              curl -fsSL -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
+              (cd "$CORE/mariadb" && unzip -q /tmp/mariadb.zip && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
+              ;;
+            macos)
+              curl -fsSL -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+              tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
+              # MariaDB macOS: tidak tersedia upstream — via `add mariadb`/Homebrew
+              rm -rf "$CORE/mariadb"
+              ;;
+            linux)
+              curl -fsSL -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+              tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
+              curl -fsSL -o /tmp/mariadb.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
+              tar xzf /tmp/mariadb.tar.gz -C "$CORE/mariadb" --strip-components=1
+              ;;
+          esac
+
+          echo "core resource sizes:"; du -sh "$CORE"
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:

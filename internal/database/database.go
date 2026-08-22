@@ -169,15 +169,17 @@ func (m *Manager) Ready() bool { return m.ready }
 
 func (m *Manager) findBinary() (string, error) {
 	engine := m.cfg.Database.Engine
-	// Look in bundled bin/, then PATH.
+	// Look in bundled bin/ (writable install dir or read-only resource
+	// override), then PATH.
+	binRoot := m.cfg.BinDir()
 	sb := serverBinary(engine)
 	candidates := []string{
-		filepath.Join(m.cfg.RootDir, "bin", engine, "bin", sb),
-		filepath.Join(m.cfg.RootDir, "bin", engine, sb),
+		filepath.Join(binRoot, engine, "bin", sb),
+		filepath.Join(binRoot, engine, sb),
 	}
 	if engine == "postgresql" {
 		candidates = append(candidates,
-			filepath.Join(m.cfg.RootDir, "bin", "postgresql", "bin", sb+".exe"))
+			filepath.Join(binRoot, "postgresql", "bin", sb+".exe"))
 	}
 	for _, c := range candidates {
 		if fileExists(c) {

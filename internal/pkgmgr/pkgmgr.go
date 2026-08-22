@@ -86,7 +86,7 @@ func (p PackageDef) ShortVersion() string {
 
 // New creates a Manager and loads the package registry.
 func New(cfg *config.Engine) (*Manager, error) {
-	m := &Manager{cfg: cfg, binRoot: filepath.Join(cfg.RootDir, "bin"), Out: os.Stdout}
+	m := &Manager{cfg: cfg, binRoot: cfg.BinDir(), Out: os.Stdout}
 	if err := m.loadRegistry(); err != nil {
 		return nil, fmt.Errorf("load package registry: %w", err)
 	}
@@ -982,7 +982,7 @@ func ResolveDefaultPHP(cfg *config.Engine) (string, error) {
 		}
 		return "", fmt.Errorf("configured [php] binary not found: %s", cfg.PHP.Binary)
 	}
-	binRoot := filepath.Join(cfg.RootDir, "bin")
+	binRoot := cfg.BinDir()
 
 	bundled := func() string {
 		if versions := InstalledVersions(binRoot); len(versions) > 0 {

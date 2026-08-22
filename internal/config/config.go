@@ -242,3 +242,14 @@ func (sv *ServicesConfig) Enabled(name string) bool {
 // SitesRootTrim returns the root path without trailing separator, used for
 // deriving site names from document roots.
 func (e *Engine) SitesRootTrim() string { return strings.TrimRight(e.Root, string(filepath.Separator)) }
+
+// BinDir returns the directory holding bundled binaries (bin/). Desktop
+// (Tauri) installs keep the core stack in a read-only resource dir and set
+// SABDOPALON_BIN_DIR; the portable CLI uses <RootDir>/bin. Downloads/installs
+// always go to RootDir/bin (writable); lookups check the override first.
+func (e *Engine) BinDir() string {
+	if d := os.Getenv("SABDOPALON_BIN_DIR"); d != "" {
+		return d
+	}
+	return filepath.Join(e.RootDir, "bin")
+}

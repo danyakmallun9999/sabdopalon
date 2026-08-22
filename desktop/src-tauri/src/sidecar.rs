@@ -72,10 +72,19 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .append(true)
         .open(logs_dir.join("sidecar.log"))?;
 
+    // Core stack (PHP/MariaDB/phpMyAdmin) ships in the app's resource dir
+    // (read-only) on full-bundle builds; point the sidecar there so every
+    // binary lookup (proxy, database, services, terminal PATH) uses it.
+    let bin_dir = app
+        .path()
+        .resolve("core", tauri::path::BaseDirectory::Resource)
+        .unwrap_or_else(|_| dir.join("bin"));
+
     let mut cmd = std::process::Command::new(bin);
     // The sidecar owns the data dir; never opens the browser (the
     // native window IS the dashboard).
     cmd.env("SABDOPALON_DIR", &dir)
+        .env("SABDOPALON_BIN_DIR", &bin_dir)
         .arg("--no-open")
         .stdout(std::process::Stdio::from(log_file.try_clone()?))
         .stderr(std::process::Stdio::from(log_file));
