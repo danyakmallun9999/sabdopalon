@@ -280,13 +280,30 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [logFor, setLogFor] = useState<string | null>(null)
-  const [serviceHistory, setServiceHistory] = useState<{ t: string; running: number; enabled: number }[]>([])
+  const [serviceHistory, setServiceHistory] = useState<{ t: number; running: number; enabled: number }[]>([])
   const [setupDone, setSetupDone] = useState(false)
+
+  // Mounted guard: prevents setState after unmount (nav away mid-fetch),
+  // which was one cause of the dashboard→sites hang.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Latest services snapshot for the history sampler (avoid stale closure).
+  const servicesRef = useRef<ServiceStatus[]>([])
+  useEffect(() => {
+    servicesRef.current = services
+  }, [services])
 
   // Wizard → dashboard transition: after setup finishes the server reloads
   // the SPA; if it doesn't, poll until bootstrapped flips.
   const refreshSetup = useCallback(() => {
     api.setupStatus().then((s) => {
+      if (!mountedRef.current) return
       setSetup(s)
       if (s.bootstrapped) setSetupDone(true)
     }).catch(() => {})
@@ -298,26 +315,44 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [refreshSetup])
 
-  const loadAll = useCallback(async () => {
-    api.status().then(setStatus).catch(() => {})
-    api.services().then((d) => setServices(d.services || [])).catch(() => {})
+  // Stable polling callback — lives in a ref so the interval NEVER restarts
+  // (the [services]-dependent callback previously reset the effect on every
+  // fetch → fetch/setState loop that hung the UI on navigation).
+  const loadAllRef = useRef<() => void>(() => {})
+  loadAllRef.current = () => {
+    api.status().then((s) => {
+      if (mountedRef.current) setStatus(s)
+    }).catch(() => {})
+    api.services().then((d) => {
+      if (mountedRef.current) setServices(d.services || [])
+    }).catch(() => {})
     api.traffic().then((t) => {
+      if (!mountedRef.current) return
       setTrafficTotal(t.total)
       setTraffic(t.per_minute || [])
     }).catch(() => {})
-    // Client-side service history for the mini chart.
+    // Service history sampler: one point per minute (epoch), deduped.
+    const minute = Math.floor(Date.now() / 60000)
     setServiceHistory((h) => {
-      const now = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      const next = [...h, { t: now, running: services.filter((s) => s.running).length, enabled: services.filter((s) => s.enabled).length }]
-      return next.length > 30 ? next.slice(next.length - 30) : next
+      if (h.length && h[h.length - 1].t === minute) return h
+      const svcs = servicesRef.current
+      const next = [
+        ...h,
+        {
+          t: minute,
+          running: svcs.filter((s) => s.running).length,
+          enabled: svcs.filter((s) => s.enabled).length,
+        },
+      ]
+      return next.length > 60 ? next.slice(next.length - 60) : next
     })
-  }, [services])
+  }
 
   useEffect(() => {
     if (!setupDone) return
-    const t = poll(loadAll, 5000)
+    const t = poll(() => loadAllRef.current(), 5000)
     return () => clearInterval(t)
-  }, [setupDone, loadAll])
+  }, [setupDone])
 
   async function toggleService(svc: ServiceStatus, enabled: boolean) {
     setBusy(svc.name)
@@ -334,7 +369,7 @@ export default function DashboardPage() {
           return n
         })
       }
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -356,7 +391,7 @@ export default function DashboardPage() {
           return n
         })
       }
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -368,7 +403,7 @@ export default function DashboardPage() {
       const r = await api.stopService(svc.name)
       if (r.error) toast.error(r.error)
       else toast.success(r.message ?? `${svc.name} stopped`)
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -384,7 +419,7 @@ export default function DashboardPage() {
         if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
       }
       toast.success("Start All selesai")
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -399,7 +434,7 @@ export default function DashboardPage() {
         if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
       }
       toast.success("Stop All selesai")
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -428,7 +463,7 @@ export default function DashboardPage() {
       const r = await api.databaseControl(action)
       if (r.error) toast.error(r.error)
       else toast.success(r.message ?? `Database ${action}`)
-      loadAll()
+      loadAllRef.current()
     } finally {
       setBusy(null)
     }
@@ -448,7 +483,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground text-sm">
           Ringkasan server, layanan, dan lalu lintas — semua dalam satu layar.
         </p>
-        <Button size="sm" variant="outline" onClick={loadAll} disabled={busy === "all"}>
+        <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
           <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
         </Button>
       </div>
@@ -596,11 +631,26 @@ export default function DashboardPage() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} />
-                <XAxis dataKey="t" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+                <XAxis
+                  dataKey="t"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={24}
+                  // t = epoch menit → tampilkan jam:menit
+                  tickFormatter={(v: number) =>
+                    new Date(v * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  }
+                />
                 <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area dataKey="running" type="monotone" fill="url(#fillRunning)" stroke="var(--color-running)" strokeWidth={2} />
-                <Area dataKey="enabled" type="monotone" fill="transparent" stroke="var(--color-enabled)" strokeWidth={2} strokeDasharray="4 4" />
+                <ChartTooltip
+                  content={<ChartTooltipContent />}
+                  labelFormatter={(v) =>
+                    new Date(Number(v) * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                  }
+                />
+                <Area dataKey="running" type="stepAfter" connectNulls fill="url(#fillRunning)" stroke="var(--color-running)" strokeWidth={2} />
+                <Area dataKey="enabled" type="stepAfter" connectNulls fill="transparent" stroke="var(--color-enabled)" strokeWidth={2} strokeDasharray="4 4" />
               </AreaChart>
             </ChartContainer>
           </CardContent>

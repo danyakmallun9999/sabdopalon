@@ -255,7 +255,17 @@ const api = {
 export default api
 
 // Small helper for periodic polling with immediate first call.
+// Anti-overlap: if the previous call is still in flight, the next tick is
+// skipped so slow responses never pile up (fixes janky intervals).
 export function poll(fn: () => void | Promise<void>, ms: number) {
-  fn()
-  return setInterval(fn, ms)
+  let running = false
+  const tick = () => {
+    if (running) return
+    running = true
+    Promise.resolve(fn()).finally(() => {
+      running = false
+    })
+  }
+  tick()
+  return setInterval(tick, ms)
 }

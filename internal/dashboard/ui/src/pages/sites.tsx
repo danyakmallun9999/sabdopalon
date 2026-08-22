@@ -131,9 +131,10 @@ export default function SitesPage() {
   const load = () => api.listSites().then(setSites).catch(() => {})
 
   useEffect(() => {
+    // Status (port, TLD, low_ports) di-poll jarang (10s) — App.tsx sudah
+    // poll tiap 5s untuk header; di sini hanya untuk banner clean-URL.
     const t = poll(load, 4000)
-    api.status().then(setStatus).catch(() => {})
-    const st = setInterval(() => api.status().then(setStatus).catch(() => {}), 6000)
+    const st = poll(() => api.status().then(setStatus).catch(() => {}), 10000)
     return () => {
       clearInterval(t)
       clearInterval(st)
