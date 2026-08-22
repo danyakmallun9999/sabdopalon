@@ -23,7 +23,13 @@ type terminalMessage struct {
 // disconnect the shell is terminated.
 func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 	dir := r.URL.Query().Get("dir")
-	sess, err := terminal.New(s.cfg, dir)
+	// Running optional services contribute their PHP-style env so CLI tools
+	// inside the shell see the same variables as sites do.
+	var extraEnv []string
+	if s.svc != nil {
+		extraEnv = s.svc.EnvVars()
+	}
+	sess, err := terminal.New(s.cfg, dir, extraEnv)
 	if err != nil {
 		http.Error(w, "terminal: "+err.Error(), http.StatusInternalServerError)
 		return
