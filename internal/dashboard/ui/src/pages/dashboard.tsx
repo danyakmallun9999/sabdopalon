@@ -123,7 +123,9 @@ function ServiceCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center justify-between rounded-lg border p-3">
-          <span className="text-sm font-normal">{svc.enabled ? "Enabled (auto-start)" : "Disabled"}</span>
+          <span className="text-sm font-normal">
+            {svc.enabled ? "Auto-start ON" : "Auto-start OFF"}
+          </span>
           <Switch checked={!!svc.enabled} disabled={busy} onCheckedChange={onToggle} />
         </div>
 
@@ -154,6 +156,11 @@ function ServiceCard({
 
         {!svc.installed && !svc.running && (
           <p className="text-muted-foreground text-xs">{svc.hint || "Install its package from Packages."}</p>
+        )}
+        {svc.last_error && !svc.running && (
+          <p className="text-destructive flex items-center gap-1 text-xs">
+            <CircleAlert className="size-3" /> {svc.last_error}
+          </p>
         )}
       </CardContent>
     </Card>
@@ -367,7 +374,7 @@ export default function DashboardPage() {
   // Hanya tool yang sudah terinstall yang ditampilkan & bisa di-start.
   const installed = services.filter((s) => s.installed)
   const runningCount = installed.filter((s) => s.running).length
-  const anyError = Object.values(errors).some(Boolean)
+  const anyError = Object.values(errors).some(Boolean) || installed.some((s) => s.last_error)
   // DB engine selalu aktif selama server jalan (sqlite/mariadb dikelola otomatis).
   const dbStatus = status?.database ? `${status.database} ✓` : "—"
 
@@ -401,6 +408,13 @@ export default function DashboardPage() {
                 <code className="bg-muted rounded px-1 py-0.5">{name}</code>: {msg}
               </p>
             ))}
+            {installed
+              .filter((s) => s.last_error)
+              .map((s) => (
+                <p key={s.name} className="text-muted-foreground text-xs">
+                  <code className="bg-muted rounded px-1 py-0.5">{s.name}</code>: {s.last_error}
+                </p>
+              ))}
           </div>
         </div>
       )}

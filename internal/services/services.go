@@ -35,10 +35,11 @@ type Status struct {
 	Installed bool     `json:"installed"`
 	Running   bool     `json:"running"`
 	Enabled   bool     `json:"enabled"`
-	UI        string   `json:"ui,omitempty"`       // user-facing web UI (if any)
-	Ports     []string `json:"ports,omitempty"`    // human-readable port list
-	EnvKeys   []string `json:"env_keys,omitempty"` // env vars injected into PHP when running
-	Hint      string   `json:"hint,omitempty"`     // install guidance when not bundled
+	UI        string   `json:"ui,omitempty"`         // user-facing web UI (if any)
+	Ports     []string `json:"ports,omitempty"`      // human-readable port list
+	EnvKeys   []string `json:"env_keys,omitempty"`   // env vars injected into PHP when running
+	Hint      string   `json:"hint,omitempty"`       // install guidance when not bundled
+	LastError string   `json:"last_error,omitempty"` // last start failure (port conflict etc.)
 }
 
 // EnvVars returns the environment injected into PHP processes for every
@@ -93,11 +94,15 @@ func (m *Manager) Start(name string) error {
 	}
 	bin := spec.binaryPath(m.cfg.RootDir)
 	if bin == "" {
-		return fmt.Errorf("%s not installed — use 'sabdopalon add %s'", spec.Label, spec.Package)
+		err := fmt.Errorf("%s not installed — use 'sabdopalon add %s'", spec.Label, spec.Package)
+		m.setErr(name, err.Error())
+		return err
 	}
 	for _, port := range spec.Ports {
 		if !portFree(port) {
-			return fmt.Errorf("port %d busy — is another instance of %s running?", port, spec.Name)
+			err := fmt.Errorf("port %d busy — is another instance of %s running?", port, spec.Name)
+			m.setErr(name, err.Error())
+			return err
 		}
 	}
 	dataDir := filepath.Join(m.cfg.Data, spec.DataSub)
@@ -130,12 +135,15 @@ func (m *Manager) Start(name string) error {
 		m.mu.Lock()
 		delete(m.procs, spec.Name)
 		m.mu.Unlock()
-		return fmt.Errorf("%s did not become ready (see logs/%s.log)", spec.Name, spec.Name)
+		err := fmt.Errorf("%s did not become ready (see logs/%s.log)", spec.Name, spec.Name)
+		m.setErr(name, err.Error())
+		return err
 	}
 
 	m.mu.Lock()
 	m.procs[spec.Name] = &runningProc{cmd: cmd, log: logFile}
 	m.mu.Unlock()
+	m.clearErr(name)
 	fmt.Printf("  ✓  %s ready\n", spec.Label)
 	return nil
 }
@@ -150,7 +158,29 @@ func (m *Manager) Stop(name string) error {
 		return nil
 	}
 	p.stop()
+	m.clearErr(name)
 	return nil
+}
+
+// setErr records the last start error for a service (thread-safe).
+func (m *Manager) setErr(name, msg string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.errs[name] = msg
+}
+
+// clearErr removes a recorded error after a successful start/stop.
+func (m *Manager) clearErr(name string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.errs, name)
+}
+
+// lastErr returns the recorded error for a service ("" when none).
+func (m *Manager) lastErr(name string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.errs[name]
 }
 
 // StopAll terminates every running service (used on shutdown).
@@ -246,11 +276,17 @@ type Manager struct {
 	specs []*Spec
 	mu    sync.Mutex
 	procs map[string]*runningProc
+	errs  map[string]string // last start error per service (dashboard display)
 }
 
 // New creates a Manager with the full service registry.
 func New(cfg *config.Engine) *Manager {
-	return &Manager{cfg: cfg, procs: map[string]*runningProc{}, specs: registry()}
+	return &Manager{
+		cfg:   cfg,
+		procs: map[string]*runningProc{},
+		specs: registry(),
+		errs:  map[string]string{},
+	}
 }
 
 // findSpec returns the spec registered under name.
@@ -282,6 +318,7 @@ func (m *Manager) Status(name string) Status {
 		Running:   m.isRunning(name),
 		UI:        "",
 		Hint:      spec.Hint,
+		LastError: m.lastErr(name),
 	}
 	if m.isRunning(name) {
 		st.UI = spec.uiURL()

@@ -58,6 +58,8 @@ func FirstRun(rootDir string) bool {
 
 // WriteDefaultConfig writes a clean default engine.toml for a fresh install.
 // The PHP binary is deliberately left empty (auto-detected at serve time).
+// Optional services default to auto-start ON — once installed they run with
+// the app (users can switch any service off from the dashboard).
 func WriteDefaultConfig(rootDir string) error {
 	cfg := &config.Engine{RootDir: rootDir}
 	cfg.TLD = "localhost"
@@ -72,6 +74,10 @@ func WriteDefaultConfig(rootDir string) error {
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = true
+	cfg.Services.Mailpit = true
+	cfg.Services.Redis = true
+	cfg.Services.MinIO = true
+	cfg.Services.Meilisearch = true
 	return cfg.Save()
 }
 

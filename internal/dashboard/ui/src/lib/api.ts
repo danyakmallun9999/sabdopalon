@@ -24,6 +24,7 @@ export type ServiceStatus = {
   ports?: string[]
   env_keys?: string[]
   hint?: string
+  last_error?: string
 }
 
 export type SystemPHP = {

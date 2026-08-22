@@ -71,6 +71,11 @@ func (a *App) setup() int {
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = true
+	// Optional services auto-start ON: once installed they run with the app.
+	cfg.Services.Mailpit = true
+	cfg.Services.Redis = true
+	cfg.Services.MinIO = true
+	cfg.Services.Meilisearch = true
 	if err := cfg.Save(); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ write config: %v\n", err)
 		return 1

@@ -608,10 +608,32 @@ func (a *App) pkgAdd(args []string) int {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
+	// Tool services auto-enable on install so they start with the app:
+	// "installed = ready to run" (auto-start). No config change for the
+	// core stack (php, mariadb, postgresql) or adminer.
+	if isServicePackage(pkg) {
+		if services.SetEnabled(a.Cfg, pkg, true) {
+			if err := a.Cfg.Save(); err != nil {
+				fmt.Fprintf(os.Stderr, "✗ save config: %v\n", err)
+				return 1
+			}
+			fmt.Printf("  ✓  %s auto-start enabled — it will run when Sabdopalon starts.\n", pkg)
+		}
+	}
 	if strings.EqualFold(pkg, "adminer") {
 		return a.installAdminer()
 	}
 	return 0
+}
+
+// isServicePackage reports whether the package maps to an optional managed
+// service (which supports the [services] auto-start toggle).
+func isServicePackage(pkg string) bool {
+	switch strings.ToLower(pkg) {
+	case "mailpit", "redis", "minio", "meilisearch":
+		return true
+	}
+	return false
 }
 
 // installAdminer moves the downloaded single-file GUI into sites/adminer so it

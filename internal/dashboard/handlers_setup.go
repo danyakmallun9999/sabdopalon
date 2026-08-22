@@ -149,6 +149,11 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = false
+	// Optional services auto-start ON: once installed they run with the app.
+	cfg.Services.Mailpit = true
+	cfg.Services.Redis = true
+	cfg.Services.MinIO = true
+	cfg.Services.Meilisearch = true
 	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
