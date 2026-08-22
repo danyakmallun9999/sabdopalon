@@ -55,20 +55,56 @@ jobs:
           build windows amd64 sabdopalon-windows-x86_64.exe
           echo "binaries:"; ls -lh dist
 
-      - name: Package release assets (full bundles)
+      - name: Download core stack (PHP + MariaDB + phpMyAdmin) per platform
+        run: |
+          set -e
+          mkdir -p core/linux-x86_64 core/macos-x86_64 core/macos-aarch64 core/windows
+          cd core
+
+          # --- phpMyAdmin (identical for all platforms) ---
+          curl -fsSL -o pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
+          for d in linux-x86_64 macos-x86_64 macos-aarch64 windows; do
+            mkdir -p "$d/bin/phpmyadmin"
+            tar xzf pma.tar.gz -C "$d/bin/phpmyadmin" --strip-components=1
+          done
+
+          # --- PHP 8.5 (static-php.dev per platform; tarball berisi satu
+          #     file `php` langsung di root — tanpa strip) ---
+          curl -fsSL -o php-linux.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+          mkdir -p linux-x86_64/bin/php/8.5 && tar xzf php-linux.tar.gz -C linux-x86_64/bin/php/8.5
+
+          curl -fsSL -o php-macos-x86_64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-x86_64.tar.gz
+          mkdir -p macos-x86_64/bin/php/8.5 && tar xzf php-macos-x86_64.tar.gz -C macos-x86_64/bin/php/8.5
+
+          curl -fsSL -o php-macos-aarch64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+          mkdir -p macos-aarch64/bin/php/8.5 && tar xzf php-macos-aarch64.tar.gz -C macos-aarch64/bin/php/8.5
+
+          curl -fsSL -o php-win.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+          mkdir -p windows/bin/php/8.5 && (cd windows/bin/php/8.5 && unzip -q "$OLDPWD/php-win.zip")
+
+          # --- MariaDB 11.4.13 (linux tar.gz + windows zip; macOS tidak
+          #     tersedia di archive.mariadb.org — pengguna macOS memakai
+          #     `sabdopalon add mariadb` atau Homebrew) ---
+          curl -fsSL -o mariadb-linux.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
+          mkdir -p linux-x86_64/bin/mariadb && tar xzf mariadb-linux.tar.gz -C linux-x86_64/bin/mariadb --strip-components=1
+
+          curl -fsSL -o mariadb-win.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
+          mkdir -p windows/bin/mariadb && (cd windows/bin/mariadb && unzip -q "$OLDPWD/mariadb-win.zip" && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
+
+          echo "core stack sizes:"; du -sh linux-x86_64 macos-x86_64 macos-aarch64 windows
+
+      - name: Package release assets (full bundles with core stack)
         run: |
           set -e
           # Each archive contains a complete, runnable Sabdopalon install:
-          # binary + default config + package registry + empty data dirs +
-          # the one-click installer scripts.
-          STAGE=$(mktemp -d)
-          mkdir -p "$STAGE/bundle/config"
+          # binary + core stack (PHP/MariaDB/phpMyAdmin) + default config +
+          # package registry + the one-click installer scripts.
           DIST=$(pwd)/dist
 
           # Default (clean, machine-agnostic) engine.toml + package registry.
-          cat > "$STAGE/bundle/config/engine.toml" <<'EOF'
+          cat > /tmp/engine.toml <<'EOF'
           # Sabdopalon configuration — fresh install defaults.
-          # Run `sabdopalon setup` (or the desktop wizard) to configure your stack.
+          # The core stack (PHP + MariaDB + phpMyAdmin) ships inside bin/.
 
           [sabdopalon]
           tld = "localhost"
@@ -84,7 +120,7 @@ jobs:
           binary = ""
 
           [database]
-          engine = "sqlite"
+          engine = "mariadb"
           path = "./data/sabdopalon.db"
           port = 3306
 
@@ -100,28 +136,37 @@ jobs:
           meilisearch = true
           EOF
 
-          cp -r packages "$STAGE/bundle/packages"
-          cp scripts/install.sh scripts/install.ps1 "$STAGE/bundle/"
+          # build_bundle <core-dir> <binary> <archive-suffix> <tar|zip>
+          build_bundle() {
+            local core="$1" binfile="$2" suffix="$3" mode="$4"
+            local stage
+            stage=$(mktemp -d)
+            mkdir -p "$stage/bundle/config" "$stage/bundle/packages"
+            cp "$binfile" "$stage/bundle/sabdopalon"
+            cp /tmp/engine.toml "$stage/bundle/config/engine.toml"
+            cp -r packages "$stage/bundle/packages"
+            cp scripts/install.sh scripts/install.ps1 "$stage/bundle/"
+            for d in sites logs data certs backups config/vhosts config/profiles; do
+              mkdir -p "$stage/bundle/$d"
+              touch "$stage/bundle/$d/.gitkeep"
+            done
+            # Core stack (bin/php, bin/mariadb, bin/phpmyadmin)
+            cp -r "core/$core/bin" "$stage/bundle/bin"
+            if [ "$mode" = "tar" ]; then
+              tar czf "$DIST/sabdopalon-$suffix.tar.gz" -C "$stage" bundle
+            else
+              (cd "$stage" && zip -qr "$DIST/sabdopalon-$suffix.zip" bundle)
+            fi
+            rm -rf "$stage"
+          }
 
-          # Empty but present data dirs (the binary self-heals, but shipping
-          # them avoids any first-run surprise).
-          for d in sites logs data bin certs backups config/vhosts config/profiles; do
-            mkdir -p "$STAGE/bundle/$d"
-            touch "$STAGE/bundle/$d/.gitkeep"
-          done
+          build_bundle linux-x86_64    "dist/sabdopalon-linux-x86_64"    "linux-x86_64"    tar
+          build_bundle linux-x86_64    "dist/sabdopalon-linux-aarch64"   "linux-aarch64"   tar
+          build_bundle macos-x86_64    "dist/sabdopalon-macos-x86_64"    "macos-x86_64"    tar
+          build_bundle macos-aarch64   "dist/sabdopalon-macos-aarch64"   "macos-aarch64"   tar
+          build_bundle windows         "dist/sabdopalon-windows-x86_64.exe" "windows-x86_64.exe" zip
 
-          VERSION="${GITHUB_REF_NAME#v}"
-          for f in "$DIST"/sabdopalon-linux-* "$DIST"/sabdopalon-macos-*; do
-            cp "$f" "$STAGE/bundle/sabdopalon"
-            tar czf "$f.tar.gz" -C "$STAGE" bundle
-          done
-          for f in "$DIST"/sabdopalon-windows-*.exe; do
-            cp "$f" "$STAGE/bundle/sabdopalon.exe"
-            (cd "$STAGE" && zip -q "${f}.zip" -r bundle)
-          done
-          # Remove the bare binaries (archives are the deliverables) — but
-          # never the archives themselves: `sabdopalon-linux-*` would also
-          # match the .tar.gz files just created.
+          # Remove the bare binaries (archives are the deliverables).
           find "$DIST" -maxdepth 1 -type f ! -name '*.tar.gz' ! -name '*.zip' -delete
           echo "archives:"; ls -lh "$DIST"
 

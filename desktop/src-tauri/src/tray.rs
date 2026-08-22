@@ -26,10 +26,16 @@ pub fn setup(app: &tauri::App) -> tauri::Result<()> {
         ],
     )?;
 
-    let _tray = TrayIconBuilder::with_id("sabdopalon-tray")
-        .icon(app.default_window_icon().cloned().unwrap())
+    // Use the app icon when available; never panic on headless/resource
+    // edge cases (a panic here would force-close the whole app on some
+    // platforms — e.g. Windows NSIS builds).
+    let mut tray = TrayIconBuilder::with_id("sabdopalon-tray")
         .menu(&menu)
-        .show_menu_on_left_click(false)
+        .show_menu_on_left_click(false);
+    if let Some(icon) = app.default_window_icon().cloned() {
+        tray = tray.icon(icon);
+    }
+    let _tray = tray
         .on_menu_event(|app, event| match event.id().as_ref() {
             "open-dashboard" => open_dashboard(app),
             "open-sites" => open_sites(app),

@@ -35,12 +35,23 @@ func (a *App) setup() int {
 
 	r := &reader{sc: bufio.NewScanner(os.Stdin)}
 
-	// 1. Stack default: PHP + MariaDB (the dev-PHP core, XAMPP-style).
-	fmt.Println("  Sabdopalon will install the core stack:")
-	fmt.Println("    • PHP          — the language runtime for your sites")
-	fmt.Println("    • MariaDB      — MySQL-compatible database")
-	if !askYesNo(r, "  Install the core stack (PHP + MariaDB)?", true) {
-		fmt.Println("  OK — we'll keep it minimal (PHP only, SQLite database).")
+	bundled := bootstrap.Bundled(rootDir)
+
+	// 1. Core stack: PHP + MariaDB + phpMyAdmin — already bundled in the app
+	// (full-bundle installs). The wizard only asks about extras.
+	if bundled {
+		fmt.Println("  ✓ Core stack terpasang (bundled):")
+		fmt.Println("    • PHP 8.5        — language runtime")
+		fmt.Println("    • MariaDB        — MySQL-compatible database")
+		fmt.Println("    • phpMyAdmin     — web database GUI at phpmyadmin.localhost")
+	} else {
+		fmt.Println("  Sabdopalon will install the core stack:")
+		fmt.Println("    • PHP          — the language runtime for your sites")
+		fmt.Println("    • MariaDB      — MySQL-compatible database")
+		fmt.Println("    • phpMyAdmin   — web database GUI at phpmyadmin.localhost")
+		if !askYesNo(r, "  Install the core stack (PHP + MariaDB + phpMyAdmin)?", true) {
+			fmt.Println("  OK — we'll keep it minimal (PHP only, SQLite database).")
+		}
 	}
 
 	// 2. Optional PostgreSQL (one click, off by default).
@@ -82,29 +93,43 @@ func (a *App) setup() int {
 	}
 	fmt.Printf("\n  ✓  Configuration written to %s\n", filepath.Join(rootDir, "config", "engine.toml"))
 
-	// 5. Download the stack. PHP + MariaDB are the default core; PostgreSQL
-	// is optional. Each download shows progress and verifies checksums.
-	stack := []string{"php", "mariadb"}
-	if dbEngine == "sqlite" {
-		// MariaDB still gets installed for `add` use, but the default
-		// engine stays SQLite. Keep the core stack simple instead.
-		stack = []string{"php"}
+	// 5. Download stack. Core (PHP+MariaDB+phpMyAdmin) sudah bundled pada
+	// full-bundle install; hanya PostgreSQL (opsional) yang diunduh.
+	stack := []string{}
+	if !bundled {
+		stack = []string{"php", "mariadb", "phpmyadmin"}
+		if dbEngine == "sqlite" {
+			// MariaDB still gets installed for `add` use, but the default
+			// engine stays SQLite. Keep the core stack simple instead.
+			stack = []string{"php"}
+		}
 	}
 	if installPostgres {
 		stack = append(stack, "postgresql")
 	}
 
-	m, err := pkgmgr.New(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "✗ package manager: %v\n", err)
-		return 1
-	}
-	for _, name := range stack {
-		fmt.Printf("\n  Installing %s...\n", name)
-		if err := m.Download(name); err != nil {
-			fmt.Fprintf(os.Stderr, "✗ %s: %v\n", name, err)
-			fmt.Fprintln(os.Stderr, "  You can retry later with: sabdopalon add "+name)
+	if len(stack) > 0 {
+		m, err := pkgmgr.New(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "✗ package manager: %v\n", err)
 			return 1
+		}
+		for _, name := range stack {
+			fmt.Printf("\n  Installing %s...\n", name)
+			if err := m.Download(name); err != nil {
+				fmt.Fprintf(os.Stderr, "✗ %s: %v\n", name, err)
+				fmt.Fprintln(os.Stderr, "  You can retry later with: sabdopalon add "+name)
+				return 1
+			}
+		}
+	} else {
+		fmt.Println("\n  ✓ Core stack sudah tersedia — tidak perlu unduh.")
+	}
+
+	// Deploy phpMyAdmin as a site + pre-wired config (bundle atau baru diunduh).
+	if dbEngine == "mariadb" && a.installPHPMyAdmin() != 0 {
+		if !bundled {
+			fmt.Fprintln(os.Stderr, "  ⚠ phpMyAdmin install failed — run 'sabdopalon add phpmyadmin' later.")
 		}
 	}
 

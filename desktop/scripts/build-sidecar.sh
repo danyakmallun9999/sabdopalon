@@ -45,6 +45,9 @@ OUT="src-tauri/binaries/sabdopalon-${TRIPLE}"
 # Tauri externalBin on Windows expects an .exe suffix on the packaged sidecar.
 if [ "$GOOS" = "windows" ]; then
   OUT="${OUT}.exe"
+  # -H windowsgui: the sidecar is a background server, not a CLI — without
+  # this, Windows opens a console window whenever the desktop app spawns it.
+  LDFLAGS="-s -w -H windowsgui -X github.com/sabdopalon/sabdopalon/internal/app.Version=${VERSION}"
 fi
 GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 \
   go build -ldflags="$LDFLAGS" -o "$OUT" ../cmd/sabdopalon

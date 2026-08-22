@@ -23,23 +23,38 @@ pub fn data_dir(app: &AppHandle) -> PathBuf {
 /// 1. next to the running executable — `target/release/sabdopalon` (dev/build)
 /// 2. bundle resource dir (installed app) — `binaries/sabdopalon`
 /// 3. repo layout (dev) — `../binaries/sabdopalon` next to src-tauri
+///
+/// On Windows the binaries carry a `.exe` suffix; try both spellings.
 fn sidecar_path(app: &AppHandle) -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    let candidates = [
-        Some(exe_dir.join("sabdopalon")),
-        app.path()
-            .resolve("binaries/sabdopalon", tauri::path::BaseDirectory::Resource)
-            .ok(),
-        Some(exe_dir.join("binaries/sabdopalon")),
-        Some(exe_dir.join("../binaries/sabdopalon")),
-    ];
-    candidates.into_iter().flatten().find(|p| p.is_file())
+    let names: &[&str] = if cfg!(windows) {
+        &["sabdopalon.exe", "sabdopalon"]
+    } else {
+        &["sabdopalon"]
+    };
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for n in names {
+        candidates.push(exe_dir.join(n));
+        candidates.push(exe_dir.join("binaries").join(n));
+        candidates.push(exe_dir.join("../binaries").join(n));
+    }
+    if let Ok(p) = app.path().resolve("binaries/sabdopalon", tauri::path::BaseDirectory::Resource) {
+        candidates.push(p);
+    }
+    if cfg!(windows) {
+        if let Ok(p) = app.path().resolve("binaries/sabdopalon.exe", tauri::path::BaseDirectory::Resource) {
+            candidates.push(p);
+        }
+    }
+    candidates.into_iter().find(|p| p.is_file())
 }
 
 /// Spawn the sidecar (sabdopalon binary from the bundle).
 ///
 /// First run (no engine.toml yet) boots in setup mode so the GUI wizard
 /// shows; afterwards the sidecar serves the normal dashboard.
+/// stdout/stderr are redirected to `<data>/logs/sidecar.log` so crashes and
+/// panics leave a trace (invisible on Windows thanks to -H windowsgui).
 pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = data_dir(app);
     std::fs::create_dir_all(&dir)?;
@@ -49,10 +64,21 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let bootstrapped = dir.join("config/engine.toml").is_file();
 
+    // Crash/console logging for the sidecar.
+    let logs_dir = dir.join("logs");
+    std::fs::create_dir_all(&logs_dir)?;
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(logs_dir.join("sidecar.log"))?;
+
     let mut cmd = std::process::Command::new(bin);
     // The sidecar owns the data dir; never opens the browser (the
     // native window IS the dashboard).
-    cmd.env("SABDOPALON_DIR", &dir).arg("--no-open");
+    cmd.env("SABDOPALON_DIR", &dir)
+        .arg("--no-open")
+        .stdout(std::process::Stdio::from(log_file.try_clone()?))
+        .stderr(std::process::Stdio::from(log_file));
     if !bootstrapped {
         cmd.arg("--setup-mode");
     }

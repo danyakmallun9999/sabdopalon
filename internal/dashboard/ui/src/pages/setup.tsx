@@ -132,18 +132,18 @@ export default function SetupPage() {
                 <Server className="size-4" /> Pilihan stack
               </CardTitle>
               <CardDescription>
-                PHP + MariaDB adalah kombinasi klasik untuk WordPress dan Laravel. Semua bisa
-                diubah nanti.
+                Bundle bawaan: PHP 8.5 + MariaDB + phpMyAdmin — kombinasi klasik untuk WordPress
+                dan Laravel. Semua bisa diubah nanti.
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="flex flex-col gap-0.5">
                   <Label htmlFor="setup-mariadb" className="font-medium">
-                    MariaDB (database MySQL-compatible)
+                    MariaDB + phpMyAdmin (database + web GUI)
                   </Label>
                   <span className="text-muted-foreground text-xs">
-                    Database bawaan untuk semua proyek PHP
+                    Database bawaan + kelola lewat browser di phpmyadmin.localhost
                   </span>
                 </div>
                 <Switch

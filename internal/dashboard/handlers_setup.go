@@ -11,6 +11,7 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/bootstrap"
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/deploy"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 )
@@ -165,18 +166,35 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	}
 	m.Out = &syncWriter{mu: &sjob.mu, buf: &sjob.output}
 
-	// Core stack: PHP always; MariaDB unless the user picked SQLite-only.
-	stack := []string{"php"}
-	if dbEngine == "mariadb" || req.InstallMariaDB {
-		stack = append(stack, "mariadb")
+	// Core stack: PHP always; MariaDB + phpMyAdmin unless the user picked
+	// SQLite-only. On full-bundle installs the core already ships in bin/
+	// (bootstrap.Bundled) so nothing is downloaded — only extras like
+	// PostgreSQL are fetched.
+	stack := []string{}
+	if !bootstrap.Bundled(rootDir) {
+		stack = append(stack, "php")
+		if dbEngine == "mariadb" || req.InstallMariaDB {
+			stack = append(stack, "mariadb", "phpmyadmin")
+		}
 	}
 	if req.InstallPostgres {
 		stack = append(stack, "postgresql")
+	}
+	if len(stack) == 0 {
+		write("✓ Core stack sudah terpasang (bundled) — tidak perlu unduh.\n")
 	}
 	for _, name := range stack {
 		write("\nInstalling %s...\n", name)
 		if err := m.Download(name); err != nil {
 			return fmt.Errorf("install %s: %w", name, err)
+		}
+	}
+	// Deploy phpMyAdmin as a site with pre-wired config.
+	if dbEngine == "mariadb" || req.InstallMariaDB {
+		if err := deploy.PHPMyAdmin(cfg); err != nil {
+			write("⚠ phpMyAdmin deploy: %v\n", err)
+		} else {
+			write("✓ phpMyAdmin ready → http://phpmyadmin.localhost\n")
 		}
 	}
 

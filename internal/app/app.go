@@ -17,6 +17,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/dashboard"
 	"github.com/sabdopalon/sabdopalon/internal/database"
+	"github.com/sabdopalon/sabdopalon/internal/deploy"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
@@ -224,6 +225,10 @@ func (a *App) serve() int {
 		return 1
 	}
 	_ = os.MkdirAll(a.Cfg.Root, 0o755)
+	// Full-bundle installs ship phpMyAdmin in bin/ — deploy it as a site.
+	if err := bootstrap.DeployBundled(a.Cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ bundled deploy: %v\n", err)
+	}
 
 	// Apply profile overlay (--profile name) before anything starts.
 	if a.Profile != "" && a.Profile != "default" {
@@ -623,6 +628,9 @@ func (a *App) pkgAdd(args []string) int {
 	if strings.EqualFold(pkg, "adminer") {
 		return a.installAdminer()
 	}
+	if strings.EqualFold(pkg, "phpmyadmin") {
+		return a.installPHPMyAdmin()
+	}
 	return 0
 }
 
@@ -670,6 +678,18 @@ func (a *App) installAdminer() int {
 		return 1
 	}
 	fmt.Printf("✓ Adminer ready → http://adminer.%s:%d/\n", a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
+	return 0
+}
+
+// installPHPMyAdmin copies the downloaded phpMyAdmin tree into
+// sites/phpmyadmin/public and writes a config.inc.php pre-wired to the local
+// MariaDB (root, no password, cookie auth) so the site works out of the box.
+func (a *App) installPHPMyAdmin() int {
+	if err := deploy.PHPMyAdmin(a.Cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	fmt.Printf("✓ phpMyAdmin ready → http://phpmyadmin.%s:%d/\n", a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
 	return 0
 }
 

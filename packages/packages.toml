@@ -19,9 +19,9 @@
 # download (bin/<target>.../.sabdopalon-sha256 style locks under bin/).
 
 [mariadb]
-version = "11.4.12"
-url = "https://archive.mariadb.org/mariadb-11.4.12/bintar-linux-systemd-x86_64/mariadb-11.4.12-linux-systemd-x86_64.tar.gz"
-sha256_linux_x86_64 = "afb81282f977c599ecbb0390588b0005b304b4e87d64615a2649ecd2bd1dc16f"
+version = "11.4.13"
+url = "https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz"
+sha256_linux_x86_64 = "fa2f594c3ab0d4f4e611c79a63e5ebf0e15558ce971963d64df3bcaced1b135a"
 target = "mariadb"
 strip_root = true
 type = "tar.gz"
@@ -32,11 +32,11 @@ license = "GPL-2.0 (with FOSS exception)"
 # static-php.dev provides self-contained static PHP binaries with 30+
 # extensions (pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache, ...).
 # Source: https://dl.static-php.dev/static-php-cli/common/
-version = "8.4.23"
-version_windows = "8.4.22"
+version = "8.5.8"
+version_windows = "8.5.7"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
 url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
-sha256_linux_x86_64 = "1aeed5bc7967977ca5b1da7163acd91bf9ba3ac56037045d4e91ee2ff2712bb7"
+sha256_linux_x86_64 = "517a18e0f0874de35669fe134eb3c52508e128a6d1da5bf890760cb800ada410"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
@@ -138,6 +138,16 @@ target = "redis"
 strip_root = true
 type = "zip"
 license = "BSD-3-Clause"
+
+# phpMyAdmin — web database GUI (served as a site at phpmyadmin.localhost).
+[phpmyadmin]
+version = "5.2.3"
+url = "https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz"
+sha256_linux_x86_64 = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb47c102b"
+target = "phpmyadmin"
+strip_root = true
+type = "tar.gz"
+license = "GPL-2.0"
 
 # Adminer — single-file database web GUI (served as a site).
 [adminer]

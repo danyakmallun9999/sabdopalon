@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/deploy"
 )
 
 // layoutDirs lists every directory that makes up a Sabdopalon install,
@@ -89,4 +91,49 @@ func Welcome() string {
   all inside one portable folder. No Docker, no system packages.
   We will set everything up in a few steps.
 `
+}
+
+// Bundled reports whether the core stack (PHP + MariaDB + phpMyAdmin) ships
+// inside this install's bin/ — i.e. the app is a full bundle and the wizard
+// does not need to download the core. MariaDB is not bundled on macOS
+// (no official macOS binaries on archive.mariadb.org), so macOS bundles are
+// still considered "bundled" with PHP + phpMyAdmin only.
+func Bundled(rootDir string) bool {
+	phpOK := false
+	if entries, err := os.ReadDir(filepath.Join(rootDir, "bin", "php")); err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				phpOK = true
+				break
+			}
+		}
+	}
+	pmaOK := dirHasFiles(filepath.Join(rootDir, "bin", "phpmyadmin"))
+	if runtime.GOOS == "darwin" {
+		// macOS: MariaDB via `add mariadb` / Homebrew.
+		return phpOK && pmaOK
+	}
+	mariadbOK := dirHasFiles(filepath.Join(rootDir, "bin", "mariadb"))
+	return phpOK && mariadbOK && pmaOK
+}
+
+// DeployBundled deploys bundled web apps (phpMyAdmin) into the sites tree
+// when they ship in bin/ but haven't been deployed yet. Idempotent.
+func DeployBundled(cfg *config.Engine) error {
+	pmaSrc := filepath.Join(cfg.RootDir, "bin", "phpmyadmin")
+	if !dirHasFiles(pmaSrc) {
+		return nil // not bundled (classic install) — user can `add phpmyadmin`
+	}
+	if dirHasFiles(filepath.Join(cfg.Root, "phpmyadmin", "public")) {
+		return nil // already deployed
+	}
+	if err := deploy.PHPMyAdmin(cfg); err != nil {
+		return fmt.Errorf("deploy bundled phpMyAdmin: %w", err)
+	}
+	return nil
+}
+
+func dirHasFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return err == nil && len(entries) > 0
 }
