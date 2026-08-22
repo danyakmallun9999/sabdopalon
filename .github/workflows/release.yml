@@ -133,12 +133,18 @@ jobs:
 
       - name: Verify assets exist (fail loud, never ship an empty release)
         run: |
+          set +e
           count=$(ls dist/*.tar.gz dist/*.zip 2>/dev/null | wc -l)
           echo "asset archives: $count"
-          test "$count" -eq 5 || {
+          test "$count" -eq 5 && exit 0
+          {
             echo "::error::expected 5 archives (4 tar.gz + 1 zip), found $count"
-            exit 1
-          }
+            echo "dist contents:"
+            ls -la dist
+            echo "--- raw dir ---"
+            find dist -maxdepth 2 | head -40
+          } >&2
+          exit 1
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
