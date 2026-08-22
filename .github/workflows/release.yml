@@ -4,16 +4,15 @@ on:
   push:
     tags:
       - "v*"
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  ui:
-    name: Build dashboard UI
+  release:
+    name: Build UI + all binaries + publish
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,130 +30,48 @@ jobs:
           npm ci
           npm run build
 
-      - name: Upload UI bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-dist
-          path: internal/dashboard/ui/dist/
-
-  build:
-    name: Build ${{ matrix.os }}-${{ matrix.arch }}
-    runs-on: ubuntu-latest
-    needs: ui
-    timeout-minutes: 20
-    strategy:
-      matrix:
-        include:
-          # Linux
-          - os: linux
-            arch: x86_64
-            goos: linux
-            goarch: amd64
-            binary: sabdopalon
-          - os: linux
-            arch: aarch64
-            goos: linux
-            goarch: arm64
-            binary: sabdopalon
-          # macOS (cross-compiled — Go does not require a matching host)
-          - os: macos
-            arch: x86_64
-            goos: darwin
-            goarch: amd64
-            binary: sabdopalon
-          - os: macos
-            arch: aarch64
-            goos: darwin
-            goarch: arm64
-            binary: sabdopalon
-          # Windows (cross-compiled)
-          - os: windows
-            arch: x86_64
-            goos: windows
-            goarch: amd64
-            binary: sabdopalon.exe
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download prebuilt UI bundle
-        uses: actions/download-artifact@v4
-        with:
-          name: ui-dist
-          path: internal/dashboard/ui/dist
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: "stable"
 
-      - name: Build binary
+      - name: Build all platform binaries
         env:
           CGO_ENABLED: "0"
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags="-s -w" -o ${{ matrix.binary }} ./cmd/sabdopalon
-          # Upload with the FINAL asset name so the release job can flatten.
-          name="sabdopalon-${{ matrix.os }}-${{ matrix.arch }}"
-          case "${{ matrix.binary }}" in *.exe) name="$name.exe";; esac
-          cp "${{ matrix.binary }}" "$name"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sabdopalon-${{ matrix.os }}-${{ matrix.arch }}
-          path: sabdopalon-${{ matrix.os }}-${{ matrix.arch }}*
-
-  release:
-    name: Create GitHub Release
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - name: Download build artifacts (flat)
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+          set -e
+          mkdir -p dist
+          build() {
+            echo "::group::build $3 ($1/$2)"
+            GOOS="$1" GOARCH="$2" go build -ldflags="-s -w" -o "dist/$3" ./cmd/sabdopalon
+            echo "::endgroup::"
+          }
+          build linux   amd64 sabdopalon-linux-x86_64
+          build linux   arm64 sabdopalon-linux-aarch64
+          build darwin  amd64 sabdopalon-macos-x86_64
+          build darwin  arm64 sabdopalon-macos-aarch64
+          build windows amd64 sabdopalon-windows-x86_64.exe
+          echo "binaries:"; ls -lh dist
 
       - name: Package release assets
-        shell: python3 {0}
         run: |
-          import glob, os, zipfile, tarfile
-          os.chdir("dist")
-          files = sorted(os.listdir("."))
-          print("dist before:", files)
-          made = []
-          for f in glob.glob("sabdopalon-windows-*.exe"):
-              with zipfile.ZipFile(f + ".zip", "w", zipfile.ZIP_DEFLATED) as z:
-                  z.write(f, f)
-              made.append(f + ".zip")
-          for f in glob.glob("sabdopalon-linux-*") + glob.glob("sabdopalon-macos-*"):
-              with tarfile.open(f + ".tar.gz", "w:gz") as t:
-                  t.add(f)
-              made.append(f + ".tar.gz")
-          for f in glob.glob("sabdopalon-*"):
-              os.remove(f)
-          print("archives made:", sorted(made))
-          print("dist after:", sorted(os.listdir(".")))
-          assert len(made) == 5, f"expected 5 archives, made {len(made)}"
+          set -e
+          cd dist
+          shopt -s nullglob
+          for f in sabdopalon-windows-*.exe; do zip -q "$f.zip" "$f"; done
+          for f in sabdopalon-linux-* sabdopalon-macos-*; do tar czf "$f.tar.gz" "$f"; done
+          rm -f sabdopalon-windows-*.exe
+          echo "archives:"; ls -lh
 
       - name: Verify assets exist (fail loud, never ship an empty release)
-        shell: python3 {0}
         run: |
-          import os, sys
-          dist = sorted(os.listdir("dist"))
-          archives = [f for f in dist if f.endswith((".tar.gz", ".zip"))]
-          if len(archives) != 5:
-              print(
-                  "::error::expected 5 archives, found %d | dist=%s"
-                  % (len(archives), ",".join(dist))
-              )
-              sys.exit(1)
-          print("verified:", ", ".join(archives))
+          count=$(ls dist/*.tar.gz dist/*.zip 2>/dev/null | wc -l)
+          listing=$(ls dist || true)
+          test "$count" -eq 5 || {
+            echo "::error::expected 5 archives (4 tar.gz + 1 zip), found $count | dist: $(echo "$listing" | tr '\n' ',')"
+            exit 1
+          }
+          echo "verified 5 assets ✓"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
