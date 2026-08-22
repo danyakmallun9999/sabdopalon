@@ -53,6 +53,14 @@ export default function TerminalPanel({ dir = "", heightClass = "h-[24rem]" }: P
     const onResize = () => fit.fit()
     window.addEventListener("resize", onResize)
 
+    // Fit the terminal when its container changes size (e.g. the resizable
+    // split-pane on the Sites page) — xterm has no native observer.
+    let ro: ResizeObserver | undefined
+    if (typeof ResizeObserver !== "undefined" && host) {
+      ro = new ResizeObserver(() => fit.fit())
+      ro.observe(host)
+    }
+
     // Push initial size and keep the PTY in sync.
     const sizeTimer = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
@@ -65,6 +73,7 @@ export default function TerminalPanel({ dir = "", heightClass = "h-[24rem]" }: P
     return () => {
       clearInterval(sizeTimer)
       window.removeEventListener("resize", onResize)
+      ro?.disconnect()
       ws.close()
       term.dispose()
     }

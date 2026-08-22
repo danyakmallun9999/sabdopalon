@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import {
@@ -8,6 +8,7 @@ import {
   Globe,
   Link as LinkIcon,
   Lock,
+  PanelRightClose,
   Play,
   Plus,
   RotateCw,
@@ -64,13 +65,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
   Table,
   TableBody,
   TableCell,
@@ -120,6 +114,8 @@ export default function SitesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
   const [termSite, setTermSite] = useState<Site | null>(null)
+  const [termWidth, setTermWidth] = useState(480)
+  const draggingRef = useRef(false)
   const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
   const [savingCfg, setSavingCfg] = useState(false)
@@ -243,64 +239,72 @@ export default function SitesPage() {
     load()
   }
 
-  return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
+  // Konten utama halaman situs (dipakai normal & di dalam split-pane).
+  const mainContent = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted-foreground text-sm">
           Every folder in <code className="bg-muted rounded px-1.5 py-0.5">sites/</code> is
           automatically served at <code className="bg-muted rounded px-1.5 py-0.5">name.localhost</code>.
         </p>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button />}>
-            <Plus /> New Site
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create a new site</DialogTitle>
-              <DialogDescription>
-                The name becomes the local domain (e.g. <code>my-app</code> →{" "}
-                <code>my-app.localhost</code>).
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="site-name">Site name</Label>
-                <Input
-                  id="site-name"
-                  value={name}
-                  placeholder="my-app"
-                  onChange={(e) => setName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && create()}
-                />
+        <div className="flex items-center gap-2">
+          {termSite && (
+            <Button variant="ghost" size="sm" onClick={() => setTermSite(null)}>
+              <PanelRightClose /> Close terminal
+            </Button>
+          )}
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger render={<Button size="sm" />}>
+              <Plus /> New Site
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create a new site</DialogTitle>
+                <DialogDescription>
+                  The name becomes the local domain (e.g. <code>my-app</code> →{" "}
+                  <code>my-app.localhost</code>).
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="site-name">Site name</Label>
+                  <Input
+                    id="site-name"
+                    value={name}
+                    placeholder="my-app"
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && create()}
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label>Template</Label>
+                  <Select value={template} onValueChange={(v) => setTemplate(v ?? "blank")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATES.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="flex flex-col gap-2">
-                <Label>Template</Label>
-                <Select value={template} onValueChange={(v) => setTemplate(v ?? "blank")}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TEMPLATES.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={create} disabled={creating || !name.trim()}>
-                {creating ? "Creating…" : "Create site"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button onClick={create} disabled={creating || !name.trim()}>
+                  {creating ? "Creating…" : "Create site"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
 
-      <div className="bg-card overflow-hidden rounded-xl border">
+      <div className="bg-card mt-4 overflow-hidden rounded-xl border">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -439,24 +443,59 @@ export default function SitesPage() {
           </TableBody>
         </Table>
       </div>
+    </>
+  )
 
-      <Sheet open={!!termSite} onOpenChange={(v) => !v && setTermSite(null)}>
-        <SheetContent side="right" className="w-[min(42rem,95vw)] sm:max-w-none">
-          <SheetHeader>
-            <SheetTitle className="inline-flex items-center gap-2">
-              <TerminalSquare className="size-4" /> Terminal — {termSite?.name}
-            </SheetTitle>
-            <SheetDescription>
-              Shell opened in <code className="bg-muted rounded px-1 py-0.5 text-xs">{termSite?.dir}</code>
-            </SheetDescription>
-          </SheetHeader>
-          <div className="mt-4">
-            {termSite && (
-              <TerminalPanel dir={termSite.dir} heightClass="h-[calc(100vh-10rem)] min-h-[28rem]" />
-            )}
+  return (
+    <div className="flex flex-col gap-4 px-4 lg:px-6">
+      {termSite ? (
+        /* Split-pane: situs di kiri, terminal di kanan (resizable) */
+        <div className="fixed inset-0 z-40 flex" style={{ paddingLeft: "var(--sidebar-width, 16rem)" }}>
+          <div className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-6">{mainContent}</div>
+
+          {/* Drag handle */}
+          <div
+            className="group flex w-1.5 cursor-col-resize items-stretch bg-border/60 hover:bg-primary/40"
+            onPointerDown={(e) => {
+              draggingRef.current = true
+              e.currentTarget.setPointerCapture(e.pointerId)
+            }}
+            onPointerMove={(e) => {
+              if (!draggingRef.current) return
+              const container = e.currentTarget.parentElement
+              if (!container) return
+              const rect = container.getBoundingClientRect()
+              const w = rect.right - e.clientX
+              setTermWidth(Math.min(Math.max(w, 280), rect.width * 0.6))
+            }}
+            onPointerUp={() => (draggingRef.current = false)}
+            onPointerCancel={() => (draggingRef.current = false)}
+            title="Drag to resize"
+          >
+            <span className="bg-primary/40 mx-auto my-auto h-16 w-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
-        </SheetContent>
-      </Sheet>
+
+          {/* Kolom terminal */}
+          <div
+            className="flex min-w-0 flex-col border-l bg-background"
+            style={{ width: termWidth }}
+          >
+            <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+              <span className="inline-flex items-center gap-2 text-sm font-medium">
+                <TerminalSquare className="size-4" /> Terminal — {termSite.name}
+              </span>
+              <span className="text-muted-foreground hidden truncate font-mono text-xs md:inline">
+                {termSite.dir}
+              </span>
+            </div>
+            <div className="min-h-0 flex-1 p-2">
+              <TerminalPanel dir={termSite.dir} heightClass="h-full min-h-[16rem]" />
+            </div>
+          </div>
+        </div>
+      ) : (
+        mainContent
+      )}
 
       <Dialog open={!!cfgSite} onOpenChange={(v) => !v && setCfgSite(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
