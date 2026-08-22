@@ -66,6 +66,13 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
       }
       // Fires whenever fit() actually changes dimensions — push instantly.
       term.onResize(sendResize)
+      // Keyboard/paste input → the CURRENT socket (wsRef survives reconnects).
+      term.onData((data) => {
+        const ws = wsRef.current
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "input", data }))
+        }
+      })
       // User-facing clipboard shortcuts (Ctrl+Shift+C / V) + OSC52 via addon.
       term.attachCustomKeyEventHandler((ev) => {
         if (ev.type !== "keydown") return true

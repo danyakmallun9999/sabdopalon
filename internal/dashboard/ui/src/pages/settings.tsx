@@ -106,15 +106,43 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label>Engine</Label>
-              <Select value={cfg.db_engine ?? "sqlite"} onValueChange={(v) => set("db_engine", v ?? "sqlite")}>
+              <Select value={cfg.db_engine || "sqlite"} onValueChange={(v) => set("db_engine", v ?? "sqlite")}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="sqlite">SQLite — zero setup</SelectItem>
-                  <SelectItem value="mariadb">MariaDB (install from Packages)</SelectItem>
+                  {[
+                    { id: "sqlite", label: "SQLite — zero setup" },
+                    { id: "mariadb", label: "MariaDB" },
+                    { id: "postgresql", label: "PostgreSQL" },
+                    { id: "mysql", label: "MySQL" },
+                  ].map((e) => {
+                    const installed = cfg.db_installed?.[e.id] ?? e.id === "sqlite"
+                    return (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.label}
+                        {installed ? "" : " — belum terpasang (Packages)"}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
+              <p className="text-muted-foreground text-xs">
+                Aktif sekarang:{" "}
+                <span className="text-foreground font-medium">{cfg.db_engine || "sqlite"}</span>
+                {" · "}
+                {cfg.db_running
+                  ? "berjalan"
+                  : (cfg.db_engine || "sqlite") === "sqlite"
+                    ? "selalu aktif"
+                    : "belum berjalan"}
+                . Ganti engine berlaku setelah restart Sabdopalon.
+              </p>
+              {cfg.db_error && (
+                <p className="text-destructive text-xs">
+                  Gagal start database: {cfg.db_error}
+                </p>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="dbport">Port (mariadb/mysql)</Label>

@@ -96,6 +96,9 @@ export type ConfigPayload = {
   https_port?: number
   db_engine?: string
   db_port?: number
+  db_installed?: Record<string, boolean>
+  db_running?: boolean
+  db_error?: string
   dashboard_enabled?: boolean
   dashboard_port?: number
   auto_open?: boolean

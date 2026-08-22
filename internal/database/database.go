@@ -40,7 +40,11 @@ type Manager struct {
 	cmd     *exec.Cmd
 	ready   bool
 	Verbose bool
+	lastErr string // last Start() failure, surfaced in the dashboard
 }
+
+// LastError returns the most recent Start() failure ("", when healthy).
+func (m *Manager) LastError() string { return m.lastErr }
 
 // New creates a DB Manager.
 func New(cfg *config.Engine) *Manager {
@@ -64,8 +68,16 @@ func EffectivePort(cfg *config.Engine) int {
 }
 
 // Start launches the database daemon if the engine requires one (not sqlite).
-// For sqlite it is a no-op.
-func (m *Manager) Start() error {
+// For sqlite it is a no-op. The failure reason is kept in LastError so the
+// dashboard can explain a "disconnected" database instead of staying mute.
+func (m *Manager) Start() (err error) {
+	defer func() {
+		if err != nil {
+			m.lastErr = err.Error()
+		} else {
+			m.lastErr = ""
+		}
+	}()
 	engine := m.cfg.Database.Engine
 	if engine == "sqlite" || engine == "" {
 		m.ready = true
@@ -169,10 +181,24 @@ func (m *Manager) Ready() bool { return m.ready }
 // --- helpers ---
 
 func (m *Manager) findBinary() (string, error) {
-	engine := m.cfg.Database.Engine
+	return binaryFor(m.cfg, m.cfg.Database.Engine)
+}
+
+// Installed reports whether the engine's daemon binary is available
+// (bundled in bin/ or on PATH). sqlite needs no daemon and is always true.
+func Installed(cfg *config.Engine, engine string) bool {
+	if engine == "sqlite" || engine == "" {
+		return true
+	}
+	_, err := binaryFor(cfg, engine)
+	return err == nil
+}
+
+// binaryFor resolves the daemon binary for one specific engine.
+func binaryFor(cfg *config.Engine, engine string) (string, error) {
 	// Look in bundled bin/ (writable install dir or read-only resource
 	// override), then PATH.
-	binRoot := m.cfg.BinDir()
+	binRoot := cfg.BinDir()
 	sb := serverBinary(engine)
 	candidates := []string{
 		filepath.Join(binRoot, engine, "bin", sb),

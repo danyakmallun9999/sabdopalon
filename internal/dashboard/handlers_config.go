@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/services"
@@ -36,6 +37,11 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		"db_running":  dbRunning,
 		"sites_count": len(s.proxy.RunningSites()),
 		"services":    s.svcRunning(),
+	}
+	if s.db != nil {
+		if e := s.db.LastError(); e != "" {
+			resp["db_error"] = e
+		}
 	}
 	if s.cfg.PHP.Binary != "" {
 		resp["php"] = baseName(s.cfg.PHP.Binary)
@@ -71,15 +77,20 @@ func samePathLocal(a, b string) bool {
 }
 
 type configPayload struct {
-	TLD         string `json:"tld,omitempty"`
-	HTTPPort    *int   `json:"http_port,omitempty"`
-	HTTPSPort   *int   `json:"https_port,omitempty"`
-	DBEngine    string `json:"db_engine,omitempty"`
-	DBPort      *int   `json:"db_port,omitempty"`
-	DashEnabled *bool  `json:"dashboard_enabled,omitempty"`
-	DashPort    *int   `json:"dashboard_port,omitempty"`
-	AutoOpen    *bool  `json:"auto_open,omitempty"`
-	Mailpit     *bool  `json:"mailpit_enabled,omitempty"`
+	TLD       string `json:"tld,omitempty"`
+	HTTPPort  *int   `json:"http_port,omitempty"`
+	HTTPSPort *int   `json:"https_port,omitempty"`
+	DBEngine  string `json:"db_engine,omitempty"`
+	DBPort    *int   `json:"db_port,omitempty"`
+	// DB state clarity for the Settings page: what IS active/running vs what
+	// is merely selected in the form, plus per-engine availability.
+	DBInstalled map[string]bool `json:"db_installed,omitempty"`
+	DBRunning   bool            `json:"db_running"`
+	DBError     string          `json:"db_error,omitempty"`
+	DashEnabled *bool           `json:"dashboard_enabled,omitempty"`
+	DashPort    *int            `json:"dashboard_port,omitempty"`
+	AutoOpen    *bool           `json:"auto_open,omitempty"`
+	Mailpit     *bool           `json:"mailpit_enabled,omitempty"`
 }
 
 // handleAPIConfig serves GET/PUT /api/config — the Settings page.
@@ -88,7 +99,13 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		httpPort, httpsPort := s.proxy.Ports()
-		s.json(w, configPayload{
+		dbRunning := false
+		if s.cfg.Database.Engine == "sqlite" || s.cfg.Database.Engine == "" {
+			dbRunning = true // sqlite is always available
+		} else if s.db != nil {
+			dbRunning = s.db.Ready()
+		}
+		payload := configPayload{
 			TLD:         s.cfg.TLD,
 			HTTPPort:    intPtr(orActual(httpPort, s.cfg.Proxy.HTTPPort)),
 			HTTPSPort:   intPtr(orActual(httpsPort, s.cfg.Proxy.HTTPSPort)),
@@ -98,7 +115,17 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 			DashPort:    intPtr(s.cfg.Dashboard.Port),
 			AutoOpen:    boolPtr(s.cfg.Dashboard.AutoOpen),
 			Mailpit:     boolPtr(s.cfg.Services.Mailpit),
-		})
+			DBRunning:   dbRunning,
+		}
+		inst := map[string]bool{}
+		for _, eng := range []string{"sqlite", "mariadb", "mysql", "postgresql"} {
+			inst[eng] = database.Installed(s.cfg, eng)
+		}
+		payload.DBInstalled = inst
+		if s.db != nil {
+			payload.DBError = s.db.LastError()
+		}
+		s.json(w, payload)
 
 	case http.MethodPut:
 		var p configPayload
