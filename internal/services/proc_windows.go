@@ -8,8 +8,14 @@ import (
 	"syscall"
 )
 
+// createNoWindow is Windows' CREATE_NO_WINDOW (not exported by syscall).
+const createNoWindow = 0x08000000
+
+// setProcessGroup keeps services console-free: the desktop sidecar runs as a
+// windowsgui process, so without this every service binary would flash one.
 func setProcessGroup(attr *syscall.SysProcAttr) {
-	// Windows process groups work differently; direct kill is sufficient.
+	attr.HideWindow = true
+	attr.CreationFlags |= createNoWindow
 }
 
 func killProcessGroup(p *os.Process) {

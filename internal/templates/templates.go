@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/database"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Template describes a project template.
@@ -164,6 +165,7 @@ func setupCodeIgniter(sitesDir, name string) error {
 
 func runCommand(dir, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+	winproc.Quiet(cmd)
 	cmd.Dir = dir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

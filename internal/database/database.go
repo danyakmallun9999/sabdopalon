@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // DatabaseRootUser / DatabaseRootPassword are the credentials Sabdopalon
@@ -197,6 +198,7 @@ func (m *Manager) initialize(binary, dataDir string) error {
 		initdb := filepath.Join(filepath.Dir(binary), "initdb"+extSuffix())
 		cmd := exec.Command(initdb, "-D", dataDir, "-U", "sabdopalon",
 			"--auth=trust", "-E", "utf8")
+		winproc.Quiet(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("initdb: %w: %s", err, string(out))
@@ -222,6 +224,7 @@ func (m *Manager) initialize(binary, dataDir string) error {
 	}
 	if initScript != "" {
 		cmd := exec.Command(initScript, "--datadir="+dataDir, "--auth-root-authentication-method=normal")
+		winproc.Quiet(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("install-db: %w: %s", err, string(out))
@@ -230,6 +233,7 @@ func (m *Manager) initialize(binary, dataDir string) error {
 	}
 	// fallback: mysqld --initialize-insecure (MySQL 8+)
 	cmd := exec.Command(binary, "--initialize-insecure", "--datadir="+dataDir)
+	winproc.Quiet(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("initialize: %w: %s", err, string(out))

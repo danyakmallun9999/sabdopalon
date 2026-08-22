@@ -8,10 +8,14 @@ import (
 	"syscall"
 )
 
-// setProcessGroup is a no-op on Windows (process groups work differently).
+// createNoWindow is Windows' CREATE_NO_WINDOW (not exported by syscall).
+const createNoWindow = 0x08000000
+
+// setProcessGroup keeps the child console-free: the desktop sidecar runs as
+// a windowsgui process, so without this every php.exe would flash a console.
 func setProcessGroup(attr *syscall.SysProcAttr) {
-	// Windows uses CREATE_NEW_PROCESS_GROUP via CreationFlags, but for a
-	// local dev tool, killing the main process is sufficient.
+	attr.HideWindow = true
+	attr.CreationFlags |= createNoWindow
 }
 
 // killProcessGroup kills the process on Windows (no process group kill).

@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 const caNickname = "Sabdopalon Local Root CA"
@@ -62,7 +63,9 @@ func UninstallCA(cfg *config.Engine) error {
 		_, err := exec.Command("security", "delete-certificate", "-c", "Sabdopalon Local Root CA").CombinedOutput()
 		return err
 	case "windows":
-		_, err := exec.Command("certutil", "-delstore", "Root", "Sabdopalon Local Root CA").CombinedOutput()
+		cmd := exec.Command("certutil", "-delstore", "Root", "Sabdopalon Local Root CA")
+		winproc.Quiet(cmd)
+		_, err := cmd.CombinedOutput()
 		return err
 	}
 	return nil
@@ -77,7 +80,9 @@ func IsTrusted() bool {
 		out, err := exec.Command("security", "find-certificate", "-c", "Sabdopalon Local Root CA").CombinedOutput()
 		return err == nil && len(out) > 0
 	case "windows":
-		out, err := exec.Command("certutil", "-store", "Root", "Sabdopalon Local Root CA").CombinedOutput()
+		cmd := exec.Command("certutil", "-store", "Root", "Sabdopalon Local Root CA")
+		winproc.Quiet(cmd)
+		out, err := cmd.CombinedOutput()
 		return err == nil && len(out) > 0
 	}
 	return false
@@ -137,11 +142,15 @@ func CheckStatus(cfg *config.Engine) Status {
 		}
 		st.Detail = "not installed in any keychain"
 	default: // windows and others: presence checks only
-		if out, err := exec.Command("certutil", "-store", "Root", caNickname).CombinedOutput(); err == nil && len(out) > 0 {
+		cmd := exec.Command("certutil", "-store", "Root", caNickname)
+		winproc.Quiet(cmd)
+		if out, err := cmd.CombinedOutput(); err == nil && len(out) > 0 {
 			st.Installed, st.Source, st.FingerMatch = true, "system", true
 			break
 		}
-		if out, err := exec.Command("certutil", "-user", "-store", "Root", caNickname).CombinedOutput(); err == nil && len(out) > 0 {
+		cmdUser := exec.Command("certutil", "-user", "-store", "Root", caNickname)
+		winproc.Quiet(cmdUser)
+		if out, err := cmdUser.CombinedOutput(); err == nil && len(out) > 0 {
 			st.Installed, st.Source, st.FingerMatch = true, "user", true
 			break
 		}
@@ -183,7 +192,9 @@ func InstallCAQuiet(cfg *config.Engine) (bool, error) {
 			return true, nil
 		}
 	case "windows":
-		if out, err := exec.Command("certutil", "-addstore", "-f", "Root", caCert).CombinedOutput(); err == nil {
+		cmd := exec.Command("certutil", "-addstore", "-f", "Root", caCert)
+		winproc.Quiet(cmd)
+		if out, err := cmd.CombinedOutput(); err == nil {
 			_ = out
 			return true, nil
 		}
@@ -202,7 +213,9 @@ func InstallCAQuiet(cfg *config.Engine) (bool, error) {
 		}
 		return false, fmt.Errorf("login keychain import failed — approve the macOS prompt or use the manual command")
 	case "windows":
-		out, err := exec.Command("certutil", "-user", "-addstore", "-f", "Root", caCert).CombinedOutput()
+		cmd := exec.Command("certutil", "-user", "-addstore", "-f", "Root", caCert)
+		winproc.Quiet(cmd)
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			return false, fmt.Errorf("certutil -user: %s", strings.TrimSpace(string(out)))
 		}
@@ -274,7 +287,9 @@ func installMacOS(caCert string) (bool, error) {
 }
 
 func installWindows(caCert string) (bool, error) {
-	out, err := exec.Command("certutil", "-addstore", "-f", "Root", caCert).CombinedOutput()
+	cmd := exec.Command("certutil", "-addstore", "-f", "Root", caCert)
+	winproc.Quiet(cmd)
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("  ⚠  Failed (may need admin): %s\n", string(out))
 		return false, nil

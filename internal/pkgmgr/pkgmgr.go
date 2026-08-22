@@ -28,6 +28,7 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/toml"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Manager downloads and extracts packages into bin/.
@@ -679,7 +680,9 @@ func MigrateLegacyPHP(binRoot string) {
 	if bin == "" {
 		return // nothing to migrate (or already migrated)
 	}
-	out, err := exec.Command(bin, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;").Output()
+	cmd := exec.Command(bin, "-r", "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+	winproc.Quiet(cmd)
+	out, err := cmd.Output()
 	short := strings.TrimSpace(string(out))
 	if err != nil || !looksLikeVersion(short) || filepath.Base(bin) != "php" && filepath.Base(bin) != "php.exe" {
 		return
@@ -877,7 +880,9 @@ func PHPBinaryVersion(path string) string {
 	if v, ok := versionCache.Load(path); ok {
 		return v.(string)
 	}
-	out, err := exec.Command(path, "-r", "echo PHP_VERSION;").Output()
+	cmd := exec.Command(path, "-r", "echo PHP_VERSION;")
+	winproc.Quiet(cmd)
+	out, err := cmd.Output()
 	v := ""
 	if err == nil {
 		if m := regexp.MustCompile(`^\d+\.\d+\.\d+`).FindString(strings.TrimSpace(string(out))); m != "" {
@@ -1030,6 +1035,7 @@ func extractInnerTxz(dir string) error {
 	matches, _ := filepath.Glob(filepath.Join(dir, "*.txz"))
 	for _, inner := range matches {
 		cmd := exec.Command("tar", "-xJf", inner, "-C", dir)
+		winproc.Quiet(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
 			hint := "install XZ Utils and retry"

@@ -26,10 +26,11 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/trust"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.7.0"
+var Version = "0.7.1"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -383,6 +384,7 @@ func openBrowser(url string) {
 	default:
 		cmd = exec.Command("xdg-open", url)
 	}
+	winproc.Quiet(cmd)
 	_ = cmd.Start()
 }
 
@@ -399,7 +401,9 @@ func (a *App) doctor() int {
 	fmt.Println("  PHP")
 	fmt.Printf("    binary  : %s\n", a.Cfg.PHP.Binary)
 	if a.Cfg.PHP.Binary != "" && fileExists(a.Cfg.PHP.Binary) {
-		out, _ := exec.Command(a.Cfg.PHP.Binary, "-v").Output()
+		vcmd := exec.Command(a.Cfg.PHP.Binary, "-v")
+		winproc.Quiet(vcmd)
+		out, _ := vcmd.Output()
 		fmt.Printf("    version : %s", string(out))
 	} else {
 		fmt.Printf("    ⚠ NOT FOUND — set [php] binary in config/engine.toml\n")

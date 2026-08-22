@@ -8,10 +8,14 @@ import (
 	"syscall"
 )
 
-// setProcessGroup is a no-op on Windows.
+// createNoWindow is Windows' CREATE_NO_WINDOW (not exported by syscall).
+const createNoWindow = 0x08000000
+
+// setProcessGroup keeps the DB daemon console-free: the desktop sidecar runs
+// as a windowsgui process, so without this mysqld would flash a console.
 func setProcessGroup(attr *syscall.SysProcAttr) {
-	// Windows process groups work via CREATE_NEW_PROCESS_GROUP, which is
-	// not needed for a local dev tool — killing the main process suffices.
+	attr.HideWindow = true
+	attr.CreationFlags |= createNoWindow
 }
 
 // killProcessGroup kills the process on Windows (no process group kill).

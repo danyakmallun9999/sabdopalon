@@ -19,6 +19,7 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/database"
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Manager handles database backups.
@@ -97,6 +98,7 @@ func (m *Manager) backupMariaDB(dest string) error {
 	}
 
 	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", database.DatabaseRootUser, "--all-databases")
+	winproc.Quiet(dumpCmd)
 	dumpOut, err := dumpCmd.StdoutPipe()
 	if err != nil {
 		return err
