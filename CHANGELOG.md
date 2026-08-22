@@ -3,6 +3,23 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.7.3] — 2026-08-23
+
+### Fixed
+- **Desktop shell: "Could not connect to localhost"** — three stacked bugs:
+  resource resolution read `<res>/core` while Tauri ships
+  `<res>/resources/core` (bundled PHP invisible → auto-download tried the
+  read-only AppImage mount → sidecar died before :9900 listened); second
+  launches fought the first over ports (close hides to tray) —
+  `tauri-plugin-single-instance` now focuses the running window; bin root is
+  always a writable `<data>/bin` with bundled entries symlinked in.
+- **CI: desktop linux AppImage, root cause this time** — linuxdeploy scans
+  every ELF under AppDir usr/lib *including resources*, and any bundled
+  binary linking a lib the runner lacks (libaio…) fails the build regardless
+  of Galera removal. Linux now ships the core as ONE archive
+  (`resources/core/core.tar.gz`, no ELFs to scan); the sidecar extracts it
+  into the writable bin dir on first run and deletes the ~400 MB archive.
+
 ## [0.7.2] — 2026-08-23
 
 ### Terminal that just works + Sites page revamp

@@ -170,6 +170,13 @@ func (a *App) serveSetupMode() int {
 		return 1
 	}
 
+	// Linux desktop bundles ship the core stack as one archive — unpack it
+	// into the writable bin dir before the wizard runs, so bundled PHP is
+	// detected immediately (no-op when no archive shipped).
+	if err := bootstrap.EnsureCoreExtracted(filepath.Join(rootDir, "bin")); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ core archive: %v\n", err)
+	}
+
 	// Minimal in-memory config: default ports, no daemons started.
 	cfg := &config.Engine{RootDir: rootDir}
 	cfg.TLD = "localhost"

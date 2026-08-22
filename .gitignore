@@ -1,5 +1,6 @@
 # Binaries
 /sabdopalon
+config/php.ini
 /sabdopalon.exe
 *.exe
 *.dll

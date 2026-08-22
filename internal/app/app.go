@@ -30,7 +30,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.7.2"
+var Version = "0.7.3"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -224,6 +224,11 @@ func (a *App) serve() int {
 	if err := bootstrap.EnsureLayout(a.Cfg.RootDir); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ layout: %v\n", err)
 		return 1
+	}
+	// Linux desktop bundles ship the core stack as one archive — unpack it
+	// into the writable bin dir on first run (no-op elsewhere).
+	if err := bootstrap.EnsureCoreExtracted(a.Cfg.BinDir()); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ core archive: %v\n", err)
 	}
 	_ = os.MkdirAll(a.Cfg.Root, 0o755)
 	// Full-bundle installs ship phpMyAdmin in bin/ — deploy it as a site.

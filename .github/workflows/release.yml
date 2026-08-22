@@ -268,16 +268,19 @@ jobs:
               tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
               curl -fsSL -o /tmp/mariadb.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
               tar xzf /tmp/mariadb.tar.gz -C "$CORE/mariadb" --strip-components=1
-              # Drop Galera clustering bits + exotic engine plugins: their ELFs
-              # link OpenSSL 1.0 / boost 1.53 which no supported runner ships,
-              # and linuxdeploy fails resolving them inside the AppImage.
-              # None are ever loaded by a plain local dev server (wsrep off,
-              # plugins not installed), so removing them changes nothing.
+              # Drop Galera clustering bits + exotic engine plugins: useless
+              # for local dev and bloat the bundle.
               rm -f "$CORE/mariadb/bin/garbd" \
                     "$CORE/mariadb/lib/libgalera_smm.so" \
                     "$CORE/mariadb/lib/plugin/ha_connect.so" \
                     "$CORE/mariadb/lib/plugin/ha_oqgraph.so"
               rm -rf "$CORE/mariadb/lib/galera"
+              # Ship the core as ONE archive instead of an extracted tree:
+              # linuxdeploy scans every ELF under the AppDir and fails when a
+              # bundled binary links a lib the runner lacks (libaio…). The
+              # sidecar extracts it into the writable bin dir on first run.
+              tar czf "$CORE/core.tar.gz" -C "$CORE" .
+              find "$CORE" -mindepth 1 ! -name 'core.tar.gz' -delete
               ;;
           esac
 

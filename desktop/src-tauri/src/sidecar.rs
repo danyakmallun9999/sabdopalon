@@ -88,9 +88,16 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let bin_dir = dir.join("bin");
     std::fs::create_dir_all(&bin_dir)?;
+    let mut core_archive: Option<PathBuf> = None;
     if let Some(core) = &core {
         if let Ok(entries) = std::fs::read_dir(core) {
             for e in entries.flatten() {
+                // The linux bundle ships the core as ONE archive (no ELFs for
+                // linuxdeploy to scan); the Go side extracts it on first run.
+                if e.file_name() == *"core.tar.gz" {
+                    core_archive = Some(e.path());
+                    continue;
+                }
                 let dst = bin_dir.join(e.file_name());
                 if dst.exists() || dst.is_symlink() {
                     continue;
@@ -98,8 +105,6 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 link_or_copy(&e.path(), &dst);
             }
         }
-    } else if cfg!(windows) {
-        // No bundled resources at all — plain data/bin it is.
     }
 
     let mut cmd = std::process::Command::new(bin);
@@ -107,8 +112,11 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // native window IS the dashboard).
     cmd.env("SABDOPALON_DIR", &dir)
         .env("SABDOPALON_BIN_DIR", &bin_dir)
-        .arg("--no-open")
-        .stdout(std::process::Stdio::from(log_file.try_clone()?))
+        .arg("--no-open");
+    if let Some(archive) = core_archive {
+        cmd.env("SABDOPALON_CORE_ARCHIVE", archive);
+    }
+    cmd.stdout(std::process::Stdio::from(log_file.try_clone()?))
         .stderr(std::process::Stdio::from(log_file));
     if !bootstrapped {
         cmd.arg("--setup-mode");

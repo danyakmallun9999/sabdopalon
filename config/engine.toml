@@ -16,7 +16,7 @@ https_port = 8443
 binary = "/home/danyakmallun/.config/herd-lite/bin/php"
 
 [database]
-engine = "postgresql"
+engine = "mariadb"
 path = "./data/sabdopalon.db"
 port = 3306
 
@@ -27,3 +27,6 @@ auto_open = true
 
 [services]
 mailpit = false
+redis = false
+minio = false
+meilisearch = false
