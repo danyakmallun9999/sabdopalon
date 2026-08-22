@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Navigate, Route, Routes } from "react-router-dom"
+import { Navigate, Route, Routes, useLocation } from "react-router-dom"
 
 import AppSidebar from "@/components/app-sidebar"
 import SiteHeader from "@/components/site-header"
@@ -22,6 +22,13 @@ export function App() {
   const [status, setStatus] = useState<Status | null>(null)
   const [setup, setSetup] = useState<SetupStatus | null>(null)
   const [setupLoaded, setSetupLoaded] = useState(false)
+
+  // Full-bleed pages manage their own height (app-frame layout): content
+  // spans exactly from the header to the bottom of the viewport and scrolls
+  // internally — no window-level gap under the fold.
+  const location = useLocation()
+  const fullBleed =
+    !setupLoaded || (setup !== null && !setup.bootstrapped) ? false : location.pathname === "/sites" || location.pathname === "/terminal"
 
   useEffect(() => {
     const tick = () => {
@@ -60,7 +67,13 @@ export function App() {
         <SiteHeader status={status} />
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+            <div
+              className={
+                fullBleed
+                  ? "flex h-[calc(100dvh-var(--header-height))] flex-col overflow-hidden pt-2"
+                  : "flex flex-col gap-4 py-4 md:gap-6 md:py-6"
+              }
+            >
               <Routes>
                 <Route
                   path="/setup"

@@ -4,15 +4,17 @@ import { toast } from "sonner"
 import {
   Copy,
   EllipsisVerticalIcon,
+  Eraser,
   ExternalLink,
   Globe,
   Link as LinkIcon,
   Lock,
-  PanelRightClose,
+  PanelRight,
   Play,
   Plus,
   RotateCw,
   ScrollText,
+  Search,
   Settings2,
   ShieldAlert,
   Square,
@@ -26,7 +28,10 @@ import api, {
   type SiteConfigPayload,
   type Status,
 } from "@/lib/api"
-import TerminalPanel from "@/components/terminal-panel"
+import TerminalPanel, {
+  type TermStatus,
+  type TerminalPanelHandle,
+} from "@/components/terminal-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -80,9 +85,31 @@ const TEMPLATES = [
   { id: "codeigniter", label: "CodeIgniter 4 (needs composer)" },
 ]
 
+const DOCK_KEY = "sabdopalon.sites.terminalDock" // { open, width }
+const BANNER_KEY = "sabdopalon.sites.cleanUrlDismissed"
+
+type DockState = { open: boolean; width: number }
+
+function loadDock(): DockState {
+  try {
+    const raw = localStorage.getItem(DOCK_KEY)
+    if (raw) {
+      const d = JSON.parse(raw) as DockState
+      return { open: !!d.open, width: Math.min(Math.max(d.width || 480, 300), 900) }
+    }
+  } catch {
+    /* fresh */
+  }
+  return { open: true, width: 480 }
+}
+
 function CleanUrlBanner({ tld }: { tld?: string }) {
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(BANNER_KEY) === "1",
+  )
+  if (dismissed) return null
   return (
-    <div className="bg-card flex flex-col gap-2 rounded-xl border p-4 sm:flex-row sm:items-center">
+    <div className="bg-card relative mb-4 flex flex-col gap-2 rounded-xl border p-4 pr-10 sm:flex-row sm:items-center">
       <ShieldAlert className="text-amber-500 size-5 shrink-0" />
       <p className="text-muted-foreground flex-1 text-sm">
         URLs currently include a port. Run{" "}
@@ -103,7 +130,32 @@ function CleanUrlBanner({ tld }: { tld?: string }) {
       >
         <Copy /> Copy command
       </Button>
+      <button
+        aria-label="Dismiss"
+        onClick={() => {
+          localStorage.setItem(BANNER_KEY, "1")
+          setDismissed(true)
+        }}
+        className="text-muted-foreground hover:text-foreground absolute top-2 right-2 text-sm"
+      >
+        ✕
+      </button>
     </div>
+  )
+}
+
+function StatusDot({ s }: { s: TermStatus }) {
+  const color =
+    s === "connected"
+      ? "bg-emerald-500"
+      : s === "connecting"
+        ? "bg-amber-500 animate-pulse"
+        : "bg-red-400"
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <span className={`size-2 rounded-full ${color}`} />
+      {s}
+    </span>
   )
 }
 
@@ -113,11 +165,21 @@ export default function SitesPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
-  const [termSite, setTermSite] = useState<Site | null>(null)
-  const [termWidth, setTermWidth] = useState(480)
-  const [termHeight, setTermHeight] = useState(320) // mobile: terminal height (px)
+  const [search, setSearch] = useState("")
+
+  // --- terminal dock state ---
+  const [dock, setDock] = useState<DockState>(loadDock)
+  const [termSite, setTermSite] = useState<Site | null>(null) // null = sites/ root
+  const [termStatus, setTermStatus] = useState<TermStatus>("connecting")
+  const [mobileTermHeight, setMobileTermHeight] = useState(320)
   const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
   const draggingRef = useRef(false)
+  const panelRef = useRef<TerminalPanelHandle>(null)
+
+  useEffect(() => {
+    localStorage.setItem(DOCK_KEY, JSON.stringify(dock))
+  }, [dock])
+
   const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
   const [savingCfg, setSavingCfg] = useState(false)
@@ -128,11 +190,17 @@ export default function SitesPage() {
   const [template, setTemplate] = useState("blank")
   const [creating, setCreating] = useState(false)
 
+  const filtered = sites.filter((s) =>
+    search.trim()
+      ? (s.name + " " + (s.url ?? "") + " " + (s.aliases ?? []).join(" "))
+          .toLowerCase()
+          .includes(search.trim().toLowerCase())
+      : true,
+  )
+
   const load = () => api.listSites().then(setSites).catch(() => {})
 
   useEffect(() => {
-    // Status (port, TLD, low_ports) di-poll jarang (10s) — App.tsx sudah
-    // poll tiap 5s untuk header; di sini hanya untuk banner clean-URL.
     const t = poll(load, 4000)
     const st = poll(() => api.status().then(setStatus).catch(() => {}), 10000)
     return () => {
@@ -159,7 +227,6 @@ export default function SitesPage() {
 
   async function openConfigure(site: Site) {
     setCfgSite(site)
-    // PHP options: default + bundled + system (composed once per open)
     const opts: { value: string; label: string; group: string }[] = [
       { value: "", label: `Default (${(status?.php_version ?? "system-first")})`, group: "General" },
     ]
@@ -244,24 +311,240 @@ export default function SitesPage() {
     const r = await api.deleteSite(deleteTarget.name)
     if (r.error) toast.error(r.error)
     else toast.success(r.message ?? "Moved to trash")
+    if (termSite?.name === deleteTarget.name) setTermSite(null)
     setDeleteTarget(null)
     load()
   }
 
-  // Konten utama halaman situs (dipakai normal & di dalam split-pane).
-  const mainContent = (
+  function openTerminalFor(site: Site | null) {
+    setTermSite(site)
+    setDock((d) => ({ ...d, open: true }))
+  }
+
+  /* ------------------------------ site rows ------------------------------ */
+
+  const urlCell = (s: Site) => (
+    <div className="flex flex-col gap-1">
+      <a
+        href={s.url}
+        target="_blank"
+        rel="noreferrer"
+        className="text-primary inline-flex items-center gap-1.5 text-sm hover:underline"
+      >
+        <Globe className="size-3.5 shrink-0" />
+        {s.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+        <ExternalLink className="size-3 opacity-60" />
+      </a>
+      <a
+        href={s.https}
+        target="_blank"
+        rel="noreferrer"
+        className="text-muted-foreground inline-flex items-center gap-1.5 text-sm hover:underline"
+      >
+        <Lock className="size-3.5 shrink-0 text-emerald-500" />
+        {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+        <ExternalLink className="size-3 opacity-60" />
+      </a>
+      {(s.aliases ?? []).length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {(s.aliases ?? []).map((a) => {
+            const resolvable = a.endsWith("." + (status?.tld ?? "localhost"))
+            return resolvable ? (
+              <a key={a} href={aliasTarget(s, a)} target="_blank" rel="noreferrer" title={`Open http://${a}`}>
+                <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
+                  <LinkIcon className="size-3" /> {a}
+                </Badge>
+              </a>
+            ) : (
+              <Badge
+                key={a}
+                variant="outline"
+                className="cursor-pointer"
+                title="Custom domain — click to copy the /etc/hosts line"
+                onClick={() => copyHostsLine(a)}
+              >
+                <Copy className="size-3" /> {a}
+              </Badge>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+
+  const phpBadge = (s: Site) =>
+    s.php ? (
+      <Badge variant="secondary" className="text-amber-500 dark:text-amber-400">
+        PHP {s.php}
+      </Badge>
+    ) : (
+      <span className="text-muted-foreground">default</span>
+    )
+
+  const runBadge = (s: Site) => (
+    <span className="inline-flex items-center gap-1.5 text-sm">
+      <span
+        className={`size-2 rounded-full ${
+          s.running ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"
+        }`}
+      />
+      {s.running ? "running" : "stopped"}
+    </span>
+  )
+
+  const startStopBtn = (s: Site) => (
+    <Button
+      size="sm"
+      variant={s.running ? "outline" : "default"}
+      disabled={busy === s.name + "start" || busy === s.name + "stop"}
+      onClick={() => act(s, s.running ? "stop" : "start")}
+    >
+      {s.running ? <Square /> : <Play />}
+      {s.running ? "Stop" : "Start"}
+    </Button>
+  )
+
+  const rowMenu = (s: Site) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button size="icon-sm" variant="ghost">
+            <EllipsisVerticalIcon />
+            <span className="sr-only">More actions</span>
+          </Button>
+        }
+      />
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => act(s, "restart")} disabled={!s.running}>
+          <RotateCw /> Restart
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openConfigure(s)}>
+          <Settings2 /> Configure…
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => openTerminalFor(s)}>
+          <TerminalSquare /> Open in terminal
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link to={`/logs?site=${s.name}`} />}>
+          <ScrollText /> Logs
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(s)}>
+          <Trash2 /> Delete…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const emptyRow = (
+    <div className="text-muted-foreground flex h-40 flex-col items-center justify-center gap-2">
+      <Globe className="size-6 opacity-50" />
+      No sites yet — click “New Site” or create a folder under sites/.
+    </div>
+  )
+
+  /* ------------------------------- listing ------------------------------- */
+
+  const listing = (
     <>
-      <div className="flex items-center justify-between gap-2">
+      {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
+      {/* Desktop/tablet: table */}
+      <div className="bg-card hidden overflow-hidden rounded-xl border md:block">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Site</TableHead>
+                <TableHead>URLs</TableHead>
+                <TableHead>PHP</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-12 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>{emptyRow}</TableCell>
+                </TableRow>
+              )}
+              {filtered.map((s) => (
+                <TableRow key={s.name}>
+                  <TableCell className="font-medium">{s.name}</TableCell>
+                  <TableCell>{urlCell(s)}</TableCell>
+                  <TableCell>{phpBadge(s)}</TableCell>
+                  <TableCell>{runBadge(s)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="inline-flex items-center gap-1">
+                      {startStopBtn(s)}
+                      {rowMenu(s)}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      {/* Mobile: cards */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {filtered.length === 0 && (
+          <div className="bg-card rounded-xl border">{emptyRow}</div>
+        )}
+        {filtered.map((s) => (
+          <div key={s.name} className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-2 font-medium">
+                {runBadge(s)} {s.name}
+              </span>
+              {phpBadge(s)}
+            </div>
+            {urlCell(s)}
+            <div className="flex items-center justify-between gap-2 border-t pt-3">
+              {startStopBtn(s)}
+              <div className="flex items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => openTerminalFor(s)}>
+                  <TerminalSquare /> Terminal
+                </Button>
+                {rowMenu(s)}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+
+  /* -------------------------------- layout ------------------------------- */
+
+  const termDir = termSite?.dir ?? ""
+
+  return (
+    <div className="flex h-full min-h-0 flex-col px-4 lg:px-6">
+      {/* Page header: description + search + actions */}
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-muted-foreground text-sm">
           Every folder in <code className="bg-muted rounded px-1.5 py-0.5">sites/</code> is
-          automatically served at <code className="bg-muted rounded px-1.5 py-0.5">name.localhost</code>.
+          automatically served at{" "}
+          <code className="bg-muted rounded px-1.5 py-0.5">name.localhost</code>.
         </p>
         <div className="flex items-center gap-2">
-          {termSite && (
-            <Button variant="ghost" size="sm" onClick={() => setTermSite(null)}>
-              <PanelRightClose /> Close terminal
-            </Button>
-          )}
+          <div className="relative">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter sites…"
+              className="h-9 w-44 pl-8"
+            />
+          </div>
+          <Button
+            variant={dock.open ? "secondary" : "outline"}
+            size="sm"
+            className="max-lg:hidden"
+            onClick={() => setDock((d) => ({ ...d, open: !d.open }))}
+            title={dock.open ? "Hide terminal" : "Show terminal"}
+          >
+            <PanelRight /> Terminal
+          </Button>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger render={<Button size="sm" />}>
               <Plus /> New Site
@@ -311,218 +594,114 @@ export default function SitesPage() {
         </div>
       </div>
 
-      {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
-
-      <div className="bg-card mt-4 overflow-hidden rounded-xl border">
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Site</TableHead>
-                <TableHead>URLs</TableHead>
-                <TableHead>PHP</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-12 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-          <TableBody>
-            {sites.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-muted-foreground h-28 text-center">
-                  <Globe className="mx-auto mb-2 size-6 opacity-50" />
-                  No sites yet — click “New Site” or create a folder under sites/.
-                </TableCell>
-              </TableRow>
-            )}
-            {sites.map((s) => (
-              <TableRow key={s.name}>
-                <TableCell className="font-medium">{s.name}</TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary inline-flex items-center gap-1.5 text-sm hover:underline"
-                    >
-                      <Globe className="size-3.5 shrink-0" />
-                      {s.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                      <ExternalLink className="size-3 opacity-60" />
-                    </a>
-                    <a
-                      href={s.https}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-muted-foreground inline-flex items-center gap-1.5 text-sm hover:underline"
-                    >
-                      <Lock className="size-3.5 shrink-0 text-emerald-500" />
-                      {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                      <ExternalLink className="size-3 opacity-60" />
-                    </a>
-                    {(s.aliases ?? []).length > 0 && (
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {(s.aliases ?? []).map((a) => {
-                          const resolvable = a.endsWith("." + (status?.tld ?? "localhost"))
-                          return resolvable ? (
-                            <a
-                              key={a}
-                              href={aliasTarget(s, a)}
-                              target="_blank"
-                              rel="noreferrer"
-                              title={`Open http://${a}`}
-                            >
-                              <Badge variant="secondary" className="cursor-pointer hover:bg-secondary/80">
-                                <LinkIcon className="size-3" /> {a}
-                              </Badge>
-                            </a>
-                          ) : (
-                            <Badge
-                              key={a}
-                              variant="outline"
-                              className="cursor-pointer"
-                              title="Custom domain — click to copy the /etc/hosts line"
-                              onClick={() => copyHostsLine(a)}
-                            >
-                              <Copy className="size-3" /> {a}
-                            </Badge>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {s.php ? (
-                    <Badge variant="secondary" className="text-amber-500 dark:text-amber-400">
-                      PHP {s.php}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">default</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={s.running ? "default" : "outline"}>
-                    {s.running ? "running" : "stopped"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="inline-flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant={s.running ? "outline" : "default"}
-                      disabled={busy === s.name + "start" || busy === s.name + "stop"}
-                      onClick={() => act(s, s.running ? "stop" : "start")}
-                    >
-                      {s.running ? <Square /> : <Play />}
-                      {s.running ? "Stop" : "Start"}
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button size="icon-sm" variant="ghost">
-                            <EllipsisVerticalIcon />
-                            <span className="sr-only">More actions</span>
-                          </Button>
-                        }
-                      />
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => act(s, "restart")} disabled={!s.running}>
-                          <RotateCw /> Restart
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openConfigure(s)}>
-                          <Settings2 /> Configure…
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setTermSite(s)}>
-                          <TerminalSquare /> Terminal
-                        </DropdownMenuItem>
-                        <DropdownMenuItem render={<Link to={`/logs?site=${s.name}`} />}>
-                          <ScrollText /> Logs
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={() => setDeleteTarget(s)}
-                        >
-                          <Trash2 /> Delete…
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-          </Table>
+      {/* Two-pane app frame: content | terminal dock. Both scroll internally;
+          the frame spans exactly to the bottom of the viewport. */}
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* Left: scrolling content column */}
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-6 lg:pr-4">
+          {listing}
         </div>
-      </div>
-    </>
-  )
 
-  return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
-      {termSite ? (
-        /* Split-pane responsif: desktop → kiri/kanan (resize horizontal),
-           mobile/tablet → atas/bawah (resize vertikal). */
-        <div className="flex flex-col gap-2 lg:flex-row">
-          {/* Konten utama */}
-          <div className="min-w-0 flex-1">{mainContent}</div>
+        {dock.open && (
+          <>
+            {/* Divider: vertical on desktop (drag width), horizontal on mobile */}
+            <div
+              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
+              onPointerDown={(e) => {
+                draggingRef.current = true
+                e.currentTarget.setPointerCapture(e.pointerId)
+              }}
+              onPointerMove={(e) => {
+                if (!draggingRef.current) return
+                const container = e.currentTarget.parentElement
+                if (!container) return
+                const rect = container.getBoundingClientRect()
+                if (isDesktop) {
+                  const w = rect.right - e.clientX
+                  setDock((d) => ({ ...d, width: Math.min(Math.max(w, 300), rect.width * 0.7) }))
+                } else {
+                  const h = rect.bottom - e.clientY
+                  setMobileTermHeight(Math.min(Math.max(h, 200), rect.height * 0.7))
+                }
+              }}
+              onPointerUp={() => (draggingRef.current = false)}
+              onPointerCancel={() => (draggingRef.current = false)}
+              title="Drag to resize"
+            >
+              <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
+            </div>
 
-          {/*
-            Desktop: divider vertikal (resize lebar terminal).
-            Mobile: divider horizontal (resize tinggi terminal).
-          */}
-          <div
-            className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
-            onPointerDown={(e) => {
-              draggingRef.current = true
-              e.currentTarget.setPointerCapture(e.pointerId)
-            }}
-            onPointerMove={(e) => {
-              if (!draggingRef.current) return
-              const container = e.currentTarget.parentElement
-              if (!container) return
-              const rect = container.getBoundingClientRect()
-              if (isDesktop) {
-                // horizontal split: lebar terminal = jarak dari kanan
-                const w = rect.right - e.clientX
-                setTermWidth(Math.min(Math.max(w, 280), rect.width * 0.6))
-              } else {
-                // vertical split: tinggi terminal = jarak dari bawah
-                const h = rect.bottom - e.clientY
-                setTermHeight(Math.min(Math.max(h, 200), rect.height * 0.7))
+            {/* Right dock: full height on desktop, bottom panel on mobile */}
+            <aside
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-background max-lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0"
+              style={
+                isDesktop
+                  ? { width: dock.width }
+                  : { height: mobileTermHeight }
               }
-            }}
-            onPointerUp={() => (draggingRef.current = false)}
-            onPointerCancel={() => (draggingRef.current = false)}
-            title="Drag to resize"
-          >
-            <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
-          </div>
-
-          {/* Panel terminal — tinggi penuh (dvh) agar xterm fit tidak memperluas panel */}
-          <div
-            className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background lg:border-l"
-            style={
-              isDesktop
-                ? { width: termWidth, height: "calc(100dvh - 8rem)" }
-                : { height: termHeight }
-            }
-          >
-            <div className="flex shrink-0 items-center justify-between gap-2 border-b px-3 py-2">
-              <span className="inline-flex items-center gap-2 text-sm font-medium">
-                <TerminalSquare className="size-4" /> Terminal — {termSite.name}
-              </span>
-              <span className="text-muted-foreground hidden truncate font-mono text-xs md:inline">
-                {termSite.dir}
-              </span>
-            </div>
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-              <TerminalPanel dir={termSite.dir} heightClass="absolute inset-0" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        mainContent
-      )}
+            >
+              {/* Dock header */}
+              <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+                <TerminalSquare className="size-4 shrink-0" />
+                <Select
+                  value={termSite?.name ?? "__root"}
+                  onValueChange={(v) =>
+                    setTermSite(v === "__root" ? null : (sites.find((s) => s.name === v) ?? null))
+                  }
+                >
+                  <SelectTrigger size="sm" className="h-7 w-40 font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__root">sites/ root</SelectItem>
+                    {sites.map((s) => (
+                      <SelectItem key={s.name} value={s.name}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <StatusDot s={termStatus} />
+                <div className="ml-auto flex items-center gap-1">
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title="Clear"
+                    onClick={() => panelRef.current?.clear()}
+                  >
+                    <Eraser />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title="Restart shell"
+                    onClick={() => panelRef.current?.restart()}
+                  >
+                    <RotateCw />
+                  </Button>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    title="Hide terminal"
+                    className="max-lg:hidden"
+                    onClick={() => setDock((d) => ({ ...d, open: false }))}
+                  >
+                    <PanelRight />
+                  </Button>
+                </div>
+              </div>
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                <TerminalPanel
+                  ref={panelRef}
+                  dir={termDir}
+                  className="absolute inset-0 h-auto border-0 rounded-none"
+                  onStatus={setTermStatus}
+                />
+              </div>
+            </aside>
+          </>
+        )}
+      </div>
 
       <Dialog open={!!cfgSite} onOpenChange={(v) => !v && setCfgSite(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
