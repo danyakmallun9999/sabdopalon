@@ -122,29 +122,40 @@ jobs:
           merge-multiple: true
 
       - name: Package release assets
+        shell: python3 {0}
         run: |
-          set -e
-          cd dist
-          shopt -s nullglob
-          for f in sabdopalon-windows-*.exe; do zip -q "$f.zip" "$f"; done
-          for f in sabdopalon-linux-* sabdopalon-macos-*; do tar czf "$f.tar.gz" "$f"; done
-          rm -f sabdopalon-linux-* sabdopalon-macos-* sabdopalon-windows-*.exe
-          echo "Assets ready:"; ls -lh
+          import glob, os, zipfile, tarfile
+          os.chdir("dist")
+          files = sorted(os.listdir("."))
+          print("dist before:", files)
+          made = []
+          for f in glob.glob("sabdopalon-windows-*.exe"):
+              with zipfile.ZipFile(f + ".zip", "w", zipfile.ZIP_DEFLATED) as z:
+                  z.write(f, f)
+              made.append(f + ".zip")
+          for f in glob.glob("sabdopalon-linux-*") + glob.glob("sabdopalon-macos-*"):
+              with tarfile.open(f + ".tar.gz", "w:gz") as t:
+                  t.add(f)
+              made.append(f + ".tar.gz")
+          for f in glob.glob("sabdopalon-*"):
+              os.remove(f)
+          print("archives made:", sorted(made))
+          print("dist after:", sorted(os.listdir(".")))
+          assert len(made) == 5, f"expected 5 archives, made {len(made)}"
 
       - name: Verify assets exist (fail loud, never ship an empty release)
+        shell: python3 {0}
         run: |
-          set +e
-          count=$(ls dist/*.tar.gz dist/*.zip 2>/dev/null | wc -l)
-          echo "asset archives: $count"
-          test "$count" -eq 5 && exit 0
-          {
-            echo "::error::expected 5 archives (4 tar.gz + 1 zip), found $count"
-            echo "dist contents:"
-            ls -la dist
-            echo "--- raw dir ---"
-            find dist -maxdepth 2 | head -40
-          } >&2
-          exit 1
+          import os, sys
+          dist = sorted(os.listdir("dist"))
+          archives = [f for f in dist if f.endswith((".tar.gz", ".zip"))]
+          if len(archives) != 5:
+              print(
+                  "::error::expected 5 archives, found %d | dist=%s"
+                  % (len(archives), ",".join(dist))
+              )
+              sys.exit(1)
+          print("verified:", ", ".join(archives))
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
