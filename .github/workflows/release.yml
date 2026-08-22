@@ -66,38 +66,38 @@ jobs:
 
           # Default (clean, machine-agnostic) engine.toml + package registry.
           cat > "$STAGE/bundle/config/engine.toml" <<'EOF'
-# Sabdopalon configuration — fresh install defaults.
-# Run `sabdopalon setup` (or the desktop wizard) to configure your stack.
+          # Sabdopalon configuration — fresh install defaults.
+          # Run `sabdopalon setup` (or the desktop wizard) to configure your stack.
 
-[sabdopalon]
-tld = "localhost"
-root = "./sites"
-logs = "./logs"
-data = "./data"
+          [sabdopalon]
+          tld = "localhost"
+          root = "./sites"
+          logs = "./logs"
+          data = "./data"
 
-[proxy]
-http_port = 8080
-https_port = 8443
+          [proxy]
+          http_port = 8080
+          https_port = 8443
 
-[php]
-binary = ""
+          [php]
+          binary = ""
 
-[database]
-engine = "sqlite"
-path = "./data/sabdopalon.db"
-port = 3306
+          [database]
+          engine = "sqlite"
+          path = "./data/sabdopalon.db"
+          port = 3306
 
-[dashboard]
-enabled = true
-port = 9900
-auto_open = true
+          [dashboard]
+          enabled = true
+          port = 9900
+          auto_open = true
 
-[services]
-mailpit = false
-redis = false
-minio = false
-meilisearch = false
-EOF
+          [services]
+          mailpit = false
+          redis = false
+          minio = false
+          meilisearch = false
+          EOF
 
           cp -r packages "$STAGE/bundle/packages"
           cp scripts/install.sh scripts/install.ps1 "$STAGE/bundle/"
