@@ -72,13 +72,35 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         .append(true)
         .open(logs_dir.join("sidecar.log"))?;
 
-    // Core stack (PHP/MariaDB/phpMyAdmin) ships in the app's resource dir
-    // (read-only) on full-bundle builds; point the sidecar there so every
-    // binary lookup (proxy, database, services, terminal PATH) uses it.
-    let bin_dir = app
-        .path()
-        .resolve("core", tauri::path::BaseDirectory::Resource)
-        .unwrap_or_else(|_| dir.join("bin"));
+    // Core stack (PHP/MariaDB/phpMyAdmin) ships in the app's resource dir on
+    // full-bundle builds. Tauri copies resources preserving their
+    // src-tauri-relative path, so inside an AppImage it lives under
+    // <resource>/resources/core (dev layouts may expose <resource>/core).
+    // The sidecar's bin root is ALWAYS a writable dir (<data>/bin): bundled
+    // entries are symlinked in, and future downloads land beside them —
+    // installs must never target the read-only AppImage mount.
+    let core = ["resources/core", "core"].iter().find_map(|rel| {
+        app.path()
+            .resolve(rel, tauri::path::BaseDirectory::Resource)
+            .ok()
+            .filter(|p| p.is_dir())
+    });
+
+    let bin_dir = dir.join("bin");
+    std::fs::create_dir_all(&bin_dir)?;
+    if let Some(core) = &core {
+        if let Ok(entries) = std::fs::read_dir(core) {
+            for e in entries.flatten() {
+                let dst = bin_dir.join(e.file_name());
+                if dst.exists() || dst.is_symlink() {
+                    continue;
+                }
+                link_or_copy(&e.path(), &dst);
+            }
+        }
+    } else if cfg!(windows) {
+        // No bundled resources at all — plain data/bin it is.
+    }
 
     let mut cmd = std::process::Command::new(bin);
     // The sidecar owns the data dir; never opens the browser (the
@@ -95,6 +117,48 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let mut guard = SIDECAR.lock().unwrap();
     *guard = Some(child);
+    Ok(())
+}
+
+/// Symlink src → dst, falling back to a copy when symlinks are unavailable
+/// (Windows without developer mode). Directories are copied recursively as
+/// a last resort only.
+fn link_or_copy(src: &PathBuf, dst: &PathBuf) {
+    #[cfg(unix)]
+    {
+        if std::os::unix::fs::symlink(src, dst).is_ok() {
+            return;
+        }
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs as wfs;
+        let ok = if src.is_dir() {
+            wfs::symlink_dir(src, dst).is_ok()
+        } else {
+            wfs::symlink_file(src, dst).is_ok()
+        };
+        if ok {
+            return;
+        }
+    }
+    if src.is_dir() {
+        let _ = copy_dir_recursive(src, dst);
+    } else {
+        let _ = std::fs::copy(src, dst);
+    }
+}
+
+fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for e in std::fs::read_dir(src)?.flatten() {
+        let d = dst.join(e.file_name());
+        if e.path().is_dir() {
+            copy_dir_recursive(&e.path(), &d)?;
+        } else {
+            std::fs::copy(e.path(), d)?;
+        }
+    }
     Ok(())
 }
 

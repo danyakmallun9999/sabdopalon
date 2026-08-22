@@ -10,6 +10,16 @@ mod tray;
 
 fn main() {
     tauri::Builder::default()
+        // Exactly one instance: a second launch focuses the running window
+        // instead of fighting over the dashboard port (the source of
+        // "connection refused" confusion after close-to-tray).
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            use tauri::Manager;
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
