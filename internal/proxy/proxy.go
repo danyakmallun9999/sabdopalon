@@ -55,6 +55,17 @@ type Server struct {
 	// HTTPS listener state (for auto-reload when a cert appears later).
 	httpsSrv   *http.Server
 	httpsWatch chan struct{} // closed to stop the cert watcher
+
+	// Request traffic stats (sliding per-minute window for the dashboard chart).
+	statsMu    sync.Mutex
+	statsTotal int64
+	statsMin   []minuteStat // ring buffer, newest last
+}
+
+// minuteStat is one per-minute request bucket for the traffic chart.
+type minuteStat struct {
+	Minute   string `json:"t"` // "HH:MM" (local time)
+	Requests int64  `json:"requests"`
 }
 
 type siteServer struct {
@@ -266,6 +277,7 @@ func (s *Server) Stop() {
 
 // ServeHTTP routes by Host header to the matching site's PHP server.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.recordRequest()
 	host := normalizeHost(r.Host)
 	siteName, ok := s.hostToSite(host)
 	if !ok {
@@ -284,6 +296,40 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ss.proxy.ServeHTTP(w, r)
+}
+
+// recordRequest bumps the traffic counter, keeping a per-minute sliding
+// window (last 30 minutes) for the dashboard traffic chart.
+func (s *Server) recordRequest() {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	s.statsTotal++
+
+	now := time.Now()
+	minute := now.Format("15:04")
+	if n := len(s.statsMin); n > 0 && s.statsMin[n-1].Minute == minute {
+		s.statsMin[n-1].Requests++
+		return
+	}
+	s.statsMin = append(s.statsMin, minuteStat{Minute: minute, Requests: 1})
+	if len(s.statsMin) > 30 {
+		s.statsMin = s.statsMin[len(s.statsMin)-30:]
+	}
+}
+
+// TrafficStats returns the request counters for the dashboard chart.
+type TrafficStats struct {
+	Total     int64        `json:"total"`
+	PerMinute []minuteStat `json:"per_minute"`
+}
+
+// Stats exposes the traffic counters (thread-safe snapshot).
+func (s *Server) Stats() TrafficStats {
+	s.statsMu.Lock()
+	defer s.statsMu.Unlock()
+	out := make([]minuteStat, len(s.statsMin))
+	copy(out, s.statsMin)
+	return TrafficStats{Total: s.statsTotal, PerMinute: out}
 }
 
 // isStopped reports whether the site was stopped via the dashboard.

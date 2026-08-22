@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner"
 import api, { type SetupStatus, type Status } from "@/lib/api"
 
 import DatabasePage from "@/pages/database"
+import DashboardPage from "@/pages/dashboard"
 import LogsPage from "@/pages/logs"
 import PackagesPage from "@/pages/packages"
 import ServicesPage from "@/pages/services"
@@ -67,15 +68,20 @@ export function App() {
                     setup && !setup.bootstrapped ? (
                       <SetupPage />
                     ) : (
-                      <Navigate to="/sites" replace />
+                      <Navigate to="/dashboard" replace />
                     )
                   }
                 />
                 {setup && !setup.bootstrapped ? (
-                  <Route path="*" element={<Navigate to="/setup" replace />} />
+                  <>
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
+                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  </>
                 ) : (
                   <>
-                    <Route path="/" element={<SitesPage />} />
+                    <Route path="/" element={<DashboardPage />} />
+                    <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/sites" element={<SitesPage />} />
                     <Route path="/database" element={<DatabasePage />} />
                     <Route path="/packages" element={<PackagesPage />} />

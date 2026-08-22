@@ -115,6 +115,8 @@ export default function SitesPage() {
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
   const [termSite, setTermSite] = useState<Site | null>(null)
   const [termWidth, setTermWidth] = useState(480)
+  const [termHeight, setTermHeight] = useState(320) // mobile: terminal height (px)
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024)
   const draggingRef = useRef(false)
   const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
@@ -136,6 +138,12 @@ export default function SitesPage() {
       clearInterval(t)
       clearInterval(st)
     }
+  }, [])
+
+  useEffect(() => {
+    const onResize = () => setIsDesktop(window.innerWidth >= 1024)
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
   }, [])
 
   function aliasTarget(site: Site, alias: string): string {
@@ -305,16 +313,17 @@ export default function SitesPage() {
       {!status?.low_ports && <CleanUrlBanner tld={status?.tld} />}
 
       <div className="bg-card mt-4 overflow-hidden rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>Site</TableHead>
-              <TableHead>URLs</TableHead>
-              <TableHead>PHP</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-12 text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Site</TableHead>
+                <TableHead>URLs</TableHead>
+                <TableHead>PHP</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-12 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {sites.length === 0 && (
               <TableRow>
@@ -441,7 +450,8 @@ export default function SitesPage() {
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </div>
     </>
   )
@@ -449,13 +459,18 @@ export default function SitesPage() {
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       {termSite ? (
-        /* Split-pane: situs di kiri, terminal di kanan (resizable) */
-        <div className="fixed inset-0 z-40 flex" style={{ paddingLeft: "var(--sidebar-width, 16rem)" }}>
-          <div className="min-w-0 flex-1 overflow-y-auto p-4 lg:p-6">{mainContent}</div>
+        /* Split-pane responsif: desktop → kiri/kanan (resize horizontal),
+           mobile/tablet → atas/bawah (resize vertikal). */
+        <div className="flex flex-col gap-2 lg:flex-row">
+          {/* Konten utama */}
+          <div className="min-w-0 flex-1">{mainContent}</div>
 
-          {/* Drag handle */}
+          {/*
+            Desktop: divider vertikal (resize lebar terminal).
+            Mobile: divider horizontal (resize tinggi terminal).
+          */}
           <div
-            className="group flex w-1.5 cursor-col-resize items-stretch bg-border/60 hover:bg-primary/40"
+            className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
             onPointerDown={(e) => {
               draggingRef.current = true
               e.currentTarget.setPointerCapture(e.pointerId)
@@ -465,20 +480,27 @@ export default function SitesPage() {
               const container = e.currentTarget.parentElement
               if (!container) return
               const rect = container.getBoundingClientRect()
-              const w = rect.right - e.clientX
-              setTermWidth(Math.min(Math.max(w, 280), rect.width * 0.6))
+              if (isDesktop) {
+                // horizontal split: lebar terminal = jarak dari kanan
+                const w = rect.right - e.clientX
+                setTermWidth(Math.min(Math.max(w, 280), rect.width * 0.6))
+              } else {
+                // vertical split: tinggi terminal = jarak dari bawah
+                const h = rect.bottom - e.clientY
+                setTermHeight(Math.min(Math.max(h, 200), rect.height * 0.7))
+              }
             }}
             onPointerUp={() => (draggingRef.current = false)}
             onPointerCancel={() => (draggingRef.current = false)}
             title="Drag to resize"
           >
-            <span className="bg-primary/40 mx-auto my-auto h-16 w-1 rounded-full opacity-0 transition-opacity group-hover:opacity-100" />
+            <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
           </div>
 
-          {/* Kolom terminal */}
+          {/* Panel terminal */}
           <div
-            className="flex min-w-0 flex-col border-l bg-background"
-            style={{ width: termWidth }}
+            className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-background lg:border-l"
+            style={isDesktop ? { width: termWidth } : { height: termHeight }}
           >
             <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
               <span className="inline-flex items-center gap-2 text-sm font-medium">
@@ -489,7 +511,7 @@ export default function SitesPage() {
               </span>
             </div>
             <div className="min-h-0 flex-1 p-2">
-              <TerminalPanel dir={termSite.dir} heightClass="h-full min-h-[16rem]" />
+              <TerminalPanel dir={termSite.dir} heightClass="h-full min-h-[12rem]" />
             </div>
           </div>
         </div>

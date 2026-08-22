@@ -142,6 +142,16 @@ export type SetupJob = {
   error?: string
 }
 
+export type TrafficPoint = {
+  t: string
+  requests: number
+}
+
+export type TrafficStats = {
+  total: number
+  per_minute: TrafficPoint[]
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, init)
   const data = (await res.json()) as T & { error?: string }
@@ -223,6 +233,8 @@ const api = {
   runSetup: (payload: Record<string, unknown>) =>
     post<{ ok: boolean; message?: string; error?: string }>("/api/setup", payload),
   setupJob: () => request<SetupJob>("/api/setup/job"),
+
+  traffic: () => request<TrafficStats>("/api/stats/traffic"),
 }
 
 export default api

@@ -4,6 +4,7 @@ import {
   Boxes,
   Database,
   Globe,
+  LayoutDashboard,
   Package,
   ScrollText,
   Settings,
@@ -25,6 +26,7 @@ import {
 import type { Status } from "@/lib/api"
 
 export const NAV_ITEMS = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Sites", url: "/sites", icon: Globe },
   { title: "Database", url: "/database", icon: Database },
   { title: "Services", url: "/services", icon: Boxes },

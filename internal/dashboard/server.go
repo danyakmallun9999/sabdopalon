@@ -112,6 +112,9 @@ func (s *Server) routes() {
 	// API: logs
 	s.mux.HandleFunc("/api/logs/", s.handleAPILogs)
 
+	// API: stats (dashboard charts)
+	s.mux.HandleFunc("/api/stats/traffic", s.handleAPIStatsTraffic)
+
 	// API: terminal (WebSocket PTY)
 	s.mux.HandleFunc("/api/terminal/ws", s.handleAPITerminalWS)
 

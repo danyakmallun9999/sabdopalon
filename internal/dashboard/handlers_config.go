@@ -210,11 +210,13 @@ func (s *Server) handleAPIServices(w http.ResponseWriter, r *http.Request) {
 		s.methodNotAllowed(w, "GET")
 		return
 	}
-	var list []services.Status
-	if s.svc != nil {
-		list = s.svc.All()
+	// Always report the full registry, even when no service is enabled yet
+	// (svcMgr is nil then) — the dashboard shows every service with its state.
+	mgr := s.svc
+	if mgr == nil {
+		mgr = services.New(s.cfg)
 	}
-	s.json(w, map[string]any{"services": list})
+	s.json(w, map[string]any{"services": mgr.All()})
 }
 
 // handleAPIServiceToggle enables/disables a service {enabled}. Persists to
