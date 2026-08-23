@@ -6,10 +6,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
-import type { Status } from "@/lib/api"
+import { useLive } from "@/lib/live"
 import { NAV_ITEMS } from "@/components/app-sidebar"
 
-export default function SiteHeader({ status }: { status: Status | null }) {
+export default function SiteHeader() {
+  const { status } = useLive()
   const location = useLocation()
   const current = NAV_ITEMS.find((n) => n.url === location.pathname)
 

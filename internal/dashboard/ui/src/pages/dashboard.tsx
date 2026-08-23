@@ -20,10 +20,10 @@ import api, {
   poll,
   type ServiceStatus,
   type SetupStatus,
-  type Status,
   type TrafficPoint,
 } from "@/lib/api"
 import SetupPage from "@/pages/setup"
+import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -223,8 +223,8 @@ function LogDialog({
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { status } = useLive()
   const [setup, setSetup] = useState<SetupStatus | null>(null)
-  const [status, setStatus] = useState<Status | null>(null)
   const [services, setServices] = useState<ServiceStatus[]>([])
   const [traffic, setTraffic] = useState<TrafficPoint[]>([])
   const [trafficTotal, setTrafficTotal] = useState(0)
@@ -271,9 +271,6 @@ export default function DashboardPage() {
   // fetch → fetch/setState loop that hung the UI on navigation).
   const loadAllRef = useRef<() => void>(() => {})
   loadAllRef.current = () => {
-    api.status().then((s) => {
-      if (mountedRef.current) setStatus(s)
-    }).catch(() => {})
     api.services().then((d) => {
       if (mountedRef.current) setServices(d.services || [])
     }).catch(() => {})
@@ -489,7 +486,10 @@ export default function DashboardPage() {
               </CardTitle>
               <CardDescription>
                 {runningCount > 0 ? `${runningCount} service berjalan` : "Tidak ada service berjalan"} · DB{" "}
-                {dbEngine} {dbRunning ? "✓" : "✗"} · Proxy :{status?.http_port ?? "?"}
+                {Object.entries(status?.db_states ?? {})
+                  .map(([k, v]) => `${k} ${v ? "✓" : "✗"}`)
+                  .join(" · ") || `${dbEngine} ${dbRunning ? "✓" : "✗"}`}{" "}
+                · Proxy :{status?.http_port ?? "?"}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">

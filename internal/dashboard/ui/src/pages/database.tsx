@@ -3,6 +3,7 @@ import { toast } from "sonner"
 import { HardDriveDownload, Play, RotateCw, Square } from "lucide-react"
 
 import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
+import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -55,6 +56,7 @@ function daemonCards(cfg: ConfigPayload): DaemonCfg[] {
 }
 
 export default function DatabasePage() {
+  const { status } = useLive()
   const [cfg, setCfg] = useState<ConfigPayload>({})
   const [backups, setBackups] = useState<Backup[]>([])
   const [busyKey, setBusyKey] = useState<string | null>(null)
@@ -152,8 +154,8 @@ export default function DatabasePage() {
       {/* One card per database engine — all can run simultaneously. */}
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
         {daemonCards(cfg).map((d) => {
-          const running = cfg.db_states?.[d.key] ?? false
-          const err = cfg.db_errors?.[d.key]
+          const running = status?.db_states?.[d.key] ?? cfg.db_states?.[d.key] ?? false
+          const err = status?.db_errors?.[d.key] ?? cfg.db_errors?.[d.key]
           const dirty = ports[d.key] !== undefined && Number(ports[d.key]) !== d.port
           return (
             <Card key={d.key}>

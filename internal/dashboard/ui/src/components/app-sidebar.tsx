@@ -23,7 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import type { Status } from "@/lib/api"
+import { useLive } from "@/lib/live"
 
 export const NAV_ITEMS = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -37,7 +37,8 @@ export const NAV_ITEMS = [
   { title: "Logs", url: "/logs", icon: ScrollText },
 ]
 
-export default function AppSidebar({ status }: { status: Status | null }) {
+export default function AppSidebar() {
+  const { status } = useLive()
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>

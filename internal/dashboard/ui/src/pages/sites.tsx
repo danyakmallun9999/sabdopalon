@@ -31,6 +31,7 @@ import TerminalPanel, {
   type TermStatus,
   type TerminalPanelHandle,
 } from "@/components/terminal-panel"
+import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -98,7 +99,9 @@ function loadDock(): DockState {
   } catch {
     /* fresh */
   }
-  return { open: true, width: 480 }
+  // Desktop: dock terbuka secara default; mobile/tablet tertutup agar
+  // tidak memakan layar (bisa dibuka lewat tombol Terminal di header).
+  return { open: window.innerWidth >= 1024, width: 480 }
 }
 
 function StatusDot({ s }: { s: TermStatus }) {
@@ -117,8 +120,9 @@ function StatusDot({ s }: { s: TermStatus }) {
 }
 
 export default function SitesPage() {
+  const { status: liveStatus } = useLive()
   const [sites, setSites] = useState<Site[]>([])
-  const [status, setStatus] = useState<Status | null>(null)
+  const [statusState] = useState<Status | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
@@ -159,11 +163,7 @@ export default function SitesPage() {
 
   useEffect(() => {
     const t = poll(load, 4000)
-    const st = poll(() => api.status().then(setStatus).catch(() => {}), 10000)
-    return () => {
-      clearInterval(t)
-      clearInterval(st)
-    }
+    return () => clearInterval(t)
   }, [])
 
   useEffect(() => {
@@ -181,6 +181,8 @@ export default function SitesPage() {
       return `http://${alias}/`
     }
   }
+
+  const status = liveStatus ?? statusState
 
   async function openConfigure(site: Site) {
     setCfgSite(site)
