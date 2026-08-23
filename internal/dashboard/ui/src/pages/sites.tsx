@@ -25,7 +25,6 @@ import api, {
   poll,
   type Site,
   type SiteConfigPayload,
-  type Status,
 } from "@/lib/api"
 import TerminalPanel, {
   type TermStatus,
@@ -120,9 +119,8 @@ function StatusDot({ s }: { s: TermStatus }) {
 }
 
 export default function SitesPage() {
-  const { status: liveStatus } = useLive()
+  const { status } = useLive()
   const [sites, setSites] = useState<Site[]>([])
-  const [statusState] = useState<Status | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
   const [cfgSite, setCfgSite] = useState<Site | null>(null)
@@ -182,7 +180,6 @@ export default function SitesPage() {
     }
   }
 
-  const status = liveStatus ?? statusState
 
   async function openConfigure(site: Site) {
     setCfgSite(site)

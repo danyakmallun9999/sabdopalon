@@ -123,6 +123,31 @@ export default function SettingsPage() {
         </CardHeader>
       </Card>
 
+      {/* Keamanan: situs PHP mengeksekusi kode — akses LAN harus opt-in */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Akses jaringan (LAN)</CardTitle>
+          <div className="mt-2 flex flex-row items-center justify-between gap-4 rounded-lg border p-3">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="lan" className="font-normal">
+                Izinkan perangkat lain di jaringan membuka situs kamu
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                Nonaktif (default): situs hanya bisa dibuka dari komputer ini
+                (127.0.0.1). Mengaktifkan ini membuka port 8080/8443 ke
+                jaringan — pastikan Wi-Fi kamu terpercaya. Berlaku setelah
+                restart.
+              </p>
+            </div>
+            <Switch
+              id="lan"
+              checked={!!cfg.lan}
+              onCheckedChange={(v) => set("lan", v)}
+            />
+          </div>
+        </CardHeader>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Profiles</CardTitle>

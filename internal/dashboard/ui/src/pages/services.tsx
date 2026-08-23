@@ -106,7 +106,7 @@ export default function ServicesPage() {
     try {
       const r = await api.startService(svc.name)
       if (r.error) toast.error(r.error)
-      else toast.success(r.message ?? `${svc.name} started`)
+      else toast.success(r.message ?? `${svc.name}: start`)
       load()
     } finally {
       setBusy(null)
@@ -118,7 +118,7 @@ export default function ServicesPage() {
     try {
       const r = await api.stopService(svc.name)
       if (r.error) toast.error(r.error)
-      else toast.success(r.message ?? `${svc.name} stopped`)
+      else toast.success(r.message ?? `${svc.name}: stop`)
       load()
     } finally {
       setBusy(null)

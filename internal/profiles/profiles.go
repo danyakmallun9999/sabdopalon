@@ -105,6 +105,14 @@ func Apply(cfg *config.Engine, profileName string) (*config.Engine, error) {
 	}
 	if p.DBEngine != "" {
 		clone.Database.Engine = p.DBEngine
+		// Multi-daemon: applying a profile must also make sure the matching
+		// daemon is enabled (otherwise the engine would never start).
+		switch p.DBEngine {
+		case "mariadb", "mysql":
+			clone.Database.MariaDBEnabled = true
+		case "postgresql":
+			clone.Database.PGEnabled = true
+		}
 	}
 	return &clone, nil
 }

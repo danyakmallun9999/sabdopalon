@@ -36,7 +36,7 @@ function SystemPHPCard() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-1.5">
-            <CardTitle className="text-base">System PHP (your machine)</CardTitle>
+            <CardTitle className="text-base">PHP sistem (mesin kamu)</CardTitle>
             <CardDescription>
               Detected outside Sabdopalon's bin/. Default priority is system-first — pin a version
               per site via .sabdopalon.yml (php: "8.5").
@@ -96,7 +96,7 @@ export default function PackagesPage() {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
     if (job?.done && !job?.running) {
       if (job.error) toast.error(job.error)
-      else toast.success(`Installed ✓`)
+      else toast.success(`Terpasang ✓`)
       load()
     }
   }, [job?.done, job?.running])
@@ -154,7 +154,7 @@ export default function PackagesPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Installing {job.name}…</CardTitle>
+              <CardTitle className="text-base">Memasang {job.name}…</CardTitle>
               <Progress value={progress} className="w-40" />
             </div>
             <pre

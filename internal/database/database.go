@@ -137,9 +137,9 @@ func (m *Manager) Start(engine string) (err error) {
 		}
 	}
 
-	logFile, err := os.OpenFile(
-		filepath.Join(m.cfg.Logs, engine+".log"),
-		os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	logPath := filepath.Join(m.cfg.Logs, engine+".log")
+	rotateLog(logPath, 5<<20) // keep history bounded: >5MB → <name>.log.old
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
@@ -444,6 +444,16 @@ func writeInitMarker(engine, dataDir string) error {
 func dirHasFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	return err == nil && len(entries) > 0
+}
+
+// rotateLog renames path to path.old once it exceeds maxBytes, so appending
+// never grows a daemon log without bound while preserving the last chapter.
+func rotateLog(path string, maxBytes int64) {
+	if st, err := os.Stat(path); err == nil && st.Size() > maxBytes {
+		old := path + ".old"
+		_ = os.Remove(old)
+		_ = os.Rename(path, old)
+	}
 }
 
 func fileExists(p string) bool {

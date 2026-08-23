@@ -96,6 +96,7 @@ export type ConfigPayload = {
   tld?: string
   http_port?: number
   https_port?: number
+  lan?: boolean
   db_engine?: string
   db_port?: number
   db_mariadb_enabled?: boolean
