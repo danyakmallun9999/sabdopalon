@@ -62,7 +62,7 @@ jobs:
           cd core
 
           # --- phpMyAdmin (identical for all platforms) ---
-          curl -fsSL -o pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
           for d in linux-x86_64 macos-x86_64 macos-aarch64 windows; do
             mkdir -p "$d/bin/phpmyadmin"
             tar xzf pma.tar.gz -C "$d/bin/phpmyadmin" --strip-components=1
@@ -70,25 +70,25 @@ jobs:
 
           # --- PHP 8.5 (static-php.dev per platform; tarball berisi satu
           #     file `php` langsung di root — tanpa strip) ---
-          curl -fsSL -o php-linux.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-linux.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
           mkdir -p linux-x86_64/bin/php/8.5 && tar xzf php-linux.tar.gz -C linux-x86_64/bin/php/8.5
 
-          curl -fsSL -o php-macos-x86_64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-x86_64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-x86_64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-x86_64.tar.gz
           mkdir -p macos-x86_64/bin/php/8.5 && tar xzf php-macos-x86_64.tar.gz -C macos-x86_64/bin/php/8.5
 
-          curl -fsSL -o php-macos-aarch64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-aarch64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
           mkdir -p macos-aarch64/bin/php/8.5 && tar xzf php-macos-aarch64.tar.gz -C macos-aarch64/bin/php/8.5
 
-          curl -fsSL -o php-win.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-win.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
           mkdir -p windows/bin/php/8.5 && (cd windows/bin/php/8.5 && unzip -q "$OLDPWD/php-win.zip")
 
           # --- MariaDB 11.4.13 (linux tar.gz + windows zip; macOS tidak
           #     tersedia di archive.mariadb.org — pengguna macOS memakai
           #     `sabdopalon add mariadb` atau Homebrew) ---
-          curl -fsSL -o mariadb-linux.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o mariadb-linux.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
           mkdir -p linux-x86_64/bin/mariadb && tar xzf mariadb-linux.tar.gz -C linux-x86_64/bin/mariadb --strip-components=1
 
-          curl -fsSL -o mariadb-win.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o mariadb-win.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
           mkdir -p windows/bin/mariadb && (cd windows/bin/mariadb && unzip -q "$OLDPWD/mariadb-win.zip" && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
 
           echo "core stack sizes:"; du -sh linux-x86_64 macos-x86_64 macos-aarch64 windows
@@ -247,26 +247,26 @@ jobs:
           mkdir -p "$CORE/php/8.5" "$CORE/phpmyadmin" "$CORE/mariadb"
 
           # phpMyAdmin (all platforms)
-          curl -fsSL -o /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
           tar xzf /tmp/pma.tar.gz -C "$CORE/phpmyadmin" --strip-components=1
 
           case "${{ matrix.name }}" in
             windows)
-              curl -fsSL -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
               (cd "$CORE/php/8.5" && unzip -q /tmp/php.zip)
-              curl -fsSL -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
               (cd "$CORE/mariadb" && unzip -q /tmp/mariadb.zip && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
               ;;
             macos)
-              curl -fsSL -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
               tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
               # MariaDB macOS: tidak tersedia upstream — via `add mariadb`/Homebrew
               rm -rf "$CORE/mariadb"
               ;;
             linux)
-              curl -fsSL -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
               tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
-              curl -fsSL -o /tmp/mariadb.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mariadb.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
               tar xzf /tmp/mariadb.tar.gz -C "$CORE/mariadb" --strip-components=1
               # Drop Galera clustering bits + exotic engine plugins: useless
               # for local dev and bloat the bundle.
