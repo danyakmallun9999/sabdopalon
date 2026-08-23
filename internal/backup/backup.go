@@ -1,10 +1,11 @@
-// Package backup handles automatic database backups for Sabdopalon.
+// Package backup handles database backups for Sabdopalon.
 //
-// For SQLite: copies the .db file.
-// For MariaDB/MySQL: runs mariadb-dump/mysqldump to a .sql.gz file.
+//	SQLite:            copies the .db file
+//	MariaDB/MySQL:     mariadb-dump/mysqldump → .sql.gz (unix socket)
+//	PostgreSQL:        pg_dump → .sql.gz (TCP 127.0.0.1)
 //
-// Backups are stored in backups/ with timestamped filenames. A configurable
-// number of recent backups are retained; older ones are pruned.
+// Every daemon engine can be backed up independently — backups/<engine>-… —
+// and each engine's history is pruned separately.
 package backup
 
 import (
@@ -13,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -26,7 +28,7 @@ import (
 type Manager struct {
 	cfg       *config.Engine
 	backupDir string
-	retention int // number of backups to keep
+	retention int // number of backups to keep, per engine
 }
 
 // New creates a backup Manager. retention = how many recent backups to keep.
@@ -41,43 +43,41 @@ func New(cfg *config.Engine, retention int) *Manager {
 	}
 }
 
-// Backup performs a database backup now. Returns the backup file path.
-func (m *Manager) Backup() (string, error) {
+// Backup performs a backup of ONE engine now. Returns the backup file path.
+func (m *Manager) Backup(engine string) (string, error) {
 	if err := os.MkdirAll(m.backupDir, 0o755); err != nil {
 		return "", err
 	}
 
 	timestamp := time.Now().Format("20060102-150405")
-	engine := m.cfg.Database.Engine
-
 	var ext string
 	switch engine {
 	case "sqlite":
 		ext = ".db"
-	case "mariadb", "mysql":
+	case "mariadb", "mysql", "postgresql":
 		ext = ".sql.gz"
 	default:
-		ext = ".bak"
+		return "", fmt.Errorf("backup tidak didukung untuk engine: %s", engine)
 	}
 
-	filename := fmt.Sprintf("%s-%s%s", engine, timestamp, ext)
-	backupPath := filepath.Join(m.backupDir, filename)
+	backupPath := filepath.Join(m.backupDir, fmt.Sprintf("%s-%s%s", engine, timestamp, ext))
 
 	switch engine {
 	case "sqlite":
 		return backupPath, m.backupSQLite(backupPath)
 	case "mariadb", "mysql":
-		return backupPath, m.backupMariaDB(backupPath)
-	default:
-		return "", fmt.Errorf("backup not supported for engine: %s", engine)
+		return backupPath, m.backupMariaDB(backupPath, engine)
+	case "postgresql":
+		return backupPath, m.backupPostgreSQL(backupPath)
 	}
+	return "", fmt.Errorf("engine tidak dikenal: %s", engine)
 }
 
 // backupSQLite copies the database file.
 func (m *Manager) backupSQLite(dest string) error {
 	src := m.cfg.Database.Path
 	if !fileExists(src) {
-		return fmt.Errorf("database file not found: %s", src)
+		return fmt.Errorf("file database tidak ditemukan: %s", src)
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -86,15 +86,15 @@ func (m *Manager) backupSQLite(dest string) error {
 	return os.WriteFile(dest, data, 0o644)
 }
 
-// backupMariaDB runs mariadb-dump and gzips the output.
-func (m *Manager) backupMariaDB(dest string) error {
-	socket := filepath.Join(m.cfg.Data, m.cfg.Database.Engine+"-sock", "mysqld.sock")
+// backupMariaDB runs mariadb-dump/mysqldump over the daemon's unix socket.
+func (m *Manager) backupMariaDB(dest, engine string) error {
+	socket := filepath.Join(m.cfg.Data, engine+"-sock", "mysqld.sock")
 	if !fileExists(socket) {
-		return fmt.Errorf("database not running — start sabdopalon serve first (socket not found: %s)", socket)
+		return fmt.Errorf("database tidak berjalan — nyalakan dulu di halaman Database (socket: %s)", socket)
 	}
-	dumpBin := m.findDumpBinary()
+	dumpBin := m.findDumpBinary(engine)
 	if dumpBin == "" {
-		return fmt.Errorf("dump binary not found (mariadb-dump or mysqldump)")
+		return fmt.Errorf("binary dump tidak ditemukan (mariadb-dump / mysqldump)")
 	}
 
 	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", database.DatabaseRootUser, "--all-databases")
@@ -122,8 +122,48 @@ func (m *Manager) backupMariaDB(dest string) error {
 	return dumpCmd.Wait()
 }
 
-// Prune removes old backups beyond the retention count.
-func (m *Manager) Prune() (int, error) {
+// backupPostgreSQL runs pg_dump over TCP (trust auth, no password needed).
+func (m *Manager) backupPostgreSQL(dest string) error {
+	pgDump := filepath.Join(m.cfg.BinDir(), "postgresql", "bin", "pg_dump"+extSuffix())
+	if !fileExists(pgDump) {
+		if p, err := exec.LookPath("pg_dump"); err == nil {
+			pgDump = p
+		} else {
+			return fmt.Errorf("pg_dump tidak ditemukan (bundel PostgreSQL belum terpasang)")
+		}
+	}
+
+	port := fmt.Sprintf("%d", database.EffectivePort(m.cfg, "postgresql"))
+	dumpCmd := exec.Command(pgDump,
+		"-h", "127.0.0.1", "-p", port, "-U", "sabdopalon",
+		"--no-owner", "--no-privileges", "postgres")
+	winproc.Quiet(dumpCmd)
+	dumpOut, err := dumpCmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	if err := dumpCmd.Start(); err != nil {
+		return fmt.Errorf("start pg_dump: %w", err)
+	}
+
+	outFile, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	gz := gzip.NewWriter(outFile)
+	defer gz.Close()
+
+	if _, err := copyReader(dumpOut, gz); err != nil {
+		return err
+	}
+	return dumpCmd.Wait()
+}
+
+// Prune removes old backups beyond the retention count FOR one engine
+// (files are prefixed "<engine>-").
+func (m *Manager) Prune(engine string) (int, error) {
 	entries, err := os.ReadDir(m.backupDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -134,7 +174,7 @@ func (m *Manager) Prune() (int, error) {
 
 	var backups []os.DirEntry
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), m.cfg.Database.Engine+"-") {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), engine+"-") {
 			backups = append(backups, e)
 		}
 	}
@@ -194,8 +234,7 @@ type BackupInfo struct {
 	Path    string
 }
 
-func (m *Manager) findDumpBinary() string {
-	engine := m.cfg.Database.Engine
+func (m *Manager) findDumpBinary(engine string) string {
 	binRoot := m.cfg.BinDir()
 	candidates := []string{
 		filepath.Join(binRoot, engine, "bin", "mariadb-dump"),
@@ -238,4 +277,11 @@ func copyReader(r interface{ Read([]byte) (int, error) }, w interface{ Write([]b
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
+}
+
+func extSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
 }

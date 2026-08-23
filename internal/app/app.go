@@ -861,15 +861,16 @@ func (a *App) newProject(args []string) int {
 	return 0
 }
 
-// doBackup creates a database backup now.
+// doBackup creates a database backup of the primary engine now.
 func (a *App) doBackup() int {
 	bk := backup.New(a.Cfg, 5)
-	path, err := bk.Backup()
+	engine := a.Cfg.Database.Engine
+	path, err := bk.Backup(engine)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "✗ backup: %v\n", err)
 		return 1
 	}
-	pruned, _ := bk.Prune()
+	pruned, _ := bk.Prune(engine)
 	fmt.Printf("✓ Backup created: %s\n", filepath.Base(path))
 	if pruned > 0 {
 		fmt.Printf("  Pruned %d old backup(s).\n", pruned)
