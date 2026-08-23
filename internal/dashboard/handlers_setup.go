@@ -189,13 +189,14 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 			return fmt.Errorf("install %s: %w", name, err)
 		}
 	}
-	// Deploy phpMyAdmin as a site with pre-wired config.
+	// Deploy phpMyAdmin as a site with pre-wired config. A failed deploy is
+	// a real error — silently continuing used to leave a broken
+	// phpmyadmin.localhost behind while the wizard claimed success.
 	if dbEngine == "mariadb" || req.InstallMariaDB {
 		if err := deploy.PHPMyAdmin(cfg); err != nil {
-			write("⚠ phpMyAdmin deploy: %v\n", err)
-		} else {
-			write("✓ phpMyAdmin ready → http://phpmyadmin.localhost\n")
+			return fmt.Errorf("deploy phpMyAdmin: %w", err)
 		}
+		write("✓ phpMyAdmin ready → http://phpmyadmin.localhost\n")
 	}
 
 	if req.CreateSampleSite {

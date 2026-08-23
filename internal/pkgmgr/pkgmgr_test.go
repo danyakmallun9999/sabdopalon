@@ -168,3 +168,80 @@ func phpExeName() string {
 	}
 	return "php"
 }
+
+// TestLoadRegistryEmbeddedFallback covers the desktop-install scenario where
+// packages/packages.toml was never shipped: New must succeed using the
+// embedded default registry AND seed the file for user editing.
+func TestLoadRegistryEmbeddedFallback(t *testing.T) {
+	dir := t.TempDir() // no packages/ at all
+	cfg := &config.Engine{RootDir: dir}
+	m, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New with missing registry should fall back to embedded default: %v", err)
+	}
+	if _, ok := m.Get("mariadb"); !ok {
+		t.Error("embedded default registry should contain [mariadb]")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "packages", "packages.toml")); err != nil {
+		t.Errorf("registry was not seeded to %s: %v", filepath.Join(dir, "packages", "packages.toml"), err)
+	}
+}
+
+// TestIsInstalledRequiresVerification: a bare directory must NOT count as
+// installed — that is exactly how partial installs looked "installed".
+func TestIsInstalledRequiresVerification(t *testing.T) {
+	m := testManager(t, `
+[mariadb]
+version = "11.4.13"
+target = "mariadb"
+verify_path = "bin/mariadbd.exe bin/mariadbd"
+`)
+	binRoot := m.binRoot
+	target := filepath.Join(binRoot, "mariadb")
+	if m.IsInstalled("mariadb") {
+		t.Fatal("missing target must not be installed")
+	}
+	if err := os.MkdirAll(filepath.Join(target, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if m.IsInstalled("mariadb") {
+		t.Fatal("bare directory must not be installed")
+	}
+	// Essential binary present (legacy pre-marker install) counts.
+	if err := os.WriteFile(filepath.Join(target, "bin", "mariadbd"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !m.IsInstalled("mariadb") {
+		t.Fatal("target with verified essential file must be installed")
+	}
+	// Completion marker alone also counts.
+	m2 := testManager(t, `
+[other]
+version = "1.0"
+target = "other"
+`)
+	other := filepath.Join(m2.binRoot, "other")
+	if err := os.MkdirAll(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(other, completeMarker), []byte("1"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !m2.IsInstalled("other") {
+		t.Fatal("target with completion marker must be installed")
+	}
+}
+
+func TestVerifyListParsing(t *testing.T) {
+	p := PackageDef{VerifyPath: " bin/mariadbd.exe, bin/mariadbd\tlib/x"}
+	got := verifyList(&p)
+	want := []string{filepath.Join("bin", "mariadbd.exe"), filepath.Join("bin", "mariadbd"), filepath.Join("lib", "x")}
+	if len(got) != len(want) {
+		t.Fatalf("verifyList = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("verifyList = %v, want %v", got, want)
+		}
+	}
+}

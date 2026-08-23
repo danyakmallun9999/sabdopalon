@@ -32,7 +32,7 @@
     "targets": "all",
     "externalBin": ["binaries/sabdopalon"],
     "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
-    "resources": ["resources/core"],
+    "resources": ["resources/core", "resources/packages"],
     "shortDescription": "Portable local PHP development server",
     "longDescription": "Sabdopalon desktop app — PHP + databases + tools, managed from a native window with tray support."
   },

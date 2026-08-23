@@ -59,4 +59,6 @@ desktop.ini
 /desktop/src-tauri/gen/
 /desktop/src-tauri/resources/core/**
 !/desktop/src-tauri/resources/core/.gitkeep
+/desktop/src-tauri/resources/packages/**
+!/desktop/src-tauri/resources/packages/.gitkeep
 /desktop/node_modules/

@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Badge } from "@/components/ui/badge"
 import { useLive } from "@/lib/live"
+import { dbEngineRunning } from "@/lib/dbstatus"
 import { NAV_ITEMS } from "@/components/app-sidebar"
 
 export default function SiteHeader() {
@@ -34,9 +35,21 @@ export default function SiteHeader() {
         </h1>
 
         <div className="ml-auto flex items-center gap-2">
-          <Badge variant="outline" className="text-muted-foreground">
-            DB {status?.database ?? "—"}
-          </Badge>
+          {status?.database ? (
+            <Badge
+              variant="outline"
+              className={
+                dbEngineRunning(status) ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500 dark:text-amber-400"
+              }
+            >
+              DB {status.database}
+              {status.database !== "sqlite" ? (dbEngineRunning(status) ? " ✓" : " ✗") : ""}
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-muted-foreground">
+              DB —
+            </Badge>
+          )}
           {(status?.php_version || status?.php) && (
             <Badge variant="outline" className="text-muted-foreground">
               PHP {status?.php_version ?? status?.php}

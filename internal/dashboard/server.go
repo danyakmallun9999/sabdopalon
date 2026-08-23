@@ -184,8 +184,19 @@ func (s *Server) json(w http.ResponseWriter, v any) {
 	_ = enc.Encode(v)
 }
 
+// fail writes a JSON error payload WITH the proper HTTP status code.
+// Historically error responses were sent as HTTP 200 {"error": ...}; the
+// frontend still understands that shape, but new code should use fail so
+// status codes are honest (500 = server problem, 400 = bad request, …).
+func (s *Server) fail(w http.ResponseWriter, status int, format string, a ...any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf(format, a...)})
+}
+
 func (s *Server) methodNotAllowed(w http.ResponseWriter, want string) {
 	w.Header().Set("Allow", want)
+	w.WriteHeader(http.StatusMethodNotAllowed)
 	s.json(w, map[string]string{"error": "method not allowed, use " + want})
 }
 

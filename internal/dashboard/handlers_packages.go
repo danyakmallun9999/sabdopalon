@@ -32,7 +32,7 @@ func (s *Server) handleAPIPackages(w http.ResponseWriter, r *http.Request) {
 	}
 	m, err := pkgmgr.New(s.cfg)
 	if err != nil {
-		s.json(w, map[string]string{"error": err.Error()})
+		s.fail(w, http.StatusInternalServerError, "%s", err.Error())
 		return
 	}
 	result := []map[string]any{}
@@ -59,14 +59,14 @@ func (s *Server) handleAPIPackageInstall(w http.ResponseWriter, r *http.Request)
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		s.json(w, map[string]string{"error": `body must be {"name": "<package>"}`})
+		s.fail(w, http.StatusBadRequest, `body must be {"name": "<package>"}`)
 		return
 	}
 
 	job.mu.Lock()
 	if job.running {
 		job.mu.Unlock()
-		s.json(w, map[string]string{"error": "another install is already running"})
+		s.fail(w, http.StatusConflict, "another install is already running")
 		return
 	}
 	job.name = req.Name

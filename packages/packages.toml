@@ -20,11 +20,19 @@
 
 [mariadb]
 version = "11.4.13"
+# Linux tarball is x86_64-only; Windows needs its own zip (platform_specific).
 url = "https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz"
 sha256_linux_x86_64 = "fa2f594c3ab0d4f4e611c79a63e5ebf0e15558ce971963d64df3bcaced1b135a"
+url_windows = "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-{version}-winx64.zip"
+sha256_windows_x64 = "d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2"
 target = "mariadb"
 strip_root = true
 type = "tar.gz"
+type_windows = "zip"
+# The generic URL above is a Linux artifact — never fall back to it on Windows.
+platform_specific = true
+# Essential daemon binary (first existing entry wins, per platform).
+verify_path = "bin/mariadbd.exe bin/mariadbd"
 license = "GPL-2.0 (with FOSS exception)"
 
 # Default PHP — installed by `sabdopalon add php` and by first-run auto-download.
@@ -147,6 +155,9 @@ sha256_linux_x86_64 = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb
 target = "phpmyadmin"
 strip_root = true
 type = "tar.gz"
+# Canary for partial-extraction detection (the file that goes missing first
+# when a tree is incompletely copied).
+verify_path = "libraries/constants.php"
 license = "GPL-2.0"
 
 # Adminer — single-file database web GUI (served as a site).

@@ -24,6 +24,7 @@ import api, {
 } from "@/lib/api"
 import SetupPage from "@/pages/setup"
 import { useLive } from "@/lib/live"
+import { dbEngineRunning } from "@/lib/dbstatus"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -411,8 +412,9 @@ export default function DashboardPage() {
   const installed = services.filter((s) => s.installed)
   const runningCount = installed.filter((s) => s.running).length
   const anyError = Object.values(errors).some(Boolean) || installed.some((s) => s.last_error)
-  // DB engine selalu aktif selama server jalan (sqlite/mariadb dikelola otomatis).
-  const dbRunning = status?.db_running ?? true
+  // DB engine aktif hanya kalau daemon-nya benar-benar ready (sqlite selalu).
+  // Unknown state (snapshot belum datang) tidak boleh tampil sebagai ✓.
+  const dbRunning = dbEngineRunning(status)
   const dbEngine = status?.database ?? "—"
 
   return (

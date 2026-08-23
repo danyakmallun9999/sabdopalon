@@ -68,11 +68,27 @@ function SystemPHPCard() {
 
 export default function PackagesPage() {
   const [pkgs, setPkgs] = useState<Package[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [job, setJob] = useState<InstallJob | null>(null)
   const [progress, setProgress] = useState(15)
   const logRef = useRef<HTMLPreElement>(null)
 
-  const load = () => api.listPackages().then(setPkgs).catch(() => {})
+  // listPackages resolves with {error} instead of an array when the package
+  // registry cannot be loaded — render that state instead of crashing on
+  // pkgs.map().
+  const load = () =>
+    api
+      .listPackages()
+      .then((raw) => {
+        const d = raw as Package[] | { error?: string }
+        if (Array.isArray(d)) {
+          setPkgs(d)
+          setLoadError(null)
+        } else {
+          setLoadError(d.error ?? "Unexpected response from /api/packages")
+        }
+      })
+      .catch(() => {})
 
   useEffect(() => {
     const t = poll(load, 6000)
@@ -119,6 +135,18 @@ export default function PackagesPage() {
       </p>
 
       <SystemPHPCard />
+
+      {loadError && (
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-base text-destructive">Package registry gagal dimuat</CardTitle>
+            <CardDescription className="break-all">
+              {loadError} — cek log aplikasi atau jalankan ulang setup. Registry default akan di-seed otomatis saat
+              file <code>packages/packages.toml</code> tidak ditemukan.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
         {pkgs.map((p) => (

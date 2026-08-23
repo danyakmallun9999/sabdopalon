@@ -29,6 +29,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
+	"github.com/sabdopalon/sabdopalon/internal/ssl"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
 )
 
@@ -160,11 +161,20 @@ func (s *Server) startHTTPS(errCh chan<- error) bool {
 }
 
 // httpsCertPaths resolves the wildcard cert for *.<tld>, falling back to a
-// localhost cert. ok=false when neither exists.
+// localhost cert. ok=false when neither exists. Wildcard files use the
+// Windows-safe "_wildcard.<tld>" naming (see ssl.FileNameForHost); the old
+// literal "*.<tld>.crt" name is still honoured for pre-existing Unix installs.
 func (s *Server) httpsCertPaths() (cert, key string, ok bool) {
 	wildcard := "*." + s.cfg.TLD
-	cert = filepath.Join(s.cfg.RootDir, "certs", wildcard+".crt")
-	key = filepath.Join(s.cfg.RootDir, "certs", wildcard+".key")
+	base := ssl.FileNameForHost(wildcard)
+	cert = filepath.Join(s.cfg.RootDir, "certs", base+".crt")
+	key = filepath.Join(s.cfg.RootDir, "certs", base+".key")
+	if !fileExists(cert) || !fileExists(key) {
+		// Legacy layout (files literally named "*.localhost.crt") — only
+		// ever present on Unix; on Windows the stat simply fails.
+		cert = filepath.Join(s.cfg.RootDir, "certs", wildcard+".crt")
+		key = filepath.Join(s.cfg.RootDir, "certs", wildcard+".key")
+	}
 	if !fileExists(cert) || !fileExists(key) {
 		cert = filepath.Join(s.cfg.RootDir, "certs", "localhost.crt")
 		key = filepath.Join(s.cfg.RootDir, "certs", "localhost.key")

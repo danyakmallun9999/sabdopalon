@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/ssl"
 	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
@@ -112,9 +113,19 @@ func CheckStatus(cfg *config.Engine) Status {
 	}
 	st.CAExists = true
 
-	wildcard := filepath.Join(cfg.RootDir, "certs", "*."+cfg.TLD+".crt")
-	if _, err := os.Stat(wildcard); err == nil {
+	// Wildcard cert detection. NOTE: never os.Stat a literal "*.tld" path —
+	// '*' is an illegal file name character on Windows and yields
+	// ERROR_INVALID_NAME ("The filename, directory name, or volume label
+	// syntax is incorrect"). Use Glob for legacy files and the sanitized
+	// _wildcard.<tld> naming for new ones.
+	wildcardSanitized := filepath.Join(cfg.RootDir, "certs", ssl.FileNameForHost("*."+cfg.TLD)+".crt")
+	if fileExists(wildcardSanitized) {
 		st.WildcardCert = true
+	} else {
+		legacy, _ := filepath.Glob(filepath.Join(cfg.RootDir, "certs", "*."+cfg.TLD+".crt"))
+		if len(legacy) > 0 {
+			st.WildcardCert = true
+		}
 	}
 
 	switch runtime.GOOS {

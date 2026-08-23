@@ -167,9 +167,10 @@ func (m *Manager) Start(engine string) (err error) {
 	m.procs[engine] = p
 	m.mu.Unlock()
 
-	// wait for readiness
+	// wait for readiness. Windows daemons never create the unix socket, so
+	// TCP is the only reliable readiness signal there.
 	var ready bool
-	if engine == "postgresql" {
+	if engine == "postgresql" || runtime.GOOS == "windows" {
 		ready = waitTCPPort(port, 30*time.Second)
 	} else {
 		ready = waitForSocket(socket, 30*time.Second)
@@ -308,16 +309,15 @@ func Installed(cfg *config.Engine, engine string) bool {
 // binaryFor resolves the daemon binary for one specific engine.
 func binaryFor(cfg *config.Engine, engine string) (string, error) {
 	// Look in bundled bin/ (writable install dir or read-only resource
-	// override), then PATH.
+	// override), then PATH. On Windows only the .exe form counts — an
+	// extensionless leftover (e.g. a Linux ELF extracted by mistake) can
+	// never be executed there and must NOT report the engine as installed.
 	binRoot := cfg.BinDir()
 	sb := serverBinary(engine)
+	exe := extSuffix()
 	candidates := []string{
-		filepath.Join(binRoot, engine, "bin", sb),
-		filepath.Join(binRoot, engine, sb),
-	}
-	if engine == "postgresql" {
-		candidates = append(candidates,
-			filepath.Join(binRoot, "postgresql", "bin", sb+".exe"))
+		filepath.Join(binRoot, engine, "bin", sb+exe),
+		filepath.Join(binRoot, engine, sb+exe),
 	}
 	for _, c := range candidates {
 		if fileExists(c) {
@@ -346,9 +346,14 @@ func initialize(binary, dataDir, engine string) error {
 	}
 	binDir := filepath.Dir(binary)
 	rootDir := filepath.Dir(binDir) // bin/mariadb/ root
-	// MariaDB/MySQL: use mariadb-install-db or mysqld --initialize-insecure
-	// install-db script lives in scripts/, not bin/
+	// MariaDB/MySQL: use mariadb-install-db or mysql_install_db (a real
+	// executable on Windows: bin/mysql_install_db.exe; a script under
+	// scripts/ on Linux). Platform-native form first.
 	candidates := []string{
+		filepath.Join(rootDir, "scripts", "mariadb-install-db"+extSuffix()),
+		filepath.Join(rootDir, "scripts", "mysql_install_db"+extSuffix()),
+		filepath.Join(binDir, "mysql_install_db"+extSuffix()),
+		filepath.Join(binDir, "mariadb-install-db"+extSuffix()),
 		filepath.Join(rootDir, "scripts", "mariadb-install-db"),
 		filepath.Join(rootDir, "scripts", "mysql_install_db"),
 		filepath.Join(binDir, "mariadb-install-db"),
@@ -362,7 +367,10 @@ func initialize(binary, dataDir, engine string) error {
 		}
 	}
 	if initScript != "" {
-		cmd := exec.Command(initScript, "--datadir="+dataDir, "--auth-root-authentication-method=normal")
+		cmd := exec.Command(initScript,
+			"--datadir="+dataDir,
+			"--basedir="+rootDir,
+			"--auth-root-authentication-method=normal")
 		winproc.Quiet(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {
@@ -384,15 +392,20 @@ func startArgs(binary, dataDir, socket, engine string, port int) []string {
 	ps := strconv.Itoa(port)
 	switch engine {
 	case "mariadb", "mysql":
-		return []string{
+		args := []string{
 			"--datadir=" + dataDir,
-			"--socket=" + socket,
 			"--port=" + ps,
 			"--bind-address=127.0.0.1",
 			"--pid-file=" + filepath.Join(dataDir, "pid"),
 			"--skip-networking=false",
 			"--innodb-buffer-pool-size=64M",
 		}
+		if runtime.GOOS != "windows" {
+			// Unix socket only exists on Unix; on Windows the option would
+			// be interpreted as a named-pipe name and is best omitted.
+			args = append(args, "--socket="+socket)
+		}
+		return args
 	case "postgresql":
 		return []string{"-D", dataDir, "-p", ps,
 			"-c", "listen_addresses=127.0.0.1",

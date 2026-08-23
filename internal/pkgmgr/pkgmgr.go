@@ -4,7 +4,10 @@
 // MariaDB, MySQL, Node, etc.) into bin/<name>/<version>/ so the proxy and DB
 // daemon can use them without any system installation.
 //
-// The package registry is read from packages/packages.toml.
+// The package registry is read from <root>/packages/packages.toml. When the
+// file is missing (e.g. desktop installs, where the app folder is read-only
+// and packages/ ships inside the binary), the embedded default registry is
+// used and written out once so users can still customise it.
 package pkgmgr
 
 import (
@@ -29,6 +32,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/toml"
 	"github.com/sabdopalon/sabdopalon/internal/winproc"
+	pkgregistry "github.com/sabdopalon/sabdopalon/packages"
 )
 
 // Manager downloads and extracts packages into bin/.
@@ -54,6 +58,16 @@ type PackageDef struct {
 	License    string
 	StripRoot  bool   // strip top-level directory in archive
 	Type       string // "tar.gz" (default), "binary" (single executable), "zip"
+	// PlatformSpecific marks packages whose generic URL targets a single OS
+	// (e.g. MariaDB's Linux tarball). On other platforms a per-platform URL
+	// (url_windows / url_<os>_<arch>) is REQUIRED — no silent fallback.
+	PlatformSpecific bool
+	// VerifyPath lists (space/comma separated) essential files relative to
+	// the install target; at least one must exist for the package to count
+	// as installed. Example: "bin/mariadbd.exe bin/mariadbd".
+	VerifyPath string
+	// TypeWin overrides Type for Windows artifacts (e.g. MariaDB: zip).
+	TypeWin string
 }
 
 // platformKey returns the registry checksum key suffix for this machine,
@@ -94,12 +108,23 @@ func New(cfg *config.Engine) (*Manager, error) {
 	return m, nil
 }
 
-// loadRegistry reads packages/packages.toml.
+// loadRegistry reads packages/packages.toml, falling back to the embedded
+// default registry when the file does not exist (and seeding the file so it
+// stays user-editable).
 func (m *Manager) loadRegistry() error {
 	path := filepath.Join(m.cfg.RootDir, "packages", "packages.toml")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
+		// Registry missing — use the build-time default and seed it.
+		data = []byte(pkgregistry.DefaultRegistry)
+		if mkErr := os.MkdirAll(filepath.Dir(path), 0o755); mkErr == nil {
+			if wErr := os.WriteFile(path, data, 0o644); wErr == nil {
+				m.printf("  •  seeded default package registry → %s\n", path)
+			}
+		}
 	}
 	t, err := toml.DecodeString(string(data))
 	if err != nil {
@@ -125,6 +150,9 @@ func (m *Manager) loadRegistry() error {
 			StripRoot:  getBool(kv, "strip_root"),
 			Type:       getStr(kv, "type"),
 		}
+		p.PlatformSpecific = getBool(kv, "platform_specific")
+		p.VerifyPath = getStr(kv, "verify_path")
+		p.TypeWin = getStr(kv, "type_windows")
 		for k, v := range kv {
 			if str, ok := v.(string); ok && strings.HasPrefix(k, "sha256_") {
 				p.SHAByPlat[strings.TrimPrefix(k, "sha256_")] = str
@@ -251,14 +279,60 @@ func (m *Manager) Get(name string) (PackageDef, bool) {
 	return p, ok
 }
 
-// IsInstalled reports whether a package's target directory exists.
+// completeMarker marks a fully-installed package target. It is written only
+// after a successful, verified extraction — its absence means the tree is
+// partial and must be reinstalled.
+const completeMarker = ".sabdopalon-ok"
+
+func targetHasMarker(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, completeMarker))
+	return err == nil
+}
+
+// targetVerified checks the registry-declared essential files (verify_path,
+// space/comma separated; first existing wins) inside an installed target.
+// Used both for post-install verification and to recognise pre-marker
+// installs that are actually fine.
+func (m *Manager) targetVerified(p *PackageDef, target string) bool {
+	for _, rel := range verifyList(p) {
+		if fileExistsIn(target, rel) {
+			return true
+		}
+	}
+	return false
+}
+
+// verifyList parses a package's verify_path field.
+func verifyList(p *PackageDef) []string {
+	if p.VerifyPath == "" {
+		return nil
+	}
+	fields := strings.FieldsFunc(p.VerifyPath, func(r rune) bool {
+		return r == ',' || r == ' ' || r == ';' || r == '\t'
+	})
+	out := fields[:0]
+	for _, f := range fields {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, filepath.FromSlash(f))
+		}
+	}
+	return out
+}
+
+// IsInstalled reports whether a package's target directory exists AND is
+// verifiably complete (completion marker or a registry-declared essential
+// file). Mere directory existence is not enough: interrupted installs used
+// to look "installed" forever.
 func (m *Manager) IsInstalled(name string) bool {
 	p, ok := m.Get(name)
 	if !ok {
 		return false
 	}
 	target := filepath.Join(m.binRoot, expandTarget(p.Target, p.Version))
-	return dirExists(target)
+	if !dirExists(target) {
+		return false
+	}
+	return targetHasMarker(target) || m.targetVerified(&p, target)
 }
 
 // Download fetches a package archive, verifies its checksum, and extracts it
@@ -283,25 +357,56 @@ func (m *Manager) Download(name string) error {
 	// Resolve URL: exact platform override → url_windows → base template.
 	downloadURL := p.URL
 	ver := p.Version
+	windowsURL := false
 	if over, ok := p.URLByPlat[platformKey()]; ok && over != "" {
 		downloadURL = over
+		windowsURL = isWindows
 	} else if isWindows && p.URLWindows != "" {
 		downloadURL = p.URLWindows
+		windowsURL = true
 		if p.VersionWin != "" {
 			ver = p.VersionWin
 		}
 	}
 	downloadURL = expandPlaceholders(downloadURL, ver)
 
-	if downloadURL == "" {
-		return fmt.Errorf("no download source for %s on this platform (check packages/packages.toml)", name)
+	// Never silently download a wrong-platform artifact: a platform-specific
+	// package without a Windows URL must fail loudly (the generic URL is,
+	// by definition of "platform_specific", for another OS).
+	if downloadURL == "" || (isWindows && p.PlatformSpecific && !windowsURL) {
+		return fmt.Errorf("no download source for %s on this platform (%s) — check packages/packages.toml",
+			name, platformKey())
 	}
 
 	target := expandTarget(p.Target, ver)
 	fullTarget := filepath.Join(m.binRoot, target)
+	// An unverified tree (no completion marker, no registry-verified file) is
+	// replaced — but only AFTER the fresh download succeeds: it is moved
+	// aside first and restored if anything below fails.
+	var staleBackup string
+	replacedOld := false
+	defer func() {
+		switch {
+		case staleBackup != "" && replacedOld:
+			_ = os.RemoveAll(staleBackup)
+		case staleBackup != "":
+			_ = os.RemoveAll(fullTarget)
+			_ = os.Rename(staleBackup, fullTarget)
+		}
+	}()
 	if dirExists(fullTarget) {
-		m.printf("  •  %s already installed at %s\n", name, fullTarget)
-		return nil
+		if targetHasMarker(fullTarget) || m.targetVerified(&p, fullTarget) {
+			m.printf("  •  %s already installed at %s\n", name, fullTarget)
+			return nil
+		}
+		m.printf("  ⚠  incomplete/unverified installation at %s — reinstalling\n", fullTarget)
+		staleBackup = fullTarget + ".old"
+		if err := os.RemoveAll(staleBackup); err != nil {
+			return fmt.Errorf("clear stale backup %s: %w", staleBackup, err)
+		}
+		if err := os.Rename(fullTarget, staleBackup); err != nil {
+			return fmt.Errorf("back up incomplete install %s: %w", fullTarget, err)
+		}
 	}
 
 	m.printf("  ⬇  downloading %s %s ...\n", p.Name, ver)
@@ -402,6 +507,23 @@ func (m *Manager) Download(name string) error {
 	if pkgType == "" {
 		pkgType = "tar.gz"
 	}
+	// The Windows artifact may be packaged differently from the generic one
+	// (MariaDB ships a .zip on Windows, a .tar.gz on Linux).
+	if windowsURL && p.TypeWin != "" {
+		pkgType = p.TypeWin
+	}
+
+	// Extract into a staging directory next to the target, then promote with
+	// a single rename — an interrupted install can never leave a half-written
+	// tree at the final location (the old direct-into-target extraction is
+	// exactly how permanently-partial installs happened).
+	staging := filepath.Join(m.binRoot, "."+name+".staging")
+	if err := os.RemoveAll(staging); err != nil {
+		return fmt.Errorf("clear staging dir: %w", err)
+	}
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		return fmt.Errorf("create staging dir: %w", err)
+	}
 
 	switch pkgType {
 	case "binary":
@@ -416,26 +538,40 @@ func (m *Manager) Download(name string) error {
 		} else if isWindows && !strings.HasSuffix(binName, ".exe") {
 			binName += ".exe"
 		}
-		if err := installBinaryAs(tmpFile, fullTarget, binName); err != nil {
+		if err := installBinaryAs(tmpFile, staging, binName); err != nil {
 			return fmt.Errorf("install binary: %w", err)
 		}
 	case "zip":
-		if err := extractZip(tmpFile, fullTarget, p.StripRoot); err != nil {
+		if err := extractZip(tmpFile, staging, p.StripRoot); err != nil {
 			return fmt.Errorf("extract zip: %w", err)
 		}
 	case "zip-txz":
-		if err := extractZip(tmpFile, fullTarget, p.StripRoot); err != nil {
+		if err := extractZip(tmpFile, staging, p.StripRoot); err != nil {
 			return fmt.Errorf("extract outer zip: %w", err)
 		}
-		if err := extractInnerTxz(fullTarget); err != nil {
+		if err := extractInnerTxz(staging); err != nil {
 			return err
 		}
 	default: // tar.gz
 		m.printf("  📦  extracting to %s ...\n", fullTarget)
-		if err := extractTarGz(tmpFile, fullTarget, p.StripRoot); err != nil {
+		if err := extractTarGz(tmpFile, staging, p.StripRoot); err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
 	}
+
+	// Completion marker BEFORE promotion: the final target only ever appears
+	// in a fully-installed state.
+	if err := os.WriteFile(filepath.Join(staging, completeMarker), []byte(ver+"\n"), 0o644); err != nil {
+		return fmt.Errorf("write completion marker: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(fullTarget), 0o755); err != nil {
+		return err
+	}
+	if err := os.Rename(staging, fullTarget); err != nil {
+		_ = os.RemoveAll(staging)
+		return fmt.Errorf("promote staged install: %w", err)
+	}
+	replacedOld = true
 
 	// Record the verified hash so future installs of this artifact are
 	// protected even without a registry pin.
@@ -904,6 +1040,16 @@ func getBool(kv map[string]toml.Value, key string) bool {
 func dirExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+
+// fileExistsIn reports whether rel (a slash-separated path relative to dir)
+// exists as a regular file inside dir.
+func fileExistsIn(dir, rel string) bool {
+	if rel == "" {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(dir, rel))
+	return err == nil && !st.IsDir()
 }
 
 // SystemPHP describes a PHP CLI binary found on the host (outside bin/).

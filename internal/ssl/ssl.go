@@ -19,6 +19,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
@@ -34,10 +35,19 @@ func New(cfg *config.Engine) *Manager {
 	return &Manager{cfg: cfg}
 }
 
+// FileNameForHost converts a certificate host into a safe file basename:
+// wildcard hosts ("*.localhost") contain '*', which Windows forbids in file
+// names (ERROR_INVALID_NAME). The mkcert-style "_wildcard." prefix is used
+// instead — e.g. "*.localhost" → "_wildcard.localhost".
+func FileNameForHost(host string) string {
+	return strings.Replace(host, "*.", "_wildcard.", 1)
+}
+
 // CertPaths returns the expected cert and key paths for a host.
 func (m *Manager) CertPaths(host string) (cert, key string) {
-	return filepath.Join(m.certDir(), host+".crt"),
-		filepath.Join(m.certDir(), host+".key")
+	base := FileNameForHost(host)
+	return filepath.Join(m.certDir(), base+".crt"),
+		filepath.Join(m.certDir(), base+".key")
 }
 
 // EnsureCA generates the root CA if missing. Returns whether it was created.

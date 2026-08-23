@@ -114,8 +114,22 @@ func Bundled(rootDir string) bool {
 		// macOS: MariaDB via `add mariadb` / Homebrew.
 		return phpOK && pmaOK
 	}
-	mariadbOK := dirHasFiles(filepath.Join(binDir, "mariadb"))
+	mariadbOK := mariadbBundled(binDir)
 	return phpOK && mariadbOK && pmaOK
+}
+
+// mariadbBundled reports whether a runnable MariaDB server binary exists in
+// the bundled bin dir (bin/mariadb/bin/mariadbd[.exe]). Directory presence
+// alone is not enough: an interrupted or wrong-platform extraction leaves
+// files behind that can never run.
+func mariadbBundled(binDir string) bool {
+	root := filepath.Join(binDir, "mariadb", "bin")
+	name := "mariadbd"
+	if runtime.GOOS == "windows" {
+		name = "mariadbd.exe"
+	}
+	st, err := os.Stat(filepath.Join(root, name))
+	return err == nil && !st.IsDir()
 }
 
 // binDirOf resolves the bundled-bin directory honoring SABDOPALON_BIN_DIR.
@@ -127,14 +141,16 @@ func binDirOf(rootDir string) string {
 }
 
 // DeployBundled deploys bundled web apps (phpMyAdmin) into the sites tree
-// when they ship in bin/ but haven't been deployed yet. Idempotent.
+// when they ship in bin/ but haven't been deployed yet. Idempotent — and
+// self-repairing: a previously partial deployment is re-deployed instead of
+// being frozen forever by a "some files exist" check.
 func DeployBundled(cfg *config.Engine) error {
 	pmaSrc := filepath.Join(binDirOf(cfg.RootDir), "phpmyadmin")
 	if !dirHasFiles(pmaSrc) {
 		return nil // not bundled (classic install) — user can `add phpmyadmin`
 	}
-	if dirHasFiles(filepath.Join(cfg.Root, "phpmyadmin", "public")) {
-		return nil // already deployed
+	if deploy.PHPMyAdminComplete(filepath.Join(cfg.Root, "phpmyadmin", "public")) {
+		return nil // already deployed and complete
 	}
 	if err := deploy.PHPMyAdminFrom(pmaSrc, cfg); err != nil {
 		return fmt.Errorf("deploy bundled phpMyAdmin: %w", err)

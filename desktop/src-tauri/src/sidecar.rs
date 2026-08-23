@@ -1,6 +1,7 @@
 // Sidecar management: locate the bundled Go binary, launch it with
 // SABDOPALON_DIR pointing at the OS user-data dir, wait for the dashboard
 // HTTP endpoint, then point the window at it.
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -19,14 +20,21 @@ pub fn data_dir(app: &AppHandle) -> PathBuf {
         .expect("app data dir")
 }
 
-/// Locate the sidecar binary. Resolution order:
+/// Locate the sidecar binary candidates, best first:
 /// 1. next to the running executable — `target/release/sabdopalon` (dev/build)
 /// 2. bundle resource dir (installed app) — `binaries/sabdopalon`
 /// 3. repo layout (dev) — `../binaries/sabdopalon` next to src-tauri
 ///
 /// On Windows the binaries carry a `.exe` suffix; try both spellings.
-fn sidecar_path(app: &AppHandle) -> Option<PathBuf> {
-    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+/// The ORDER alone is not trusted: `choose_sidecar` probes each candidate's
+/// reported version so a stale binary left beside the installed exe can never
+/// silently override the freshly-bundled one (this is how pre-ConPTY sidecars
+/// kept opening external Windows Terminal windows after upgrades).
+fn sidecar_candidates(app: &AppHandle) -> Vec<PathBuf> {
+    let exe_dir = match std::env::current_exe().ok().as_ref().and_then(|p| p.parent()) {
+        Some(p) => p.to_path_buf(),
+        None => return Vec::new(),
+    };
     let names: &[&str] = if cfg!(windows) {
         &["sabdopalon.exe", "sabdopalon"]
     } else {
@@ -46,7 +54,51 @@ fn sidecar_path(app: &AppHandle) -> Option<PathBuf> {
             candidates.push(p);
         }
     }
-    candidates.into_iter().find(|p| p.is_file())
+    candidates.into_iter().filter(|p| p.is_file()).collect()
+}
+
+/// Run `<bin> version` and return its trimmed stdout ("sabdopalon 0.7.5").
+fn probe_version(bin: &PathBuf) -> Option<String> {
+    let out = std::process::Command::new(bin)
+        .arg("version")
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+/// Pick the sidecar binary whose self-reported version matches the app's own
+/// version. Falls back to the first available candidate (old behaviour) while
+/// recording a warning so stale copies show up in logs/sidecar.log.
+fn choose_sidecar(app: &AppHandle, issues: &mut Vec<String>) -> Option<PathBuf> {
+    let expected = app.package_info().version.to_string();
+    let mut fallback: Option<PathBuf> = None;
+    for cand in sidecar_candidates(app) {
+        match probe_version(&cand) {
+            Some(v) if v.contains(&expected) => return Some(cand),
+            Some(v) => issues.push(format!(
+                "stale sidecar skipped: {} reports \"{}\" (expected {})",
+                cand.display(),
+                v,
+                expected
+            )),
+            None => issues.push(format!(
+                "sidecar probe failed: {} (no/broken version output)",
+                cand.display()
+            )),
+        }
+        if fallback.is_none() {
+            fallback = Some(cand.clone());
+        }
+    }
+    fallback
 }
 
 /// Spawn the sidecar (sabdopalon binary from the bundle).
@@ -58,9 +110,6 @@ fn sidecar_path(app: &AppHandle) -> Option<PathBuf> {
 pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let dir = data_dir(app);
     std::fs::create_dir_all(&dir)?;
-
-    let bin = sidecar_path(app)
-        .ok_or_else(|| "sidecar binary not found (binaries/sabdopalon)".to_string())?;
 
     let bootstrapped = dir.join("config/engine.toml").is_file();
 
@@ -77,10 +126,20 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             let _ = std::fs::rename(&sidecar_log, &old);
         }
     }
-    let log_file = std::fs::OpenOptions::new()
+    let mut log_file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&sidecar_log)?;
+
+    // Everything noteworthy found while preparing the launch (stale
+    // sidecars, failed bundle copies) lands in the same log — stderr is
+    // invisible under -H windowsgui.
+    let mut issues: Vec<String> = Vec::new();
+
+    // Version handshake: never blindly run whatever binary happens to sit
+    // next to the installed exe.
+    let bin = choose_sidecar(app, &mut issues)
+        .ok_or_else(|| "sidecar binary not found (binaries/sabdopalon)".to_string())?;
 
     // Core stack (PHP/MariaDB/phpMyAdmin) ships in the app's resource dir on
     // full-bundle builds. Tauri copies resources preserving their
@@ -110,9 +169,61 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let dst = bin_dir.join(e.file_name());
                 if dst.exists() || dst.is_symlink() {
-                    continue;
+                    if entry_looks_complete(&e.path(), &dst) {
+                        continue;
+                    }
+                    issues.push(format!(
+                        "repairing incomplete bundled entry '{}' in bin/ (re-copying)",
+                        e.file_name().to_string_lossy()
+                    ));
+                    if dst.is_dir() && !dst.is_symlink() {
+                        let _ = std::fs::remove_dir_all(&dst);
+                    } else {
+                        let _ = std::fs::remove_file(&dst);
+                    }
                 }
-                link_or_copy(&e.path(), &dst);
+                if let Err(err) = link_or_copy(&e.path(), &dst) {
+                    issues.push(format!(
+                        "bundling '{}' into bin/ failed: {} — this component will be missing or partial",
+                        e.file_name().to_string_lossy(),
+                        err
+                    ));
+                }
+            }
+        }
+    }
+
+    for line in &issues {
+        let _ = writeln!(&mut log_file, "[sidecar] {line}");
+    }
+    let _ = log_file.flush();
+
+    // Ship the default package registry into <data>/packages. Only files
+    // that are MISSING are seeded — a user's edited packages.toml always
+    // wins, and the Go binary additionally embeds the default registry.
+    let pkg_res = ["resources/packages", "packages"].iter().find_map(|rel| {
+        app.path()
+            .resolve(rel, tauri::path::BaseDirectory::Resource)
+            .ok()
+            .filter(|p| p.is_dir())
+    });
+    if let Some(pkg_res) = pkg_res {
+        let data_pkgs = dir.join("packages");
+        if std::fs::create_dir_all(&data_pkgs).is_ok() {
+            if let Ok(entries) = std::fs::read_dir(&pkg_res) {
+                for e in entries.flatten() {
+                    let dst = data_pkgs.join(e.file_name());
+                    if !dst.exists() {
+                        if let Err(err) = std::fs::copy(e.path(), &dst) {
+                            let _ = writeln!(
+                                &mut log_file,
+                                "[sidecar] seeding packages/{} failed: {}",
+                                e.file_name().to_string_lossy(),
+                                err
+                            );
+                        }
+                    }
+                }
             }
         }
     }
@@ -138,14 +249,30 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// entry_looks_complete decides whether an already-present bundled entry in
+/// bin/ can be trusted. Only known-fragile entries are verified: a copied
+/// phpmyadmin tree without libraries/constants.php is the classic symptom of
+/// an interrupted copy (it produces "failed opening required
+/// .../libraries/constants.php" fatals on phpmyadmin.localhost).
+fn entry_looks_complete(src: &std::path::Path, dst: &std::path::Path) -> bool {
+    if src.is_dir() && src.file_name().map(|n| n == std::ffi::OsStr::new("phpmyadmin")).unwrap_or(false) {
+        let canary = src.join("libraries").join("constants.php");
+        if canary.is_file() && !dst.join("libraries").join("constants.php").is_file() {
+            return false;
+        }
+    }
+    true
+}
+
 /// Symlink src → dst, falling back to a copy when symlinks are unavailable
 /// (Windows without developer mode). Directories are copied recursively as
-/// a last resort only.
-fn link_or_copy(src: &PathBuf, dst: &PathBuf) {
+/// a last resort only. Errors are RETURNED — silently discarding them is how
+/// partial trees used to end up looking installed.
+fn link_or_copy(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
     #[cfg(unix)]
     {
         if std::os::unix::fs::symlink(src, dst).is_ok() {
-            return;
+            return Ok(());
         }
     }
     #[cfg(windows)]
@@ -157,13 +284,13 @@ fn link_or_copy(src: &PathBuf, dst: &PathBuf) {
             wfs::symlink_file(src, dst).is_ok()
         };
         if ok {
-            return;
+            return Ok(());
         }
     }
     if src.is_dir() {
-        let _ = copy_dir_recursive(src, dst);
+        copy_dir_recursive(src, dst)
     } else {
-        let _ = std::fs::copy(src, dst);
+        std::fs::copy(src, dst).map(|_| ())
     }
 }
 

@@ -67,6 +67,29 @@ func New() (*App, error) {
 // set up at least once). A fresh App without a config is not bootstrapped.
 func (a *App) Bootstrapped() bool { return a.Cfg != nil }
 
+// cfgOrBare returns the loaded engine config, or a minimal default-shaped
+// config rooted at the detected base dir when none exists (fresh install).
+// Package-registry commands (`pkg:list`, `add`) work fine against a bare
+// root — and must not nil-panic there.
+func (a *App) cfgOrBare() *config.Engine {
+	if a.Cfg != nil {
+		return a.Cfg
+	}
+	root, err := baseDir()
+	if err != nil {
+		return &config.Engine{}
+	}
+	cfg := &config.Engine{RootDir: root}
+	cfg.TLD = "localhost"
+	cfg.Root = filepath.Join(root, "sites")
+	cfg.Logs = filepath.Join(root, "logs")
+	cfg.Data = filepath.Join(root, "data")
+	cfg.Proxy.HTTPPort = 8080
+	cfg.Proxy.HTTPSPort = 8443
+	cfg.Database.Port = 3306
+	return cfg
+}
+
 func baseDir() (string, error) {
 	// Desktop mode: the Tauri sidecar overrides the data dir so the app can
 	// live read-only in its install location while data lives in the OS
@@ -611,7 +634,7 @@ func (a *App) pkgAdd(args []string) int {
 		fmt.Fprintln(os.Stderr, "available packages: sabdopalon pkg:list")
 		return 1
 	}
-	m, err := pkgmgr.New(a.Cfg)
+	m, err := pkgmgr.New(a.cfgOrBare())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
@@ -638,7 +661,10 @@ func (a *App) pkgAdd(args []string) int {
 	// Tool services auto-enable on install so they start with the app:
 	// "installed = ready to run" (auto-start). No config change for the
 	// core stack (php, mariadb, postgresql) or adminer.
-	if isServicePackage(pkg) {
+	// Tool services auto-enable on install so they start with the app:
+	// "installed = ready to run" (auto-start). No config change for the
+	// core stack (php, mariadb, postgresql) or adminer.
+	if isServicePackage(pkg) && a.Cfg != nil {
 		if services.SetEnabled(a.Cfg, pkg, true) {
 			if err := a.Cfg.Save(); err != nil {
 				fmt.Fprintf(os.Stderr, "✗ save config: %v\n", err)
@@ -669,7 +695,7 @@ func isServicePackage(pkg string) bool {
 // installAdminer moves the downloaded single-file GUI into sites/adminer so it
 // is served like any other site at http://adminer.<tld>.
 func (a *App) installAdminer() int {
-	bin := filepath.Join(a.Cfg.RootDir, "bin", "adminer")
+	bin := filepath.Join(a.cfgOrBare().RootDir, "bin", "adminer")
 	var src string
 	entries, _ := os.ReadDir(bin)
 	for _, e := range entries {
@@ -682,7 +708,7 @@ func (a *App) installAdminer() int {
 		fmt.Fprintln(os.Stderr, "✗ downloaded Adminer file not found")
 		return 1
 	}
-	dest := filepath.Join(a.Cfg.Root, "adminer", "public")
+	dest := filepath.Join(a.cfgOrBare().Root, "adminer", "public")
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
@@ -707,20 +733,24 @@ func (a *App) installAdminer() int {
 // sites/phpmyadmin/public and writes a config.inc.php pre-wired to the local
 // MariaDB (root, no password, cookie auth) so the site works out of the box.
 func (a *App) installPHPMyAdmin() int {
-	if err := deploy.PHPMyAdmin(a.Cfg); err != nil {
+	cfg := a.cfgOrBare()
+	if err := deploy.PHPMyAdmin(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
-	fmt.Printf("✓ phpMyAdmin ready → http://phpmyadmin.%s:%d/\n", a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
+	fmt.Printf("✓ phpMyAdmin ready → http://phpmyadmin.%s:%d/\n", cfg.TLD, cfg.Proxy.HTTPPort)
 	return 0
 }
 
 // phpList shows installed bundled PHP versions and the active default.
 func (a *App) phpList() int {
-	binRoot := a.Cfg.BinDir()
+	binRoot := a.cfgOrBare().BinDir()
 	pkgmgr.MigrateLegacyPHP(binRoot)
 
-	active := a.Cfg.PHP.Binary
+	active := ""
+	if a.Cfg != nil {
+		active = a.Cfg.PHP.Binary
+	}
 	fmt.Println("Bundled PHP versions (bin/php/):")
 	versions := pkgmgr.InstalledVersions(binRoot)
 	if len(versions) == 0 {
@@ -804,7 +834,7 @@ func samePath(a, b string) bool {
 
 // pkgList shows all packages from the registry with install status.
 func (a *App) pkgList() int {
-	m, err := pkgmgr.New(a.Cfg)
+	m, err := pkgmgr.New(a.cfgOrBare())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
