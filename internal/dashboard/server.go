@@ -92,6 +92,8 @@ func (s *Server) routes() {
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
 
+	// API: live status stream (SSE) — the single feed all pages subscribe to.
+	s.mux.HandleFunc("/api/events", s.handleAPIEvents)
 	// API: database control — /api/database/{engine}/{action} (legacy
 	// /api/database/{action} maps to the primary engine).
 	s.mux.HandleFunc("/api/database/", s.handleAPIDatabaseControl)

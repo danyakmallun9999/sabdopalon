@@ -19,6 +19,13 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		s.methodNotAllowed(w, "GET")
 		return
 	}
+	s.json(w, s.statusSnapshot())
+}
+
+// statusSnapshot builds the canonical system-state payload. It is THE single
+// source of truth consumed by /api/status and the /api/events SSE stream —
+// every page renders from this same shape, so views can never disagree.
+func (s *Server) statusSnapshot() map[string]any {
 	httpPort, httpsPort := s.proxy.Ports()
 	dbRunning := false
 	if s.db != nil {
@@ -48,7 +55,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		resp["php"] = baseName(s.cfg.PHP.Binary)
 		resp["php_version"] = pkgmgr.PHPBinaryVersion(s.cfg.PHP.Binary)
 	}
-	s.json(w, resp)
+	return resp
 }
 
 // handleAPISystemPHP lists PHP CLIs found on the host (outside bin/).
