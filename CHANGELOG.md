@@ -3,6 +3,30 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [Unreleased]
+
+### Fixed
+- **Cross-platform package installs** — audited every registry entry against
+  real upstream assets: PHP/Mailpit Windows zips were extracted as tar.gz
+  (hard failure), php82–85 `url_windows` contained an unsupported
+  `{version_windows}` placeholder (guaranteed 404), php81 had no Windows URL
+  at all, MinIO's Windows URL added an `.exe` suffix upstream never ships,
+  Meilisearch macOS/Linux-arm asset names never matched, PostgreSQL on
+  Apple Silicon hit a nonexistent `darwin-arm64` classifier, and Redis'
+  flat Windows zip + `strip_root=true` produced an empty install that was
+  still marked "installed". All fixed; Adminer no longer renamed to
+  `adminer.php.exe` on Windows. Registry templates and checksum keys are now
+  validated by a unit test (`TestRegistryTemplatesWellFormed`).
+- **SHA-256 pins for every platform** — all artifacts now carry checksums
+  for linux x86_64/aarch64, macOS Intel/Apple Silicon, and Windows x64
+  (phpMyAdmin uses one platform-neutral pin). Only the floating
+  `meilisearch = "latest"` stays trust-on-first-use by design.
+
+### Changed
+- **pkgmgr hardening** — extraction is staged and verified before promotion;
+  an archive yielding zero files fails loudly instead of marking an empty
+  tree as installed; URL overrides use the exact `platformKey()` vocabulary.
+
 ## [0.7.5] — 2026-08-23
 
 ### Fixed

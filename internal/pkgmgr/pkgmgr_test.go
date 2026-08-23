@@ -1,6 +1,8 @@
 package pkgmgr
 
 import (
+	"archive/zip"
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -242,6 +244,144 @@ func TestVerifyListParsing(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("verifyList = %v, want %v", got, want)
+		}
+	}
+}
+
+// wellFormed guards: every URL/target template in the shipped registry must
+// only contain placeholders the expander understands, and every platform
+// override/checksum key must use the exact platformKey vocabulary. A stray
+// "{version_windows}" or a "linux_arm64"-style key used to silently never
+// match and produce guaranteed-404 downloads.
+func TestRegistryTemplatesWellFormed(t *testing.T) {
+	dir := t.TempDir() // no packages/ → exercises the embedded default
+	cfg := &config.Engine{RootDir: dir}
+	m, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New(embedded): %v", err)
+	}
+	validKeys := map[string]bool{
+		"linux_x86_64": true, "linux_aarch64": true,
+		"macos_x86_64": true, "macos_aarch64": true,
+		"windows_x64": true,
+	}
+	for _, p := range m.List() {
+		tpls := map[string]string{"url": p.URL, "url_windows": p.URLWindows, "target": p.Target}
+		for k, v := range p.URLByPlat {
+			tpls["url_"+k] = v
+			if !validKeys[k] {
+				t.Errorf("[%s] url override key %q not in platformKey vocabulary", p.Name, k)
+			}
+		}
+		for k, tpl := range tpls {
+			if tpl == "" {
+				continue
+			}
+			if !wellFormedTemplate(tpl) {
+				t.Errorf("[%s] %s template has unknown placeholders: %s", p.Name, k, tpl)
+			}
+		}
+		for k := range p.SHAByPlat {
+			if !validKeys[k] {
+				t.Errorf("[%s] sha256 key %q not in platformKey vocabulary", p.Name, k)
+			}
+		}
+	}
+}
+
+// The tporadowski Redis zip is FLAT; strip_root=true used to skip every
+// entry and mark an empty tree as installed. Lock both behaviours in.
+func TestExtractZipFlatLayouts(t *testing.T) {
+	zipBytes := func(t *testing.T, names ...string) *os.File {
+		t.Helper()
+		var buf bytes.Buffer
+		zw := zip.NewWriter(&buf)
+		for _, n := range names {
+			w, err := zw.Create(n)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _ = w.Write([]byte("x"))
+		}
+		if err := zw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.CreateTemp(t.TempDir(), "*.zip")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(buf.Bytes()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { f.Close() })
+		return f
+	}
+
+	dest := filepath.Join(t.TempDir(), "redis")
+	if err := extractZip(zipBytes(t, "redis-server.exe", "redis-cli.exe"), dest, false); err != nil {
+		t.Fatalf("flat zip without strip_root: %v", err)
+	}
+	for _, want := range []string{"redis-server.exe", "redis-cli.exe"} {
+		if _, err := os.Stat(filepath.Join(dest, want)); err != nil {
+			t.Errorf("flat+strip_root=false missing %s: %v", want, err)
+		}
+	}
+
+	empty := filepath.Join(t.TempDir(), "empty")
+	if err := extractZip(zipBytes(t, "redis-server.exe"), empty, true); err != nil {
+		t.Fatalf("flat zip with strip_root: %v", err)
+	}
+	if treeHasFiles(empty) {
+		t.Error("strip_root on a flat zip must yield NO files (that is the silent-empty-install bug)")
+	}
+}
+
+func TestWellFormedTemplate(t *testing.T) {
+	good := []string{
+		"https://x/{version}/a-{os}-{arch}.tar.gz",
+		"https://x/p-{version_short}.zip",
+		"https://x/m-{goos}-{march}",
+		"https://plain.example/no-placeholders",
+	}
+	bad := []string{
+		"https://x/php-{version_windows}-cli-win.zip",
+		"https://x/{unknown}",
+	}
+	for _, s := range good {
+		if !wellFormedTemplate(s) {
+			t.Errorf("wellFormedTemplate(%q) = false, want true", s)
+		}
+	}
+	for _, s := range bad {
+		if wellFormedTemplate(s) {
+			t.Errorf("wellFormedTemplate(%q) = true, want false", s)
+		}
+	}
+}
+
+// Windows must add .exe to bare binaries but NEVER to .php source artifacts
+// like Adminer (an "adminer.php.exe" can neither run nor be found again).
+func TestBinaryArtifactName(t *testing.T) {
+	cases := []struct {
+		name     string
+		p        PackageDef
+		url      string
+		isWin    bool
+		expected string
+	}{
+		{"adminer php stays", PackageDef{}, "https://x/adminer-5.3.0.php", true, "adminer-5.3.0.php"},
+		{"adminer php unix", PackageDef{}, "https://x/adminer-5.3.0.php", false, "adminer-5.3.0.php"},
+		{"minio explicit exe", PackageDef{BinaryName: "minio"}, "https://x/minio.RELEASE", true, "minio.exe"},
+		{"meili explicit unix", PackageDef{BinaryName: "meilisearch"}, "https://x/meilisearch-linux-amd64", false, "meilisearch"},
+		{"derived from url win", PackageDef{}, "https://x/tool.tar.gz", true, "tool.exe"},
+		{"already exe untouched", PackageDef{}, "https://x/svc.exe", true, "svc.exe"},
+	}
+	for _, c := range cases {
+		if got := binaryArtifactName(&c.p, c.url, c.isWin); got != c.expected {
+			t.Errorf("%s: binaryArtifactName = %q, want %q", c.name, got, c.expected)
 		}
 	}
 }

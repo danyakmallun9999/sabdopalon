@@ -13,10 +13,18 @@
 #   {version_short} → major.minor of {version} (used in target paths)
 #
 # type can be: "tar.gz" (default), "binary" (single executable), "zip"
+# type_windows overrides type when the url_windows artifact has a different
+# container format (e.g. MariaDB/PHP ship zip on Windows, tar.gz elsewhere).
 #
-# Checksums: sha256_<os>_<arch> pins are verified on install. Platforms
-# without a pin use an automatic lockfile recorded after the first verified
-# download (bin/<target>.../.sabdopalon-sha256 style locks under bin/).
+# Checksums: sha256_<os>_<arch> pins are verified on install. A generic
+# "sha256" key applies to EVERY platform (platform-neutral artifacts such as
+# phpMyAdmin). Floating versions ("latest") cannot be pinned safely — they
+# rely on HTTPS plus an automatic lockfile recorded after the first verified
+# download (trust-on-first-use).
+#
+# verify_path lists essential files (relative to the install target, space
+# separated, first existing wins) that must be present for the package to
+# count as installed — protects against silently-empty or partial installs.
 
 [mariadb]
 version = "11.4.13"
@@ -40,118 +48,178 @@ license = "GPL-2.0 (with FOSS exception)"
 # static-php.dev provides self-contained static PHP binaries with 30+
 # extensions (pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache, ...).
 # Source: https://dl.static-php.dev/static-php-cli/common/
+# NOTE: in url_windows, {version} automatically resolves to version_windows.
 version = "8.5.8"
 version_windows = "8.5.7"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
 url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
 sha256_linux_x86_64 = "517a18e0f0874de35669fe134eb3c52508e128a6d1da5bf890760cb800ada410"
+sha256_linux_aarch64 = "af995ef6b3187b39932a00714dfb97e44bfa40a9243c4c29f61f19d583950753"
+sha256_macos_aarch64 = "cba9bd8b38b51ef2c7cebf02af689e4481bbd07f65edc0b63d3a43b04e0c9db7"
+sha256_macos_x86_64 = "05751000c6643f82e8377ed19d55bc159f84bbed46ace1fcc6f62be9866c787c"
+sha256_windows_x64 = "8b4c7ba06b486834cbdb91cc82fded5a19455beaa995ff84cb3e15132fbf3b05"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
 license = "PHP License"
 
 [php81]
 version = "8.1.34"
+version_windows = "8.1.34"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-sha256_linux_x86_64 = "4caa8b82b574212b2f7af83cc800b23e0529b3dec85b8b2887547f909e717143"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
+sha256_linux_x86_64 = "96661de9e1c16e1254f6cb3901d992258216295c381bd4ae16b9071e14ab153d"
+sha256_linux_aarch64 = "134a0244b399c73792db3e91337fa3c18f0d773fd78ecfc26b14560fec7bcd6d"
+sha256_macos_aarch64 = "2832e668f10d99a8b6d1a981d4dbf8c66b2fc330271571a98644ded2588fbacd"
+sha256_macos_x86_64 = "165c3c126c111bbfa828d26ab1b69fdaa0e2a70b3c266dbe733511387152292d"
+sha256_windows_x64 = "ae7342472e933cec977935733382962d287861ea40600470fcf45874f3f8d72c"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
 license = "PHP License"
 
 [php82]
 version = "8.2.32"
 version_windows = "8.2.31"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version_windows}-cli-win.zip"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
 sha256_linux_x86_64 = "2e609bb88bae88661dbd447e409531f7c36931adff480d8a0a74e812b889d1be"
+sha256_linux_aarch64 = "2c646a48523015daa0aff703876cab6c66d3fdd8d9012a348ceff78569558913"
+sha256_macos_aarch64 = "074e50b2b039a5f2c0830dd30494d714a10128f0d8eaf0e5e0c0dbe70c33d7f7"
+sha256_macos_x86_64 = "44013a26832908738a674848faa313282985fcd9f4efc20841d97bb9e2bc318c"
+sha256_windows_x64 = "4b0ea2e35fe2506302ac9e9a9fa2f66a865831c4bfaa98a82ff0a8e6006be02f"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
 license = "PHP License"
 
 [php83]
 version = "8.3.32"
 version_windows = "8.3.31"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version_windows}-cli-win.zip"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
 sha256_linux_x86_64 = "d7ff2bc40846f4efed2757e5929f7469c96f672fbf33eb4bb80cd695534750fe"
+sha256_linux_aarch64 = "e7644c646a62c44627d00e3deff498eeb943814adcc948b3de42a8ebfe07aaf2"
+sha256_macos_aarch64 = "1cc8148750bd1722031daba1618825a8b7d0a3830bb92c50d8dd844a1dcfb306"
+sha256_macos_x86_64 = "aad1365eb29a6788c59494d39bc71ef5f72a8a384495b0d6004007a768449f8b"
+sha256_windows_x64 = "10d2cb732b000e84204954cb238191cb15cc9fc0b3c1b2aa57f9d555d9904f9f"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
 license = "PHP License"
 
 [php85]
 version = "8.5.8"
 version_windows = "8.5.7"
 url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version_windows}-cli-win.zip"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
 sha256_linux_x86_64 = "517a18e0f0874de35669fe134eb3c52508e128a6d1da5bf890760cb800ada410"
+sha256_linux_aarch64 = "af995ef6b3187b39932a00714dfb97e44bfa40a9243c4c29f61f19d583950753"
+sha256_macos_aarch64 = "cba9bd8b38b51ef2c7cebf02af689e4481bbd07f65edc0b63d3a43b04e0c9db7"
+sha256_macos_x86_64 = "05751000c6643f82e8377ed19d55bc159f84bbed46ace1fcc6f62be9866c787c"
+sha256_windows_x64 = "8b4c7ba06b486834cbdb91cc82fded5a19455beaa995ff84cb3e15132fbf3b05"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
 license = "PHP License"
 
 # Local SMTP mail catcher with web UI (send from PHP, inspect in browser).
 [mailpit]
 version = "1.30.7"
 url = "https://github.com/axllent/mailpit/releases/download/v{version}/mailpit-{goos}-{march}.tar.gz"
-url_windows = "https://github.com/axllent/mailpit/releases/download/v{version}/mailpit-windows-{march}.zip"
+url_windows = "https://github.com/axllent/mailpit/releases/download/v{version}/mailpit-windows-amd64.zip"
 sha256_linux_x86_64 = "a35c053509441b95fb96da6479b3a26b3eb309e223232aced28255c011d29efc"
+sha256_linux_aarch64 = "12c736a73d122c55d3531ac2fc92cad96dbde283af661b6701fe32892bd438c5"
+sha256_macos_x86_64 = "0eb300122c21f533ddd9f0b85201fe9e06ccd7602e6d56f389d4f808fdb8bbd7"
+sha256_macos_aarch64 = "27e27abb8ff6604f76d0d82855808761f14e97adfb11f1271d42da8f655a98b9"
+sha256_windows_x64 = "e4815d2c961a4ad024f4d942d0d286fd7b7da49c49fc7f01c565ff296bd3fdce"
 target = "mailpit"
 strip_root = false
 type = "tar.gz"
+type_windows = "zip"
+verify_path = "mailpit.exe mailpit"
 license = "MIT"
 
 # PostgreSQL (embedded builds from zonky — tiny, includes initdb/pg_ctl).
-# Inner archive is tar.xz; extraction shells out to system tar+xz.
+# Inner archive is tar.xz; extraction shells out to system tar+xz
+# (Windows 10+ ships bsdtar which handles xz; otherwise a clear hint is shown).
+# Upstream classifiers use amd64/arm64v8 — hence the arm64v8 overrides below.
 [postgresql]
 version = "17.10.0"
 url = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-{goos}-{march}/{version}/embedded-postgres-binaries-{goos}-{march}-{version}.jar"
-url_linux_arm64 = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-linux-arm64v8/{version}/embedded-postgres-binaries-linux-arm64v8-{version}.jar"
+url_linux_aarch64 = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-linux-arm64v8/{version}/embedded-postgres-binaries-linux-arm64v8-{version}.jar"
+url_macos_aarch64 = "https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-darwin-arm64v8/{version}/embedded-postgres-binaries-darwin-arm64v8-{version}.jar"
 sha256_linux_x86_64 = "a6c44794a7a258621b8cb98c196bf621cdd705d9fa73c3628166b658c419877a"
+sha256_linux_aarch64 = "47aa73724470a8bdb5e68e3978c1f07c577ab7a5c23b97b84f99d7e165f4876f"
+sha256_macos_x86_64 = "667a0eea70157656649417777af452148f6c79ae3654b2cd057a37fd701bd9e9"
+sha256_macos_aarch64 = "b8c73288326af937b632208110b1d629c404ebef7519f8bcc7fd72404c68a36a"
+sha256_windows_x64 = "f418c95daa6473f05d5129803fdb674d49fb472ee5c94039d408c941f50a9721"
 target = "postgresql"
 strip_root = false
 type = "zip-txz"
+verify_path = "bin/postgres.exe bin/postgres"
 license = "PostgreSQL License"
 
 # MinIO — S3-compatible object storage (single static binary).
+# NOTE: the Windows asset has NO .exe suffix upstream; installBinaryAs adds
+# the local .exe name itself.
 [minio]
 version = "RELEASE.2025-09-07T16-13-09Z"
 url = "https://dl.min.io/server/minio/release/{goos}-{march}/minio.{version}"
-url_windows = "https://dl.min.io/server/minio/release/windows-amd64/minio.{version}.exe"
+url_windows = "https://dl.min.io/server/minio/release/windows-amd64/minio.{version}"
 sha256_linux_x86_64 = "7c5bd8512c6e966455b1d198209358b2d191c77a83ab377c4073281065fb855f"
+sha256_linux_aarch64 = "5c83cd2cf151717ba0243f73e1c7802ff36e272b67144bdd7f1f7d684fd6f03d"
+sha256_macos_x86_64 = "4759080aeef7385aaceaac1131c30aaeb99605921553967dc6d3ef4e16ac64f9"
+sha256_macos_aarch64 = "7c3b3039b76e55a1b80935848ed83998d5e8d317374f87851f46a019ff5c0aa4"
+sha256_windows_x64 = "af709e6ba68488404e85acdd22a3030d0f5e56a108d4b27d744f18ceb50861b4"
 target = "minio"
 binary_name = "minio"
 type = "binary"
+verify_path = "minio.exe minio"
 license = "AGPL-3.0"
 
 # Meilisearch — instant search engine (single binary).
+# version = "latest" floats: SHA pins would break on every upstream release,
+# so integrity relies on HTTPS + first-download lockfile (see header).
+# Upstream asset names differ from our {goos}-{march} scheme → explicit URLs.
 [meilisearch]
 version = "latest"
-url = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-{goos}-{march}"
+url = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-linux-amd64"
+url_linux_aarch64 = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-linux-aarch64"
+url_macos_x86_64 = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-macos-amd64"
+url_macos_aarch64 = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-macos-apple-silicon"
 url_windows = "https://github.com/meilisearch/meilisearch/releases/latest/download/meilisearch-windows-amd64.exe"
-sha256_linux_x86_64 = ""
 target = "meilisearch"
 binary_name = "meilisearch"
 type = "binary"
+verify_path = "meilisearch.exe meilisearch"
 license = "MIT"
 
 # Redis — in-memory cache & queue (Windows bundled port; Linux/macOS use
 # the system redis-server via PATH fallback — see the redis service spec).
+# The tporadowski zip is FLAT (no top-level folder): strip_root MUST stay false,
+# otherwise every entry is skipped and the install ends up silently empty.
 [redis]
 version = "5.0.14.1"
 url_windows = "https://github.com/tporadowski/redis/releases/download/v{version}/Redis-x64-{version}.zip"
+sha256_windows_x64 = "018ea18a35876383cbb5f4cd0258adfc87747cf9d619bce1cf73a2e36f720ccf"
 target = "redis"
-strip_root = true
+strip_root = false
 type = "zip"
+verify_path = "redis-server.exe"
 license = "BSD-3-Clause"
 
 # phpMyAdmin — web database GUI (served as a site at phpmyadmin.localhost).
+# Platform-neutral artifact: one generic sha256 applies to every OS/arch.
 [phpmyadmin]
 version = "5.2.3"
 url = "https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz"
-sha256_linux_x86_64 = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb47c102b"
+sha256 = "12ba1c425fa4071abbd4e7668c9ebdeac0b0755a467a6d6d5026122bb47c102b"
 target = "phpmyadmin"
 strip_root = true
 type = "tar.gz"
@@ -161,10 +229,11 @@ verify_path = "libraries/constants.php"
 license = "GPL-2.0"
 
 # Adminer — single-file database web GUI (served as a site).
+# It is a .php file: the installer must NOT append ".exe" on Windows.
 [adminer]
 version = "5.3.0"
 url = "https://github.com/vrana/adminer/releases/download/v{version}/adminer-{version}.php"
-sha256_linux_x86_64 = ""
+sha256 = "7dcc196e941b18b74635afe1740dcd86970ab08b8eba0f00f149925aea3972ed"
 target = "adminer"
 type = "binary"
 license = "Apache-2.0 / GPL-2.0"

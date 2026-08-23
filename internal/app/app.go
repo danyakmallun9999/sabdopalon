@@ -695,7 +695,8 @@ func isServicePackage(pkg string) bool {
 // installAdminer moves the downloaded single-file GUI into sites/adminer so it
 // is served like any other site at http://adminer.<tld>.
 func (a *App) installAdminer() int {
-	bin := filepath.Join(a.cfgOrBare().RootDir, "bin", "adminer")
+	cfg := a.cfgOrBare()
+	bin := filepath.Join(cfg.RootDir, "bin", "adminer")
 	var src string
 	entries, _ := os.ReadDir(bin)
 	for _, e := range entries {
@@ -708,7 +709,7 @@ func (a *App) installAdminer() int {
 		fmt.Fprintln(os.Stderr, "✗ downloaded Adminer file not found")
 		return 1
 	}
-	dest := filepath.Join(a.cfgOrBare().Root, "adminer", "public")
+	dest := filepath.Join(cfg.Root, "adminer", "public")
 	if err := os.MkdirAll(dest, 0o755); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
@@ -725,7 +726,7 @@ func (a *App) installAdminer() int {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
-	fmt.Printf("✓ Adminer ready → http://adminer.%s:%d/\n", a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
+	fmt.Printf("✓ Adminer ready → http://adminer.%s:%d/\n", cfg.TLD, cfg.Proxy.HTTPPort)
 	return 0
 }
 

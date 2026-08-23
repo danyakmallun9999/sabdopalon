@@ -527,17 +527,7 @@ func (m *Manager) Download(name string) error {
 
 	switch pkgType {
 	case "binary":
-		binName := p.BinaryName
-		if binName == "" {
-			binName = filepath.Base(downloadURL)
-			binName = strings.TrimSuffix(binName, ".tar.gz")
-			binName = strings.TrimSuffix(binName, ".zip")
-			if isWindows && !strings.HasSuffix(binName, ".exe") {
-				binName += ".exe"
-			}
-		} else if isWindows && !strings.HasSuffix(binName, ".exe") {
-			binName += ".exe"
-		}
+		binName := binaryArtifactName(&p, downloadURL, isWindows)
 		if err := installBinaryAs(tmpFile, staging, binName); err != nil {
 			return fmt.Errorf("install binary: %w", err)
 		}
@@ -557,6 +547,16 @@ func (m *Manager) Download(name string) error {
 		if err := extractTarGz(tmpFile, staging, p.StripRoot); err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
+	}
+
+	// Guard against silently-empty installs: an archive whose layout does
+	// not match the registry expectations (e.g. strip_root on a flat zip)
+	// used to extract to an empty tree that was then marked "installed".
+	if !treeHasFiles(staging) {
+		_ = os.RemoveAll(staging)
+		return fmt.Errorf(
+			"extraction produced no files for %s — archive layout mismatch (check strip_root / type / type_windows in packages.toml for this platform)",
+			name)
 	}
 
 	// Completion marker BEFORE promotion: the final target only ever appears
@@ -590,6 +590,38 @@ func installBinary(src *os.File, target string, isWindows bool) error {
 		name = "php.exe"
 	}
 	return installBinaryAs(src, target, name)
+}
+
+// binaryArtifactName decides the on-disk filename for a "binary"-type
+// package. Windows builds normally gain an .exe suffix — but never for
+// PHP-source artifacts like Adminer: a renamed "adminer.php.exe" could
+// neither be executed by PHP nor found by the site installer.
+func binaryArtifactName(p *PackageDef, downloadURL string, isWindows bool) string {
+	name := p.BinaryName
+	if name == "" {
+		name = filepath.Base(downloadURL)
+		name = strings.TrimSuffix(name, ".tar.gz")
+		name = strings.TrimSuffix(name, ".zip")
+	}
+	if isWindows && !strings.HasSuffix(name, ".exe") && !strings.HasSuffix(name, ".php") {
+		name += ".exe"
+	}
+	return name
+}
+
+// treeHasFiles reports whether the tree contains at least one regular file.
+func treeHasFiles(dir string) bool {
+	has := false
+	_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || has {
+			return nil
+		}
+		if !info.IsDir() {
+			has = true
+		}
+		return nil
+	})
+	return has
 }
 
 // installBinaryAs copies a single executable into target/<name> and marks it
@@ -760,6 +792,20 @@ func expandPlaceholders(url, version string) string {
 		"{march}", goArch(),
 	)
 	return r.Replace(url)
+}
+
+// wellFormedTemplate reports whether a URL/target template only uses
+// placeholders the expander actually understands. A stray "{version_windows}"
+// used to slip through silently and produce guaranteed-404 downloads.
+func wellFormedTemplate(tpl string) bool {
+	for _, tok := range regexp.MustCompile(`\{[^}]*\}`).FindAllString(tpl, -1) {
+		switch tok {
+		case "{version}", "{version_short}", "{os}", "{arch}", "{goos}", "{march}":
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // goArch returns the raw Go architecture name (amd64/arm64/386/arm).
