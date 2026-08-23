@@ -108,7 +108,7 @@ func (s *Server) Start() error {
 	errCh := make(chan error, 4)
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", httpPort),
+		Addr:         fmt.Sprintf("%s:%d", s.bindHost(), httpPort),
 		Handler:      s,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -183,7 +183,7 @@ func (s *Server) listenHTTPS(errCh chan<- error, certPath, keyPath string) bool 
 	}
 	s.httpsPortActual = httpsPort
 
-	httpsAddr := fmt.Sprintf(":%d", httpsPort)
+	httpsAddr := fmt.Sprintf("%s:%d", s.bindHost(), httpsPort)
 	quietLog := log.New(&handshakeFilter{next: os.Stderr}, "", log.LstdFlags)
 	httpsSrv := &http.Server{
 		Addr:         httpsAddr,
@@ -717,6 +717,15 @@ func (s *Server) dashboardFallback(w http.ResponseWriter, r *http.Request, reque
 // discoverSites lists site folder names via the shared scanner.
 func discoverSites(cfg *config.Engine) ([]string, error) {
 	return vhost.Scan(cfg)
+}
+
+// bindHost — security default: sites answer on 127.0.0.1 only. LAN access
+// is an explicit opt-in ([proxy] lan = true) because PHP executes code.
+func (s *Server) bindHost() string {
+	if s.cfg.Proxy.LAN {
+		return ""
+	}
+	return "127.0.0.1"
 }
 
 func normalizeHost(h string) string {

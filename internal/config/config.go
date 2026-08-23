@@ -21,6 +21,7 @@ type Engine struct {
 	Proxy struct {
 		HTTPPort  int
 		HTTPSPort int
+		LAN       bool // true = sites reachable from the LAN (default: localhost only)
 	}
 
 	PHP struct {
@@ -82,6 +83,8 @@ func Load(baseDir string) (*Engine, error) {
 
 	e.Proxy.HTTPPort = t.GetInt("proxy", "http_port", 8080)
 	e.Proxy.HTTPSPort = t.GetInt("proxy", "https_port", 8443)
+	// Security default: sites bind 127.0.0.1 unless explicitly opted in.
+	e.Proxy.LAN = t.GetBool("proxy", "lan", false)
 
 	e.PHP.Binary = t.GetString("php", "binary", "")
 	e.PHP.Prefer = t.GetString("php", "prefer", "")
@@ -142,6 +145,8 @@ data = "%s"
 [proxy]
 http_port = %d
 https_port = %d
+# false = situs hanya dari komputer ini (127.0.0.1). true = terbuka ke LAN.
+lan = %t
 
 [php]
 # empty = auto-detect (bundled → PATH → system)
@@ -174,6 +179,7 @@ meilisearch = %t
 		rel(e.Data, "./data"),
 		e.Proxy.HTTPPort,
 		e.Proxy.HTTPSPort,
+		e.Proxy.LAN,
 		e.PHP.Binary,
 		e.Database.Engine,
 		rel(e.Database.Path, "./data/sabdopalon.db"),

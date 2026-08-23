@@ -88,6 +88,7 @@ type configPayload struct {
 	TLD       string `json:"tld,omitempty"`
 	HTTPPort  *int   `json:"http_port,omitempty"`
 	HTTPSPort *int   `json:"https_port,omitempty"`
+	Lan       *bool  `json:"lan,omitempty"`
 	DBEngine  string `json:"db_engine,omitempty"`
 	DBPort    *int   `json:"db_port,omitempty"`
 	// Multi-daemon: per-engine switches + live state snapshots.
@@ -121,6 +122,7 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 			TLD:              s.cfg.TLD,
 			HTTPPort:         intPtr(orActual(httpPort, s.cfg.Proxy.HTTPPort)),
 			HTTPSPort:        intPtr(orActual(httpsPort, s.cfg.Proxy.HTTPSPort)),
+			Lan:              boolPtr(s.cfg.Proxy.LAN),
 			DBEngine:         s.cfg.Database.Engine,
 			DBPort:           intPtr(s.cfg.Database.Port),
 			DBMariadbEnabled: boolPtr(s.cfg.Database.MariaDBEnabled),
@@ -162,6 +164,10 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		if p.HTTPSPort != nil && validPort(*p.HTTPSPort) && *p.HTTPSPort != s.cfg.Proxy.HTTPSPort {
 			s.cfg.Proxy.HTTPSPort = *p.HTTPSPort
+			restart = true
+		}
+		if p.Lan != nil && *p.Lan != s.cfg.Proxy.LAN {
+			s.cfg.Proxy.LAN = *p.Lan
 			restart = true
 		}
 		if p.DBEngine != "" && p.DBEngine != s.cfg.Database.Engine {
