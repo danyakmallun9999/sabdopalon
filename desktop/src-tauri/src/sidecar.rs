@@ -64,13 +64,23 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 
     let bootstrapped = dir.join("config/engine.toml").is_file();
 
-    // Crash/console logging for the sidecar.
+    // Crash/console logging for the sidecar. Rotate first — an append-only
+    // log would grow unbounded over weeks of daily use.
     let logs_dir = dir.join("logs");
     std::fs::create_dir_all(&logs_dir)?;
+    let sidecar_log = logs_dir.join("sidecar.log");
+    if let Ok(meta) = std::fs::metadata(&sidecar_log) {
+        const ROTATE_AT: u64 = 10 * 1024 * 1024; // 10 MB
+        if meta.len() > ROTATE_AT {
+            let old = logs_dir.join("sidecar.log.old");
+            let _ = std::fs::remove_file(&old);
+            let _ = std::fs::rename(&sidecar_log, &old);
+        }
+    }
     let log_file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(logs_dir.join("sidecar.log"))?;
+        .open(&sidecar_log)?;
 
     // Core stack (PHP/MariaDB/phpMyAdmin) ships in the app's resource dir on
     // full-bundle builds. Tauri copies resources preserving their

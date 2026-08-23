@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/coder/websocket"
@@ -60,14 +61,26 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 			if n > 0 {
 				chunk := append(pend, buf[:n]...)
 				cut := utf8PrefixLen(chunk)
-				if cut > 0 {
+				switch {
+				case cut > 0:
 					if werr := c.Write(ctx, websocket.MessageText, chunk[:cut]); werr != nil {
 						cancel()
 						return
 					}
 					pend = append(pend[:0], chunk[cut:]...)
-				} else if len(chunk) < utf8.UTFMax*2 {
+				default:
+					// No valid boundary yet — hold. If a pathological binary
+					// flood never yields one, flush it through with U+FFFD
+					// placeholders instead of dropping or growing forever.
 					pend = append(pend[:0], chunk...)
+					if len(pend) > 8192 {
+						safe := strings.ToValidUTF8(string(pend), "\uFFFD")
+						if werr := c.Write(ctx, websocket.MessageText, []byte(safe)); werr != nil {
+							cancel()
+							return
+						}
+						pend = pend[:0]
+					}
 				}
 			}
 			if err != nil {

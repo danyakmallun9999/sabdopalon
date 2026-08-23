@@ -305,28 +305,69 @@ func (m *Manager) Download(name string) error {
 	}
 
 	m.printf("  ⬇  downloading %s %s ...\n", p.Name, ver)
-	tmpFile, err := os.CreateTemp("", "sabdopalon-pkg-*")
+
+	// Resume-friendly download: a stable .part file in bin/ survives
+	// interrupted fetches; HTTP Range continues where it left off. The
+	// SHA-256 check below still guards integrity either way.
+	_ = os.MkdirAll(m.binRoot, 0o755)
+	partPath := filepath.Join(m.binRoot, "."+name+".part")
+	var start int64
+	if fi, err := os.Stat(partPath); err == nil && fi.Size() > 0 {
+		start = fi.Size()
+		m.printf("  ↻  resuming from %.1f MB ...\n", float64(start)/1e6)
+	}
+
+	req, err := http.NewRequest("GET", downloadURL, nil)
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmpFile.Name())
-	defer tmpFile.Close()
-
-	client := &http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Get(downloadURL)
+	if start > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", start))
+	}
+	client := &http.Client{Timeout: 30 * time.Minute}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+
+	out, err := os.OpenFile(partPath, os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	switch {
+	case start > 0 && resp.StatusCode == http.StatusPartialContent:
+		_, _ = out.Seek(0, io.SeekEnd) // server honoured Range — append
+	case resp.StatusCode == http.StatusOK:
+		start = 0 // server ignored Range — restart cleanly
+		_ = out.Truncate(0)
+		_, _ = out.Seek(0, 0)
+	default:
+		out.Close()
 		return fmt.Errorf("download: HTTP %d from %s", resp.StatusCode, downloadURL)
 	}
 
-	written, err := io.Copy(tmpFile, resp.Body)
-	if err != nil {
-		return fmt.Errorf("save: %w", err)
+	delta, err := io.Copy(out, resp.Body)
+	total := start + delta
+	closeErr := out.Close()
+	if closeErr == nil && (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusPartialContent) {
+		m.printf("  ✓  downloaded (%.1f MB total)\n", float64(total)/1e6)
 	}
-	m.printf("  ✓  downloaded %s (%.1f MB)\n", p.Name, float64(written)/1e6)
+	if closeErr != nil {
+		return closeErr
+	}
+	if err != nil {
+		return fmt.Errorf("save: %w", err) // part file kept for the next retry
+	}
+
+	tmpFile, err := os.Open(partPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		tmpFile.Close()
+		_ = os.Remove(partPath) // consumed on success; kept on failure above
+	}()
 
 	// Compute SHA-256 once; verify against pin/lockfile when available.
 	gotHash, err := fileSHA256(tmpFile)
