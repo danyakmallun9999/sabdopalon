@@ -3,6 +3,16 @@
 All notable changes to Sabdopalon are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is semver-ish.
 
+## [0.7.5] — 2026-08-23
+
+### Fixed
+- **Desktop installers were never uploaded** — every release to date: builds
+  use `--target <triple>` so bundles land under `target/<triple>/release/
+  bundle`, but the upload glob read `target/release/bundle/**` (zero
+  matches, silently "successful"). Globs now span all triples, and a
+  fail-loud verification step asserts the expected installer exists before
+  uploading.
+
 ## [0.7.4] — 2026-08-23
 
 ### Fixed

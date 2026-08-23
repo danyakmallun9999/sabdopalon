@@ -315,13 +315,29 @@ jobs:
           npm ci
           npm run build -- --target ${{ matrix.target }} ${{ matrix.args }}
 
+      - name: Verify desktop artifacts exist (fail loud)
+        if: always()
+        working-directory: desktop/src-tauri/target
+        shell: bash
+        run: |
+          set -e
+          echo "bundle trees:"; find . -path '*release/bundle*' -maxdepth 6 -type f | head -20 || true
+          case "${{ matrix.name }}" in
+            windows)  test -n "$(find . -path '*bundle*' -name '*-setup.exe' -type f | head -1)" ;;
+            macos)    test -n "$(find . -path '*bundle*' -name '*.dmg' -type f | head -1)" ;;
+            linux)    test -n "$(find . -path '*bundle*' \( -name '*.AppImage' -o -name '*.deb' \) -type f | head -1)" ;;
+          esac && echo "artifacts OK"
+
+      # NOTE: builds use --target <triple>, so bundles live under
+      # target/<triple>/release/bundle — a plain target/release/bundle glob
+      # matches NOTHING (silently skipped uploads in every past release!).
       - name: Upload artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            desktop/src-tauri/target/release/bundle/**/*.deb
-            desktop/src-tauri/target/release/bundle/**/*.rpm
-            desktop/src-tauri/target/release/bundle/**/*.AppImage
-            desktop/src-tauri/target/release/bundle/**/*.msi
-            desktop/src-tauri/target/release/bundle/**/*.exe
-            desktop/src-tauri/target/release/bundle/**/*.dmg
+            desktop/src-tauri/target/**/bundle/**/*.deb
+            desktop/src-tauri/target/**/bundle/**/*.rpm
+            desktop/src-tauri/target/**/bundle/**/*.AppImage
+            desktop/src-tauri/target/**/bundle/**/*.msi
+            desktop/src-tauri/target/**/bundle/**/*.dmg
+            desktop/src-tauri/target/**/bundle/**/*-setup.exe
