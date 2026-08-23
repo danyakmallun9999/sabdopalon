@@ -1,262 +1,390 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import {
-  Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
+  Database,
+  HardDrive,
   LoaderCircle,
+  Mail,
   Rocket,
+  Search,
   Server,
-  Sparkles,
+  Boxes,
+  ArrowRight,
 } from "lucide-react"
 
-import api, { type SetupJob } from "@/lib/api"
+import api, { type SetupJob, type SetupStatus, type SetupTool } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
-import { Switch } from "@/components/ui/switch"
 
-const STEPS = ["Pilihan stack", "Instalasi", "Selesai"]
+const TOOL_ICONS: Record<string, typeof Database> = {
+  postgresql: Database,
+  redis: Boxes,
+  mailpit: Mail,
+  minio: HardDrive,
+  meilisearch: Search,
+}
+
+const CORE_ICONS: Record<string, typeof Database> = {
+  php: Server,
+  mariadb: Database,
+  phpmyadmin: Boxes,
+}
 
 export default function SetupPage() {
-  const [step, setStep] = useState(0)
-  const [installMariaDB, setInstallMariaDB] = useState(true)
-  const [installPostgres, setInstallPostgres] = useState(false)
-  const [createSample, setCreateSample] = useState(true)
+  const [status, setStatus] = useState<SetupStatus | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [advanced, setAdvanced] = useState(false)
+  const [tld, setTld] = useState("localhost")
+  const [httpPort, setHttpPort] = useState("8080")
+  const [httpsPort, setHttpsPort] = useState("8443")
+  const [sample, setSample] = useState(true)
   const [job, setJob] = useState<SetupJob | null>(null)
-  const [progress, setProgress] = useState(10)
+  const [progress, setProgress] = useState(5)
   const logRef = useRef<HTMLPreElement>(null)
 
-  // Poll the setup job while it runs.
+  // Real component/tool inventory — never static text.
   useEffect(() => {
-    if (!job?.running) {
-      setProgress((p) => (job?.done ? 100 : p))
-      return
-    }
+    api
+      .setupStatus()
+      .then(setStatus)
+      .catch(() => toast.error("Gagal memuat status instalasi"))
+  }, [])
+
+  // Poll the setup job while it runs; progress is derived from the poll
+  // result itself (no setState-in-effect).
+  useEffect(() => {
+    if (!job?.running) return
     const t = setInterval(() => {
-      setProgress((p) => Math.min(p + 1.5 + Math.random() * 4, 95))
-      api.setupJob().then(setJob).catch(() => {})
+      api
+        .setupJob()
+        .then((j) => {
+          setJob(j)
+          if (j.done) setProgress(100)
+          else setProgress((p) => Math.min(p + 1.5 + Math.random() * 4, 95))
+        })
+        .catch(() => {})
     }, 800)
     return () => clearInterval(t)
   }, [job?.running])
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
-    if (job?.done && !job?.running) {
-      if (job.error) {
-        toast.error(job.error)
-      } else {
-        setStep(2)
-        toast.success("Sabdopalon is ready! Reloading…")
-        setTimeout(() => window.location.reload(), 1800)
-      }
+    if (job?.done && !job?.running && !job?.error) {
+      setTimeout(() => window.location.reload(), 3000)
     }
-  }, [job?.done, job?.running])
+  }, [job?.done, job?.running, job?.error])
+
+  function toggleTool(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   async function start() {
+    const hp = parseInt(httpPort, 10)
+    const sp = parseInt(httpsPort, 10)
+    if (!Number.isInteger(hp) || hp < 1 || hp > 65535 || !Number.isInteger(sp) || sp < 1 || sp > 65535) {
+      toast.error("Port harus berupa angka 1–65535")
+      return
+    }
+    if (!/^[a-z0-9.]+$/.test(tld.trim())) {
+      toast.error("TLD hanya boleh berisi huruf kecil, angka, dan titik")
+      return
+    }
     setProgress(5)
-    setStep(1)
     const r = await api.runSetup({
-      install_mariadb: installMariaDB,
-      install_postgres: installPostgres,
-      create_sample_site: createSample,
-      db_engine: installMariaDB ? "mariadb" : "sqlite",
-      http_port: 8080,
-      https_port: 8443,
-      tld: "localhost",
+      install_mariadb: true,
+      db_engine: "mariadb",
+      tools: [...selected],
+      tld: tld.trim(),
+      http_port: hp,
+      https_port: sp,
+      create_sample_site: sample,
     })
     if (r.error) {
       toast.error(r.error)
-      setStep(0)
       return
     }
     setJob({ running: true, done: false, output: "" })
   }
 
+  const installing = job !== null
+  const success = Boolean(job?.done && !job?.running && !job?.error)
+  const availableTools = (status?.tools ?? []).filter((t) => !t.installed)
+  const activeTools = (status?.tools ?? []).filter((t) => t.installed)
+
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col items-center gap-2 text-center">
-        <div className="bg-primary/10 flex size-14 items-center justify-center rounded-2xl">
-          <Sparkles className="text-primary size-7" />
-        </div>
-        <h2 className="text-2xl font-semibold">Selamat datang di Sabdopalon 🐫</h2>
-        <p className="text-muted-foreground max-w-xl text-sm">
-          Lingkungan development PHP lokal — semuanya tersimpan dalam satu folder, tanpa
-          menyentuh sistem operasi kamu. Pilih stack, dan kami pasang semuanya dalam beberapa menit.
-        </p>
-      </div>
+    <div className="min-h-dvh bg-background">
+      {/* subtle top glow */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-primary/8 to-transparent" />
 
-      {/* Stepper */}
-      <ol className="flex items-center justify-center gap-2">
-        {STEPS.map((label, i) => {
-          const done = step > i || (step === 2 && i === 2)
-          const active = step === i
-          return (
-            <li key={label} className="flex items-center gap-2">
-              <span
-                className={`flex size-7 items-center justify-center rounded-full text-xs font-medium ${
-                  done
-                    ? "bg-primary text-primary-foreground"
-                    : active
-                      ? "border-primary text-primary border-2"
-                      : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {done ? <Check className="size-4" /> : i + 1}
-              </span>
-              <span className={`text-sm ${active ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                {label}
-              </span>
-              {i < STEPS.length - 1 && <Separator className="w-8" />}
-            </li>
-          )
-        })}
-      </ol>
-
-      {step === 0 && !job && (
-        <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Server className="size-4" /> Pilihan stack
-              </CardTitle>
-              <CardDescription>
-                Bundle bawaan: PHP 8.5 + MariaDB + phpMyAdmin — kombinasi klasik untuk WordPress
-                dan Laravel. Semua bisa diubah nanti.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-3">
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="setup-mariadb" className="font-medium">
-                    MariaDB + phpMyAdmin (database + web GUI)
-                  </Label>
-                  <span className="text-muted-foreground text-xs">
-                    Database bawaan + kelola lewat browser di phpmyadmin.localhost
-                  </span>
-                </div>
-                <Switch
-                  id="setup-mariadb"
-                  checked={installMariaDB}
-                  onCheckedChange={setInstallMariaDB}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="setup-postgres" className="font-medium">
-                    PostgreSQL <Badge variant="secondary" className="ml-1">opsional</Badge>
-                  </Label>
-                  <span className="text-muted-foreground text-xs">
-                    Hanya jika kamu butuh PostgreSQL (Laravel/Node projects)
-                  </span>
-                </div>
-                <Switch
-                  id="setup-postgres"
-                  checked={installPostgres}
-                  onCheckedChange={setInstallPostgres}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor="setup-sample" className="font-medium">
-                    Buat situs contoh
-                  </Label>
-                  <span className="text-muted-foreground text-xs">
-                    Situs "myapp" langsung bisa dibuka setelah selesai
-                  </span>
-                </div>
-                <Switch
-                  id="setup-sample"
-                  checked={createSample}
-                  onCheckedChange={setCreateSample}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center justify-between">
-            <p className="text-muted-foreground max-w-sm text-xs">
-              Unduhan diverifikasi (SHA-256) dan disimpan di dalam folder Sabdopalon — tidak ada
-              instalasi ke sistem.
-            </p>
-            <Button size="lg" onClick={start}>
-              <Rocket /> Mulai instalasi <ChevronRight />
-            </Button>
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-6 py-10">
+        {/* Hero */}
+        <header className="mb-8 flex flex-col items-center gap-2 text-center">
+          <div className="bg-primary/10 flex size-14 items-center justify-center rounded-2xl">
+            <SparklesIcon />
           </div>
-        </>
-      )}
+          <h1 className="text-2xl font-semibold">Selamat datang di Sabdopalon</h1>
+          <p className="text-muted-foreground max-w-xl text-sm">
+            Lingkungan development PHP lokal dalam satu folder — tanpa menyentuh sistem operasi.
+            Semua unduhan diverifikasi SHA-256 dan bisa dihapus kapan saja.
+          </p>
+        </header>
 
-      {step >= 1 && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <CardTitle className="text-base">
-                {step === 2 && job?.done && !job?.error ? (
-                  <span className="inline-flex items-center gap-2 text-emerald-500">
-                    <CheckCircle2 /> Sabdopalon siap digunakan!
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-2">
-                    {job?.running && <LoaderCircle className="size-4 animate-spin" />}
-                    Menyiapkan Sabdopalon…
-                  </span>
-                )}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Progress value={progress} className="w-44" />
-                <span className="text-muted-foreground text-xs tabular-nums">{progress}%</span>
-              </div>
+        {installing ? (
+          <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
+        ) : (
+          <div className="grid flex-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+            {/* LEFT — core + settings */}
+            <div className="flex flex-col gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Termasuk dalam paket</CardTitle>
+                  <CardDescription>
+                    Komponen inti selalu dipasang — tidak perlu dipilih. Status di bawah dibaca
+                    langsung dari folder instalasi.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col divide-y">
+                  {(status?.components ?? []).map((c) => (
+                    <div key={c.key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <div className="bg-muted flex size-9 items-center justify-center rounded-lg">
+                          {coreIcon(c.key)}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium">{c.label}</span>
+                          <span className="text-muted-foreground text-xs">
+                            {c.installed ? (c.version ? `v${c.version}` : "terdeteksi") : "akan dipasang oleh wizard"}
+                          </span>
+                        </div>
+                      </div>
+                      {c.installed ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" variant="secondary">
+                          <CheckCircle2 className="size-3.5" /> Terpasang
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          Termasuk paket
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                  {!status && <SkeletonRows rows={3} />}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Pengaturan</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3">
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">Buat situs contoh</span>
+                      <span className="text-muted-foreground text-xs">
+                        Situs "myapp" langsung bisa dibuka setelah selesai
+                      </span>
+                    </span>
+                    <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5" />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => setAdvanced((v) => !v)}
+                    className="text-muted-foreground flex w-fit items-center gap-1 text-xs hover:underline"
+                  >
+                    <ChevronDown className={`size-3.5 transition-transform ${advanced ? "rotate-180" : ""}`} />
+                    Pengaturan lanjutan (domain & port)
+                  </button>
+                  {advanced && (
+                    <div className="grid grid-cols-1 gap-3 @lg/main:grid-cols-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="setup-tld" className="text-xs">
+                          Domain lokal (*.…)
+                        </Label>
+                        <Input id="setup-tld" value={tld} onChange={(e) => setTld(e.target.value)} placeholder="localhost" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="setup-http" className="text-xs">
+                          Port HTTP
+                        </Label>
+                        <Input id="setup-http" inputMode="numeric" value={httpPort} onChange={(e) => setHttpPort(e.target.value)} />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="setup-https" className="text-xs">
+                          Port HTTPS
+                        </Label>
+                        <Input id="setup-https" inputMode="numeric" value={httpsPort} onChange={(e) => setHttpsPort(e.target.value)} />
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-            <pre
-              ref={logRef}
-              className="bg-background text-muted-foreground max-h-80 overflow-y-auto rounded-lg border p-4 font-mono text-xs whitespace-pre-wrap"
-            >
-              {job?.output || "Memulai…"}
-            </pre>
-            {job?.error && (
-              <div className="bg-destructive/10 rounded-lg border border-destructive/30 p-3">
-                <p className="text-destructive text-sm">
-                  Setup gagal: {job.error}
+
+            {/* RIGHT — optional tools + CTA */}
+            <div className="flex flex-col gap-4 lg:sticky lg:top-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Tools tambahan</CardTitle>
+                  <CardDescription>Centang yang mau dipasang sekarang — sisanya bisa kapan saja lewat halaman Packages.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  {availableTools.length === 0 && status && (
+                    <p className="text-muted-foreground text-sm">Semua tools sudah terpasang 🎉</p>
+                  )}
+                  {availableTools.map((tool) => (
+                    <ToolRow key={tool.key} tool={tool} checked={selected.has(tool.key)} onToggle={() => toggleTool(tool.key)} />
+                  ))}
+                  {!status && <SkeletonRows rows={4} />}
+
+                  {activeTools.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Sudah aktif</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeTools.map((t) => (
+                          <Badge key={t.key} variant="secondary" className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 className="size-3" /> {t.label}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="flex flex-col gap-2">
+                <p className="text-muted-foreground px-1 text-xs">
+                  {selected.size > 0
+                    ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
+                    : "Hanya 3 komponen inti yang akan dipersiapkan."}
                 </p>
-                <p className="text-muted-foreground mt-1 text-xs">
-                  Kamu bisa mencoba lagi nanti lewat halaman Packages, atau jalankan ulang wizard.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() => {
-                    setJob(null)
-                    setStep(0)
-                    setProgress(10)
-                  }}
-                >
-                  <ChevronLeft /> Kembali
+                <Button size="lg" className="w-full" disabled={!status} onClick={start}>
+                  <Rocket /> Selesaikan persiapan <ArrowRight />
                 </Button>
               </div>
-            )}
-            {step === 2 && job?.done && !job?.error && (
-              <div className="bg-emerald-500/10 mt-2 rounded-lg border border-emerald-500/30 p-3">
-                <p className="text-sm">
-                  Dashboard akan dimuat ulang — situs kamu siap dibuka di{" "}
-                  <code className="bg-muted rounded px-1 py-0.5">http://myapp.localhost:8080</code>
-                </p>
-              </div>
-            )}
-          </CardHeader>
-        </Card>
-      )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
+  )
+}
+
+function SparklesIcon() {
+  return <span className="text-2xl" role="img" aria-label="Sabdopalon">🐫</span>
+}
+
+function coreIcon(key: string) {
+  const Icon = CORE_ICONS[key] ?? Server
+  return <Icon className="text-muted-foreground size-4" />
+}
+
+function ToolRow({ tool, checked, onToggle }: { tool: SetupTool; checked: boolean; onToggle: () => void }) {
+  const Icon = TOOL_ICONS[tool.key] ?? Boxes
+  return (
+    <label
+      className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3 transition-colors ${
+        checked ? "border-primary/50 bg-primary/5" : "hover:bg-muted/40"
+      }`}
+    >
+      <span className="flex min-w-0 items-start gap-3">
+        <div className="bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
+          <Icon className="text-muted-foreground size-4" />
+        </div>
+        <span className="flex min-w-0 flex-col">
+          <span className="text-sm font-medium">{tool.label}</span>
+          <span className="text-muted-foreground truncate text-xs">{tool.description}</span>
+        </span>
+      </span>
+      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1 shrink-0" aria-label={tool.label} />
+    </label>
+  )
+}
+
+function SkeletonRows({ rows }: { rows: number }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="bg-muted h-11 animate-pulse rounded-lg" />
+      ))}
+    </div>
+  )
+}
+
+function InstallPanel({
+  job,
+  progress,
+  success,
+  logRef,
+}: {
+  job: SetupJob | null
+  progress: number
+  success: boolean
+  logRef: React.RefObject<HTMLPreElement | null>
+}) {
+  return (
+    <Card className="mx-auto w-full max-w-3xl">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-base">
+            {success ? (
+              <span className="inline-flex items-center gap-2 text-emerald-500">
+                <CheckCircle2 /> Sabdopalon siap digunakan!
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <LoaderCircle className="size-4 animate-spin" /> Menyiapkan Sabdopalon…
+              </span>
+            )}
+          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Progress value={progress} className="w-44" />
+            <span className="text-muted-foreground text-xs tabular-nums">{Math.round(progress)}%</span>
+          </div>
+        </div>
+        <pre
+          ref={logRef}
+          className="bg-background text-muted-foreground max-h-96 overflow-y-auto rounded-lg border p-4 font-mono text-xs whitespace-pre-wrap"
+        >
+          {job?.output || "Memulai…"}
+        </pre>
+        {job?.error && (
+          <div className="bg-destructive/10 rounded-lg border border-destructive/30 p-3">
+            <p className="text-destructive text-sm">Setup gagal: {job.error}</p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Kamu bisa mencoba lagi dari sini, atau lanjutkan manual lewat halaman Packages nanti.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => window.location.reload()}
+            >
+              Muat ulang wizard
+            </Button>
+          </div>
+        )}
+        {success && (
+          <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 p-3">
+            <p className="text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
+            <Button size="sm" onClick={() => window.location.reload()}>
+              Masuk ke Dashboard <ArrowRight />
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+    </Card>
   )
 }

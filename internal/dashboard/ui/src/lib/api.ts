@@ -140,12 +140,27 @@ export type LogResponse = {
   error?: string
 }
 
+export type SetupComponent = {
+  key: string
+  label: string
+  version?: string
+  installed: boolean
+}
+
+export type SetupTool = {
+  key: string
+  label: string
+  description: string
+  installed: boolean
+}
+
 export type SetupStatus = {
   bootstrapped: boolean
   dirs_ok: boolean
-  php_installed: boolean
   db_engine: string
   root_dir: string
+  components?: SetupComponent[]
+  tools?: SetupTool[]
 }
 
 export type SetupJob = {

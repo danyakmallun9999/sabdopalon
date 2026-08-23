@@ -140,7 +140,13 @@ func (a *App) setup() int {
 		}
 	}
 
-	// 7. Summary + next steps.
+	// 7. Completion marker — keeps GUI wizard / dashboard gating consistent
+	// with the desktop flow.
+	if err := bootstrap.MarkSetupComplete(rootDir); err != nil {
+		fmt.Fprintf(os.Stderr, "  ⚠ mark setup complete: %v\n", err)
+	}
+
+	// 8. Summary + next steps.
 	fmt.Printf(`
   ─────────────────────────────────────────────
   ✓  Sabdopalon is ready in:

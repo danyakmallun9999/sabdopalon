@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/deploy"
@@ -40,22 +41,45 @@ func EnsureLayout(rootDir string) error {
 	return nil
 }
 
-// FirstRun reports whether this install has never been set up: true when
-// config/engine.toml is missing, the sites dir is empty, or the SQLite
-// database file has never been created. Detection is state-based so it
-// survives upgrades without any hidden marker file.
-func FirstRun(rootDir string) bool {
-	cfgPath := filepath.Join(rootDir, "config", "engine.toml")
-	if _, err := os.Stat(cfgPath); err != nil {
+// setupCompleteMarker is written into the root dir ONLY after a setup run
+// finished successfully (GUI wizard or CLI wizard). Until it exists — or the
+// install predates markers (LegacyComplete) — the SPA keeps showing the
+// wizard instead of leaking into a half-prepared dashboard.
+const setupCompleteMarker = ".sabdopalon-setup-complete"
+
+// MarkSetupComplete records that a first-run setup finished successfully.
+func MarkSetupComplete(rootDir string) error {
+	return os.WriteFile(filepath.Join(rootDir, setupCompleteMarker),
+		[]byte("setup completed "+time.Now().Format(time.RFC3339)+"\n"), 0o644)
+}
+
+// SetupComplete reports whether the completion marker exists.
+func SetupComplete(rootDir string) bool {
+	_, err := os.Stat(filepath.Join(rootDir, setupCompleteMarker))
+	return err == nil
+}
+
+// LegacyComplete recognises installs created before the marker existed:
+// they have real data (sites or a database file), so forcing them through
+// the wizard again would be noise.
+func LegacyComplete(rootDir string) bool {
+	if entries, err := os.ReadDir(filepath.Join(rootDir, "sites")); err == nil && len(entries) > 0 {
 		return true
 	}
-	if entries, err := os.ReadDir(filepath.Join(rootDir, "sites")); err == nil && len(entries) == 0 {
-		return true
-	}
-	if _, err := os.Stat(filepath.Join(rootDir, "data", "sabdopalon.db")); err != nil {
+	if _, err := os.Stat(filepath.Join(rootDir, "data", "sabdopalon.db")); err == nil {
 		return true
 	}
 	return false
+}
+
+// Bootstrapped is the single source of truth for "may enter the dashboard":
+// a config exists AND (the setup-completion marker OR pre-marker legacy data).
+func Bootstrapped(rootDir string) bool {
+	cfgPath := filepath.Join(rootDir, "config", "engine.toml")
+	if _, err := os.Stat(cfgPath); err != nil {
+		return false
+	}
+	return SetupComplete(rootDir) || LegacyComplete(rootDir)
 }
 
 // WriteDefaultConfig writes a clean default engine.toml for a fresh install.
@@ -130,6 +154,16 @@ func mariadbBundled(binDir string) bool {
 	}
 	st, err := os.Stat(filepath.Join(root, name))
 	return err == nil && !st.IsDir()
+}
+
+// MariaDBBundled is the exported form of mariadbBundled (used by the setup
+// wizard status endpoint).
+func MariaDBBundled(binDir string) bool { return mariadbBundled(binDir) }
+
+// PhpMyAdminBundled reports whether a COMPLETE phpMyAdmin tree exists in the
+// bundled bin dir (canary files, not mere directory presence).
+func PhpMyAdminBundled(binDir string) bool {
+	return deploy.PHPMyAdminComplete(filepath.Join(binDir, "phpmyadmin"))
 }
 
 // binDirOf resolves the bundled-bin directory honoring SABDOPALON_BIN_DIR.

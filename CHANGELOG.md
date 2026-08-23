@@ -26,6 +26,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 - **pkgmgr hardening** — extraction is staged and verified before promotion;
   an archive yielding zero files fails loudly instead of marking an empty
   tree as installed; URL overrides use the exact `platformKey()` vocabulary.
+- **Setup wizard revamp** — full-screen single-page wizard (no sidebar/header)
+  with live inventory: **"Termasuk dalam paket"** lists PHP/MariaDB/phpMyAdmin
+  with real installed-state badges (not static text), **"Tools tambahan"** on
+  the right shows only not-yet-installed tools as checkboxes (Redis hidden on
+  Linux/macOS; MinIO version hidden when too long), **"Pengaturan lanjutan"**
+  collapsed by default. Gate no longer leaks to the dashboard on refresh/
+  restart mid-setup — a completion marker is written only on success; legacy
+  installs remain bootstrapped via real data detection.
 
 ## [0.7.5] — 2026-08-23
 

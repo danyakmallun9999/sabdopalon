@@ -43,10 +43,7 @@ export function App() {
   // spans exactly from the header to the bottom of the viewport and scrolls
   // internally — no window-level gap under the fold.
   const location = useLocation()
-  const fullBleed =
-    !setupLoaded || (setup !== null && !setup.bootstrapped)
-      ? false
-      : location.pathname === "/sites" || location.pathname === "/terminal"
+  const fullBleed = location.pathname === "/sites" || location.pathname === "/terminal"
 
   // One-shot bootstrap check: unbuilt installs redirect to the setup wizard.
   useEffect(() => {
@@ -60,6 +57,17 @@ export function App() {
   }, [])
 
   if (!setupLoaded) return null
+
+  // First-run gate: the wizard takes over the WHOLE window — no sidebar, no
+  // header, no dashboard chrome. The user cannot reach the dashboard until
+  // setup completes (backend marker decides).
+  if (setup !== null && !setup.bootstrapped) {
+    return (
+      <Suspense fallback={null}>
+        <SetupPage />
+      </Suspense>
+    )
+  }
 
   return (
     <LiveProvider>
@@ -85,36 +93,21 @@ export function App() {
               >
                 <Suspense fallback={<PageSkeleton />}>
                   <Routes>
-                    <Route
-                      path="/setup"
-                      element={
-                        setup && !setup.bootstrapped ? (
-                          <SetupPage />
-                        ) : (
-                          <Navigate to="/dashboard" replace />
-                        )
-                      }
-                    />
-                    {setup && !setup.bootstrapped ? (
-                      <>
-                        <Route path="/" element={<DashboardPage />} />
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                      </>
-                    ) : (
-                      <>
-                        <Route path="/" element={<DashboardPage />} />
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="/sites" element={<SitesPage />} />
-                        <Route path="/database" element={<DatabasePage />} />
-                        <Route path="/packages" element={<PackagesPage />} />
-                        <Route path="/services" element={<ServicesPage />} />
-                        <Route path="/ssl" element={<SslPage />} />
-                        <Route path="/settings" element={<SettingsLazy />} />
-                        <Route path="/logs" element={<LogsPage />} />
-                        <Route path="/terminal" element={<TerminalPage />} />
-                      </>
-                    )}
+                    {/* The gate above owns the un-bootstrapped case; a manual
+                        /setup visit after setup simply returns to the dashboard. */}
+                    <Route path="/setup" element={<Navigate to="/dashboard" replace />} />
+                    <>
+                      <Route path="/" element={<DashboardPage />} />
+                      <Route path="/dashboard" element={<DashboardPage />} />
+                      <Route path="/sites" element={<SitesPage />} />
+                      <Route path="/database" element={<DatabasePage />} />
+                      <Route path="/packages" element={<PackagesPage />} />
+                      <Route path="/services" element={<ServicesPage />} />
+                      <Route path="/ssl" element={<SslPage />} />
+                      <Route path="/settings" element={<SettingsLazy />} />
+                      <Route path="/logs" element={<LogsPage />} />
+                      <Route path="/terminal" element={<TerminalPage />} />
+                    </>
                   </Routes>
                 </Suspense>
               </div>
