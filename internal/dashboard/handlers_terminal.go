@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/coder/websocket"
 
@@ -47,13 +48,27 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
-	// Shell output → websocket text frames.
+	// Shell output → websocket text frames. A PTY read can split a multibyte
+	// UTF-8 character across the buffer boundary; writing that raw would
+	// corrupt the terminal. Hold back the incomplete tail until the rest
+	// arrives.
 	go func() {
 		buf := make([]byte, 4096)
+		var pend []byte
 		for {
 			n, err := sess.Read(buf)
 			if n > 0 {
-				_ = c.Write(ctx, websocket.MessageText, buf[:n])
+				chunk := append(pend, buf[:n]...)
+				cut := utf8PrefixLen(chunk)
+				if cut > 0 {
+					if werr := c.Write(ctx, websocket.MessageText, chunk[:cut]); werr != nil {
+						cancel()
+						return
+					}
+					pend = append(pend[:0], chunk[cut:]...)
+				} else if len(chunk) < utf8.UTFMax*2 {
+					pend = append(pend[:0], chunk...)
+				}
 			}
 			if err != nil {
 				cancel()
@@ -81,4 +96,18 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// utf8PrefixLen returns the length of the longest valid UTF-8 prefix of b,
+// holding back an incomplete trailing rune until more bytes arrive.
+func utf8PrefixLen(b []byte) int {
+	for i := len(b) - 1; i >= len(b)-utf8.UTFMax && i >= 0; i-- {
+		if utf8.RuneStart(b[i]) {
+			if utf8.Valid(b[i:]) {
+				return len(b)
+			}
+			return i
+		}
+	}
+	return len(b)
 }

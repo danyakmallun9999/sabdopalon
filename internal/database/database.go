@@ -181,6 +181,22 @@ func (m *Manager) Start(engine string) (err error) {
 	}
 	p.ready = true
 	fmt.Printf("  ✓  %s ready on port %d\n", engine, port)
+
+	// Reaper: a daemon that dies on its own must flip state and release its
+	// slot — otherwise it lingers as "ready" (or worse, as a zombie process)
+	// until the whole app exits.
+	go func(engine string, p *daemonProc, cmd *exec.Cmd) {
+		_ = cmd.Wait()
+		m.mu.Lock()
+		p.ready = false
+		if cur := m.procs[engine]; cur == p {
+			delete(m.procs, engine)
+		}
+		m.mu.Unlock()
+		if m.Verbose {
+			fmt.Printf("  ◾  %s process exited\n", engine)
+		}
+	}(engine, p, cmd)
 	return nil
 }
 
