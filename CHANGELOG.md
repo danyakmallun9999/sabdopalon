@@ -6,6 +6,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 ## [Unreleased]
 
 ### Added
+- **CLI on the built-in terminal's PATH (AppImage)** — the desktop shell now
+  seeds a runnable copy of the `sabdopalon` CLI into `<data>/bin` (version-
+  probed, refreshed on app update, atomic copy), so Linux users can drive
+  the same install from the built-in terminal: `sabdopalon doctor`,
+  `sabdopalon add …`, `sabdopalon sites`… A real copy rather than a symlink
+  so it survives outside the read-only squashfs mount and can even take
+  file capabilities (enable-ports).
 - **Custom desktop title bar** — the Tauri shell now draws its own window
   bar (drag region, brand, minimize/maximize/close) matching the dashboard
   design system instead of the native OS chrome; macOS keeps the native
@@ -40,6 +47,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 ## [0.8.1] — 2026-08-25
 
 ### Fixed
+- **CLI crashed on a fresh, config-less install** — `sabdopalon sites`,
+  `doctor`, `vhost` and even `--help` dereferenced the nil config and
+  segfaulted when run before the setup wizard completed (exactly what a
+  user typing into the AppImage's built-in terminal hits first). All four
+  now fall back to the default-shaped bare config.
 - **Database daemon start: conflicts, double-starts and zombies** — the
   shared MariaDB/PostgreSQL `Start()` path never checked whether the port
   was taken or a daemon for the same data dir was already alive, so a second

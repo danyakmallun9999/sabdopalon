@@ -190,6 +190,7 @@ func (a *App) Run(args []string) int {
 }
 
 func (a *App) usage() int {
+	a.Cfg = a.cfgOrBare() // help must work on a fresh, config-less install
 	fmt.Print(`Sabdopalon — portable local dev server (v` + Version + `)
 
 Usage:
@@ -417,6 +418,7 @@ func openBrowser(url string) {
 }
 
 func (a *App) doctor() int {
+	a.Cfg = a.cfgOrBare() // doctor must not nil-panic on a fresh install
 	fmt.Println("Sabdopalon doctor")
 	fmt.Println("════════════════════════════════════════════════")
 	fmt.Printf("  root dir  : %s\n", a.Cfg.RootDir)
@@ -543,6 +545,7 @@ func (a *App) doctor() int {
 }
 
 func (a *App) sites() int {
+	a.Cfg = a.cfgOrBare() // fresh-install safe
 	names, err := vhost.Scan(a.Cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -561,6 +564,7 @@ func (a *App) sites() int {
 
 func (a *App) vhost() int {
 	// Print reference vhost configs (for users who want Apache/Nginx instead).
+	a.Cfg = a.cfgOrBare() // fresh-install safe
 	sites, err := vhost.Scan(a.Cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)

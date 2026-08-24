@@ -97,6 +97,15 @@ fn probe_version(bin: &PathBuf) -> Option<String> {
     }
 }
 
+/// Copy src → dst via a temp file + rename, so a crash mid-copy can never
+/// leave a half-written binary at the destination. Unix permissions
+/// (including the exec bit) are preserved by std::fs::copy.
+fn copy_atomic(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
+    let tmp = dst.with_extension("tmp");
+    std::fs::copy(src, &tmp)?;
+    std::fs::rename(&tmp, dst)
+}
+
 /// Pick the sidecar binary whose self-reported version matches the app's own
 /// version. Falls back to the first available candidate (old behaviour) while
 /// recording a warning so stale copies show up in logs/sidecar.log.
@@ -212,6 +221,30 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                         err
                     ));
                 }
+            }
+        }
+    }
+
+    // Seed a runnable copy of the CLI itself into <data>/bin — the built-in
+    // terminal has that dir on PATH, so users can drive the same install
+    // from the shell: `sabdopalon doctor|add|sites|…`. A real copy, not a
+    // symlink: it survives outside the read-only AppImage mount and can
+    // even take file capabilities (enable-ports). Refreshed on every app
+    // update via the version probe; failures are non-fatal.
+    let cli_dst = bin_dir.join(if cfg!(windows) { "sabdopalon.exe" } else { "sabdopalon" });
+    let expected = app.package_info().version.to_string();
+    match probe_version(&cli_dst) {
+        Some(v) if v.contains(&expected) => {}
+        stale => {
+            if let Some(v) = stale {
+                issues.push(format!(
+                    "refreshing stale CLI copy in bin/: reports \"{v}\" (expected {expected})"
+                ));
+            }
+            if let Err(err) = copy_atomic(&bin, &cli_dst) {
+                issues.push(format!(
+                    "seeding CLI into bin/ failed: {err} — 'sabdopalon' won't be on the terminal PATH"
+                ));
             }
         }
     }
