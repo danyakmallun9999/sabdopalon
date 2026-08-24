@@ -719,10 +719,34 @@ func (a *App) installAdminer() int {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
-	header := "<?php\n// Auto-filled defaults for the local Sabdopalon database.\nif (!isset($_GET['username']) && $_SERVER['REQUEST_METHOD'] === 'POST' === false) { /* noop */ }\n"
-	_ = header
-	out := filepath.Join(dest, "index.php")
-	if err := os.WriteFile(out, data, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dest, "adminer.php"), data, 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	// index.php is a thin shim around the stock Adminer file:
+	//   - prefill the login form with the local credentials (root@127.0.0.1)
+	//   - allow the empty root password: Adminer 5 refuses passwordless
+	//     logins by default, but the bundled MariaDB is Laragon/XAMPP-style
+	//     root-with-no-password and only listens on 127.0.0.1
+	// The database field is deliberately left blank — an empty db lists
+	// every database on the server. Logged-in requests ignore these GET
+	// keys, so the prefill is safe to apply on every GET.
+	shim := `<?php
+// Sabdopalon wrapper: local-dev Adminer (see installAdminer).
+function adminer_object() {
+	return new class extends \Adminer\Adminer {
+		function login($login, $password) {
+			return true;
+		}
+	};
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['username'])) {
+	$_GET['server'] = $_GET['server'] ?? '127.0.0.1';
+	$_GET['username'] = 'root';
+}
+require __DIR__ . '/adminer.php';
+`
+	if err := os.WriteFile(filepath.Join(dest, "index.php"), []byte(shim), 0o644); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
