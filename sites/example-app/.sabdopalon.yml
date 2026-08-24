@@ -1,7 +1,0 @@
-# Per-site overrides managed by the Sabdopalon dashboard.
-php: 8.4
-docroot: public
-aliases:
-  - www.example-app.localhost
-env:
-  APP_ENV: local
