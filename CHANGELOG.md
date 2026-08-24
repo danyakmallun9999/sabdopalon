@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.8.3] — 2026-08-25
+
 ### Added
 - **Linux launcher integration (AppImage)** — the desktop shell now writes
   a user-level launcher + the camel icon into
