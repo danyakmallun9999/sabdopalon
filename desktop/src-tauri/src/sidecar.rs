@@ -300,9 +300,111 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     }
     let child = cmd.spawn()?;
 
-    let mut guard = SIDECAR.lock().unwrap();
-    *guard = Some(child);
+    {
+        let mut guard = SIDECAR.lock().unwrap();
+        *guard = Some(child);
+    }
+
+    // Setup-mode watcher: the wizard writes config/engine.toml when it
+    // finishes, but the RUNNING sidecar is the config-less setup instance —
+    // no proxy, no DB manager — so it can never serve the real dashboard
+    // (the dashboard meanwhile reloads into full chrome: "Proxy: 0", toast
+    // "database manager not available (setup mode)"). Restart the sidecar
+    // once the config appears; the next spawn skips --setup-mode.
+    if !bootstrapped {
+        let app = app.clone();
+        let cfg_path = dir.join("config").join("engine.toml");
+        let log_path = sidecar_log.clone();
+        std::thread::spawn(move || {
+            for _ in 0..2400 {
+                std::thread::sleep(Duration::from_millis(750));
+                if !cfg_path.is_file() {
+                    continue;
+                }
+                let mut log = std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path);
+                match &mut log {
+                    Ok(f) => {
+                        let _ = writeln!(f, "[sidecar] setup finished — restarting sidecar in full mode");
+                    }
+                    Err(_) => eprintln!("[sidecar] setup finished — restarting sidecar in full mode"),
+                }
+                stop();
+                std::thread::sleep(Duration::from_millis(300));
+                if let Err(err) = start(&app) {
+                    eprintln!("[sidecar] restart after setup failed: {err}");
+                }
+                return;
+            }
+            eprintln!("[sidecar] setup watcher gave up (no config after 30 min)");
+        });
+    }
+
+    #[cfg(target_os = "linux")]
+    integrate_desktop_entry(&mut issues);
+
     Ok(())
+}
+
+/// Linux only: register a user-level launcher so the AppImage shows up in
+/// the GNOME/KDE dash with the camel icon (a bare AppImage run has no
+/// .desktop entry, so the shell shows a generic icon). Idempotent — files
+/// are rewritten only when their content changes — and entirely contained
+/// in the user's own ~/.local/share (no root, no system dirs).
+#[cfg(target_os = "linux")]
+fn integrate_desktop_entry(issues: &mut Vec<String>) {
+    let home = match std::env::var("HOME") {
+        Ok(h) if !h.is_empty() => h,
+        _ => return,
+    };
+    // Exec: the AppImage path (stable across the /tmp/.mount_* lifetime —
+    // the runtime exposes it via $APPIMAGE); fall back to the real binary
+    // for deb/dev layouts.
+    let exec = std::env::var("APPIMAGE")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::current_exe().ok().map(|p| p.display().to_string()));
+    let Some(exec) = exec else { return };
+
+    let icon_dir = std::path::PathBuf::from(format!("{home}/.local/share/icons/hicolor/512x512/apps"));
+    let app_dir = std::path::PathBuf::from(format!("{home}/.local/share/applications"));
+    if std::fs::create_dir_all(&icon_dir).is_err() || std::fs::create_dir_all(&app_dir).is_err() {
+        issues.push("desktop integration: could not create ~/.local/share dirs".into());
+        return;
+    }
+
+    let icon_dst = icon_dir.join("sabdopalon.png");
+    let icon_bytes: &[u8] = include_bytes!("../icons/icon.png");
+    if std::fs::read(&icon_dst).map(|b| b != icon_bytes).unwrap_or(true) {
+        if let Err(err) = std::fs::write(&icon_dst, icon_bytes) {
+            issues.push(format!("desktop integration: icon write failed: {err}"));
+            return;
+        }
+    }
+
+    let entry = format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Name=Sabdopalon\n\
+         GenericName=Local PHP dev server\n\
+         Comment=PHP + MariaDB + phpMyAdmin — portabel dalam satu folder\n\
+         Exec=\"{exec}\"\n\
+         Icon=sabdopalon\n\
+         StartupWMClass=com.sabdopalon.app\n\
+         Categories=Development;\n\
+         Terminal=false\n\
+         StartupNotify=true\n"
+    );
+    let dst = app_dir.join("sabdopalon.desktop");
+    if std::fs::read_to_string(&dst).map(|c| c != entry).unwrap_or(true) {
+        if let Err(err) = std::fs::write(&dst, entry) {
+            issues.push(format!("desktop integration: .desktop write failed: {err}"));
+            return;
+        }
+        issues.push("desktop launcher installed/updated (~/.local/share/applications/sabdopalon.desktop)".into());
+    }
 }
 
 /// entry_looks_complete decides whether an already-present bundled entry in

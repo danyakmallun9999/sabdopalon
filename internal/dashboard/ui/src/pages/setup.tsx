@@ -77,7 +77,10 @@ export default function SetupPage() {
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
     if (job?.done && !job?.running && !job?.error) {
-      setTimeout(() => window.location.reload(), 3000)
+      // The desktop shell restarts the sidecar in full mode right after the
+      // config lands — wait until the REAL server answers (proxy bound),
+      // then reload. A blind reload here lands on a dead port.
+      void reloadWhenReady()
     }
   }, [job?.done, job?.running, job?.error])
 
@@ -124,123 +127,125 @@ export default function SetupPage() {
   const activeTools = (status?.tools ?? []).filter((t) => t.installed)
 
   return (
-    <div className="min-h-[calc(100dvh-var(--tb-h,0px))] bg-background">
+    <div className="flex h-[calc(100dvh-var(--tb-h,0px))] flex-col overflow-hidden bg-background">
       {/* subtle top glow */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-primary/8 to-transparent" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/8 to-transparent" />
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-6 py-10">
-        {/* Hero */}
-        <header className="mb-8 flex flex-col items-center gap-2 text-center">
-          <div className="bg-primary/10 flex size-14 items-center justify-center rounded-2xl">
-            <SparklesIcon />
-          </div>
-          <h1 className="text-2xl font-semibold">Selamat datang di Sabdopalon</h1>
-          <p className="text-muted-foreground max-w-xl text-sm">
-            Lingkungan development PHP lokal dalam satu folder — tanpa menyentuh sistem operasi.
-            Semua unduhan diverifikasi SHA-256 dan bisa dihapus kapan saja.
+      {/* Compact header — horizontal, keeps the wizard inside one screen */}
+      <header className="relative flex shrink-0 items-center gap-3 px-5 pt-4 pb-3">
+        <div className="bg-primary/10 flex size-10 shrink-0 items-center justify-center rounded-xl">
+          <SparklesIcon />
+        </div>
+        <div className="min-w-0">
+          <h1 className="text-lg leading-tight font-semibold">Selamat datang di Sabdopalon</h1>
+          <p className="text-muted-foreground truncate text-xs">
+            Lingkungan development PHP lokal dalam satu folder — unduhan tervalidasi SHA-256, tanpa menyentuh sistem.
           </p>
-        </header>
+        </div>
+      </header>
 
-        {installing ? (
-          <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
-        ) : (
-          <div className="grid flex-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-            {/* LEFT — core + settings */}
-            <div className="flex flex-col gap-6">
+      {installing ? (
+        <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
+      ) : (
+        <>
+          <main className="relative mx-auto w-full max-w-6xl flex-1 min-h-0 overflow-y-auto px-5">
+            <div className="grid items-start gap-4 pb-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+              {/* LEFT — core + settings */}
+              <div className="flex flex-col gap-4">
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm">Termasuk dalam paket</CardTitle>
+                    <CardDescription className="text-xs">
+                      Komponen inti selalu dipasang — status dibaca langsung dari folder instalasi.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col divide-y px-4 pb-3">
+                    {(status?.components ?? []).map((c) => (
+                      <div key={c.key} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                        <div className="flex items-center gap-2.5">
+                          <div className="bg-muted flex size-8 items-center justify-center rounded-lg">
+                            {coreIcon(c.key)}
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{c.label}</span>
+                            <span className="text-muted-foreground text-xs">
+                              {c.installed ? (c.version ? `v${c.version}` : "terdeteksi") : "akan dipasang oleh wizard"}
+                            </span>
+                          </div>
+                        </div>
+                        {c.installed ? (
+                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" variant="secondary">
+                            <CheckCircle2 className="size-3.5" /> Terpasang
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            Termasuk paket
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                    {!status && <SkeletonRows rows={3} />}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="p-4 pb-2">
+                    <CardTitle className="text-sm">Pengaturan</CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 px-4 pb-4">
+                    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5">
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium">Buat situs contoh</span>
+                        <span className="text-muted-foreground text-xs">
+                          Situs "myapp" langsung bisa dibuka setelah selesai
+                        </span>
+                      </span>
+                      <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5" />
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setAdvanced((v) => !v)}
+                      className="text-muted-foreground flex w-fit items-center gap-1 text-xs hover:underline"
+                    >
+                      <ChevronDown className={`size-3.5 transition-transform ${advanced ? "rotate-180" : ""}`} />
+                      Pengaturan lanjutan (domain & port)
+                    </button>
+                    {advanced && (
+                      <div className="grid grid-cols-1 gap-3 @lg/main:grid-cols-3">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="setup-tld" className="text-xs">
+                            Domain lokal (*.…)
+                          </Label>
+                          <Input id="setup-tld" value={tld} onChange={(e) => setTld(e.target.value)} placeholder="localhost" />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="setup-http" className="text-xs">
+                            Port HTTP
+                          </Label>
+                          <Input id="setup-http" inputMode="numeric" value={httpPort} onChange={(e) => setHttpPort(e.target.value)} />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor="setup-https" className="text-xs">
+                            Port HTTPS
+                          </Label>
+                          <Input id="setup-https" inputMode="numeric" value={httpsPort} onChange={(e) => setHttpsPort(e.target.value)} />
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* RIGHT — optional tools */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Termasuk dalam paket</CardTitle>
-                  <CardDescription>
-                    Komponen inti selalu dipasang — tidak perlu dipilih. Status di bawah dibaca
-                    langsung dari folder instalasi.
+                <CardHeader className="p-4 pb-2">
+                  <CardTitle className="text-sm">Tools tambahan</CardTitle>
+                  <CardDescription className="text-xs">
+                    Centang yang mau dipasang sekarang — sisanya bisa kapan saja lewat halaman Packages.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="flex flex-col divide-y">
-                  {(status?.components ?? []).map((c) => (
-                    <div key={c.key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                      <div className="flex items-center gap-3">
-                        <div className="bg-muted flex size-9 items-center justify-center rounded-lg">
-                          {coreIcon(c.key)}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium">{c.label}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {c.installed ? (c.version ? `v${c.version}` : "terdeteksi") : "akan dipasang oleh wizard"}
-                          </span>
-                        </div>
-                      </div>
-                      {c.installed ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" variant="secondary">
-                          <CheckCircle2 className="size-3.5" /> Terpasang
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Termasuk paket
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                  {!status && <SkeletonRows rows={3} />}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Pengaturan</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4">
-                  <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3">
-                    <span className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium">Buat situs contoh</span>
-                      <span className="text-muted-foreground text-xs">
-                        Situs "myapp" langsung bisa dibuka setelah selesai
-                      </span>
-                    </span>
-                    <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5" />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => setAdvanced((v) => !v)}
-                    className="text-muted-foreground flex w-fit items-center gap-1 text-xs hover:underline"
-                  >
-                    <ChevronDown className={`size-3.5 transition-transform ${advanced ? "rotate-180" : ""}`} />
-                    Pengaturan lanjutan (domain & port)
-                  </button>
-                  {advanced && (
-                    <div className="grid grid-cols-1 gap-3 @lg/main:grid-cols-3">
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="setup-tld" className="text-xs">
-                          Domain lokal (*.…)
-                        </Label>
-                        <Input id="setup-tld" value={tld} onChange={(e) => setTld(e.target.value)} placeholder="localhost" />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="setup-http" className="text-xs">
-                          Port HTTP
-                        </Label>
-                        <Input id="setup-http" inputMode="numeric" value={httpPort} onChange={(e) => setHttpPort(e.target.value)} />
-                      </div>
-                      <div className="flex flex-col gap-1.5">
-                        <Label htmlFor="setup-https" className="text-xs">
-                          Port HTTPS
-                        </Label>
-                        <Input id="setup-https" inputMode="numeric" value={httpsPort} onChange={(e) => setHttpsPort(e.target.value)} />
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* RIGHT — optional tools + CTA */}
-            <div className="flex flex-col gap-4 lg:sticky lg:top-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Tools tambahan</CardTitle>
-                  <CardDescription>Centang yang mau dipasang sekarang — sisanya bisa kapan saja lewat halaman Packages.</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
+                <CardContent className="flex flex-col gap-1.5 px-4 pb-4">
                   {availableTools.length === 0 && status && (
                     <p className="text-muted-foreground text-sm">Semua tools sudah terpasang 🎉</p>
                   )}
@@ -250,7 +255,7 @@ export default function SetupPage() {
                   {!status && <SkeletonRows rows={4} />}
 
                   {activeTools.length > 0 && (
-                    <div className="mt-3 flex flex-col gap-1.5">
+                    <div className="mt-2 flex flex-col gap-1.5">
                       <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Sudah aktif</span>
                       <div className="flex flex-wrap gap-1.5">
                         {activeTools.map((t) => (
@@ -263,23 +268,46 @@ export default function SetupPage() {
                   )}
                 </CardContent>
               </Card>
-
-              <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground px-1 text-xs">
-                  {selected.size > 0
-                    ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
-                    : "Hanya 3 komponen inti yang akan dipersiapkan."}
-                </p>
-                <Button size="lg" className="w-full" disabled={!status} onClick={start}>
-                  <Rocket /> Selesaikan persiapan <ArrowRight />
-                </Button>
-              </div>
             </div>
-          </div>
-        )}
-      </div>
+          </main>
+
+          {/* Footer — CTA selalu terlihat tanpa scroll */}
+          <footer className="relative shrink-0 border-t bg-background/80 px-5 py-3 backdrop-blur">
+            <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
+              <p className="text-muted-foreground text-xs">
+                {selected.size > 0
+                  ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
+                  : "Hanya 3 komponen inti yang akan dipersiapkan."}
+              </p>
+              <Button className="min-w-56" disabled={!status} onClick={start}>
+                <Rocket /> Selesaikan persiapan <ArrowRight />
+              </Button>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   )
+}
+
+// Poll until the full server (proxy actually bound) replaces the setup-mode
+// instance, then reload. The desktop shell restarts the sidecar right after
+// the wizard finishes — a blind reload here would land on a dead port.
+// Bounded; falls back to a plain reload.
+async function reloadWhenReady() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const r = await fetch("/api/status", { cache: "no-store" })
+      if (r.ok) {
+        const s = await r.json()
+        if ((s?.http_port ?? 0) > 0) break
+      }
+    } catch {
+      /* server restarting — keep waiting */
+    }
+    await new Promise((res) => setTimeout(res, 600))
+  }
+  window.location.reload()
 }
 
 function SparklesIcon() {
@@ -295,13 +323,13 @@ function ToolRow({ tool, checked, onToggle }: { tool: SetupTool; checked: boolea
   const Icon = TOOL_ICONS[tool.key] ?? Boxes
   return (
     <label
-      className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-3 transition-colors ${
+      className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5 transition-colors ${
         checked ? "border-primary/50 bg-primary/5" : "hover:bg-muted/40"
       }`}
     >
-      <span className="flex min-w-0 items-start gap-3">
-        <div className="bg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
-          <Icon className="text-muted-foreground size-4" />
+      <span className="flex min-w-0 items-start gap-2.5">
+        <div className="bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg">
+          <Icon className="text-muted-foreground size-3.5" />
         </div>
         <span className="flex min-w-0 flex-col">
           <span className="text-sm font-medium">{tool.label}</span>
@@ -335,8 +363,8 @@ function InstallPanel({
   logRef: React.RefObject<HTMLPreElement | null>
 }) {
   return (
-    <Card className="mx-auto w-full max-w-3xl">
-      <CardHeader>
+    <Card className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+      <CardHeader className="flex min-h-0 flex-1 flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="text-base">
             {success ? (
@@ -356,7 +384,7 @@ function InstallPanel({
         </div>
         <pre
           ref={logRef}
-          className="bg-background text-muted-foreground max-h-96 overflow-y-auto rounded-lg border p-4 font-mono text-xs whitespace-pre-wrap"
+          className="bg-background text-muted-foreground min-h-0 flex-1 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
         >
           {job?.output || "Memulai…"}
         </pre>
@@ -379,7 +407,7 @@ function InstallPanel({
         {success && (
           <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 p-3">
             <p className="text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
-            <Button size="sm" onClick={() => window.location.reload()}>
+            <Button size="sm" onClick={() => void reloadWhenReady()}>
               Masuk ke Dashboard <ArrowRight />
             </Button>
           </div>

@@ -3,6 +3,9 @@
   "identifier": "default",
   "description": "Capabilities for the Sabdopalon main window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:9900", "http://127.0.0.1:9900"]
+  },
   "permissions": [
     "core:default",
     "core:window:allow-minimize",

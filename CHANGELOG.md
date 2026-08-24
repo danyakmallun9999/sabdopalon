@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Added
+- **Linux launcher integration (AppImage)** — the desktop shell now writes
+  a user-level `sabdopalon.desktop` + the camel icon into
+  `~/.local/share/{applications,icons}` (idempotent, no root), so the app
+  shows up in the GNOME/KDE dash with the right icon instead of a generic
+  one. Exec points at the AppImage path ($APPIMAGE) when available.
+
+### Fixed
+- **Desktop app trapped in setup mode after the wizard** — the setup-mode
+  sidecar never exited: the dashboard reloaded into full chrome while the
+  server was still the config-less instance (toast "database manager not
+  available (setup mode)", Proxy: 0, DB Start buttons failing). The shell
+  now watches for the wizard's config and restarts the sidecar in full
+  mode; the wizard's reload waits until the real server (proxy bound)
+  answers before navigating.
+- **Desktop window controls were dead** — the dashboard is served from the
+  remote origin http://localhost:9900, and Tauri capabilities only covered
+  the local context, so every IPC call from the custom title bar
+  (minimize/maximize/close/start-dragging) was silently denied. The
+  capability now declares the dashboard's remote URLs.
+- **Wizard fits the screen** — the setup wizard was redesigned to fit one
+  viewport with no page scroll: compact horizontal header, tighter cards,
+  and the CTA pinned to a bottom bar (log panel scrolls internally).
+
 ## [0.8.2] — 2026-08-25
 
 ### Added
