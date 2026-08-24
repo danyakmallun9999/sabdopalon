@@ -5,7 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.8.2] — 2026-08-25
+
 ### Added
+- **New app icon everywhere** — the camel desktop icon now drives the full
+  Tauri icon set (Windows .ico incl. Square logos, macOS .icns, Linux
+  PNGs) across all platforms.
 - **CLI on the built-in terminal's PATH (AppImage)** — the desktop shell now
   seeds a runnable copy of the `sabdopalon` CLI into `<data>/bin` (version-
   probed, refreshed on app update, atomic copy), so Linux users can drive

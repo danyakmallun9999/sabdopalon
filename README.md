@@ -65,7 +65,7 @@ Grab the desktop installer from the
 
 | Platform | File |
 |---|---|
-| Windows x86_64 | `Sabdopalon_0.8.1_x64-setup.exe` (NSIS) |
+| Windows x86_64 | `Sabdopalon_0.8.2_x64-setup.exe` (NSIS) |
 | macOS (Apple Silicon) | `Sabdopalon.app.tar.gz` / `.dmg` |
 | Linux | `.deb` / `.AppImage` |
 
