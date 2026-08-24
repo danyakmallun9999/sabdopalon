@@ -15,12 +15,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: internal/dashboard/ui/package-lock.json
 
@@ -31,7 +31,7 @@ jobs:
           npm run build
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "stable"
 
@@ -181,7 +181,7 @@ jobs:
           echo "verified 5 assets ✓"
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           files: |
@@ -211,12 +211,12 @@ jobs:
             args: --bundles deb,appimage
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Build React dashboard
         working-directory: internal/dashboard/ui
@@ -225,7 +225,7 @@ jobs:
           npm run build
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version: "stable"
 
@@ -337,7 +337,7 @@ jobs:
       # target/<triple>/release/bundle — a plain target/release/bundle glob
       # matches NOTHING (silently skipped uploads in every past release!).
       - name: Upload artifacts
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             desktop/src-tauri/target/**/bundle/**/*.deb

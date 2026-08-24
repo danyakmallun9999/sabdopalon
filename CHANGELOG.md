@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-24
+
+### Changed
+- **Toolchain & CI modernization** — GitHub Actions bumped to current majors:
+  checkout v7, setup-node v7 (Node 24), setup-go v7, upload-artifact v7,
+  download-artifact v8, action-gh-release v3. Kills the "Node.js 20 is
+  deprecated" warnings that forced artifact actions onto Node 24.
+- **Go 1.27** — `go.mod` language version raised from 1.23 to 1.27
+  (latest stable); CI already builds on `stable`.
+- **App version 0.8.0** across desktop package, Tauri config, Rust crate,
+  sidecar, and CLI (`internal/app.Version`).
+- **pkgmgr hardening** — extraction is staged and verified before promotion;
+  an archive yielding zero files fails loudly instead of marking an empty
+  tree as installed; URL overrides use the exact `platformKey()` vocabulary.
+- **Setup wizard revamp** — full-screen single-page wizard (no sidebar/header)
+  with live inventory: **"Termasuk dalam paket"** lists PHP/MariaDB/phpMyAdmin
+  with real installed-state badges (not static text), **"Tools tambahan"** on
+  the right shows only not-yet-installed tools as checkboxes (Redis hidden on
+  Linux/macOS; MinIO version hidden when too long), **"Pengaturan lanjutan"**
+  collapsed by default. Gate no longer leaks to the dashboard on refresh/
+  restart mid-setup — a completion marker is written only on success; legacy
+  installs remain bootstrapped via real data detection.
+
 ### Fixed
 - **Cross-platform package installs** — audited every registry entry against
   real upstream assets: PHP/Mailpit Windows zips were extracted as tar.gz
@@ -21,19 +44,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   for linux x86_64/aarch64, macOS Intel/Apple Silicon, and Windows x64
   (phpMyAdmin uses one platform-neutral pin). Only the floating
   `meilisearch = "latest"` stays trust-on-first-use by design.
-
-### Changed
-- **pkgmgr hardening** — extraction is staged and verified before promotion;
-  an archive yielding zero files fails loudly instead of marking an empty
-  tree as installed; URL overrides use the exact `platformKey()` vocabulary.
-- **Setup wizard revamp** — full-screen single-page wizard (no sidebar/header)
-  with live inventory: **"Termasuk dalam paket"** lists PHP/MariaDB/phpMyAdmin
-  with real installed-state badges (not static text), **"Tools tambahan"** on
-  the right shows only not-yet-installed tools as checkboxes (Redis hidden on
-  Linux/macOS; MinIO version hidden when too long), **"Pengaturan lanjutan"**
-  collapsed by default. Gate no longer leaks to the dashboard on refresh/
-  restart mid-setup — a completion marker is written only on success; legacy
-  installs remain bootstrapped via real data detection.
 
 ## [0.7.5] — 2026-08-23
 

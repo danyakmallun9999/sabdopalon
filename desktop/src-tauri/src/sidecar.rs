@@ -57,7 +57,7 @@ fn sidecar_candidates(app: &AppHandle) -> Vec<PathBuf> {
     candidates.into_iter().filter(|p| p.is_file()).collect()
 }
 
-/// Run `<bin> version` and return its trimmed stdout ("sabdopalon 0.7.5").
+/// Run `<bin> version` and return its trimmed stdout ("sabdopalon 0.8.0").
 fn probe_version(bin: &PathBuf) -> Option<String> {
     let out = std::process::Command::new(bin)
         .arg("version")
