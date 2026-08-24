@@ -19,6 +19,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   can never steal bytes or interleave writers. Sessions are single-client
   (reattach kicks), LRU-capped at 12, and reaped after 30 minutes detached;
   `?fresh=1` still spawns a brand-new shell (Restart button).
+- **Terminal page tabs persist** — the tab list (and each tab's session key)
+  is saved to localStorage, so navigating away and back restores every shell
+  with its scrollback instead of resetting to a single "Shell 1". Session
+  keys are per-tab-lifetime nonces (a new tab can never reattach to a closed
+  tab's shell), and closing a tab kills its server session immediately via
+  the new `?kill=1` control on the terminal endpoint.
 
 ### Changed
 - **Sites page: terminal dock starts closed** on every screen size — the

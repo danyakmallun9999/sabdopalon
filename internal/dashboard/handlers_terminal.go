@@ -177,6 +177,19 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 	key := strings.TrimSpace(r.URL.Query().Get("session"))
 	fresh := r.URL.Query().Get("fresh") == "1"
 
+	// kill=1: destroy the named session WITHOUT creating a replacement —
+	// used when the UI closes a terminal tab.
+	if key != "" && r.URL.Query().Get("kill") == "1" {
+		termMu.Lock()
+		if old := termReg[key]; old != nil {
+			old.destroy()
+			delete(termReg, key)
+		}
+		termMu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	// Running optional services contribute their PHP-style env so CLI tools
 	// inside the shell see the same variables as sites do.
 	var extraEnv []string
