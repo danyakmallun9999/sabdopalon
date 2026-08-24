@@ -5,6 +5,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Added
+- **Custom desktop title bar** — the Tauri shell now draws its own window
+  bar (drag region, brand, minimize/maximize/close) matching the dashboard
+  design system instead of the native OS chrome; macOS keeps the native
+  traffic lights via the overlay title-bar style. The bar renders only
+  inside the desktop app — the browser dashboard is untouched.
+
 ### Changed
 - **Desktop installs land in a user-visible folder** — the Tauri shell now
   points the sidecar's install root at `<home>/Sabdopalon`
