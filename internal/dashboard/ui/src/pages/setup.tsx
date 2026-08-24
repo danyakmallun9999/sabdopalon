@@ -124,7 +124,7 @@ export default function SetupPage() {
   const activeTools = (status?.tools ?? []).filter((t) => t.installed)
 
   return (
-    <div className="min-h-dvh bg-background">
+    <div className="min-h-[calc(100dvh-var(--tb-h,0px))] bg-background">
       {/* subtle top glow */}
       <div className="pointer-events-none fixed inset-x-0 top-0 h-64 bg-gradient-to-b from-primary/8 to-transparent" />
 

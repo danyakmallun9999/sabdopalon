@@ -131,3 +131,12 @@
     @apply font-sans;
     }
 }
+/* Custom desktop title bar (Tauri shell only): the fixed sidebar must start
+   below the in-flow bar instead of the viewport top. */
+.tb-frame [data-slot="sidebar"] {
+  top: var(--tb-h, 0px);
+  height: calc(100svh - var(--tb-h, 0px));
+}
+.tb-frame [data-slot="sidebar-wrapper"] {
+  min-height: calc(100svh - var(--tb-h, 0px));
+}

@@ -20,7 +20,9 @@
         "minHeight": 640,
         "resizable": true,
         "url": "http://localhost:9900",
-        "visible": false
+        "visible": false,
+        "decorations": false,
+        "titleBarStyle": "Overlay"
       }
     ],
     "security": {

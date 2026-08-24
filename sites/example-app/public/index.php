@@ -32,128 +32,504 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= htmlspecialchars($site) ?> · Sabdopalon</title>
+<title><?= htmlspecialchars($site) ?> &middot; Sabdopalon</title>
 <style>
   :root {
-    --bg: #0b1020; --card: rgba(255,255,255,.06); --border: rgba(255,255,255,.12);
-    --text: #e8ecf8; --muted: #9aa4c0; --accent: #6ee7b7; --accent2: #818cf8;
-    --ok-bg: rgba(52,211,153,.12); --warn-bg: rgba(251,191,36,.12); --warn: #fbbf24;
+    --bg: #090a0f;
+    --frame: #10121a;
+    --cell-bg: #121520;
+    --cell-hover: #161a27;
+    --border: #1e2436;
+    --border-light: #2a334c;
+    --text-head: #f8fafc;
+    --text-body: #94a3b8;
+    --text-muted: #64748b;
+    --accent: #38bdf8;
+    --accent-bg: #082f49;
+    --accent-border: #0369a1;
+    --success: #10b981;
+    --success-bg: #022c22;
+    --success-border: #065f46;
+    --warning: #f59e0b;
+    --warning-bg: #2d1800;
+    --warning-border: #78350f;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
   body {
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    min-height: 100dvh; color: var(--text);
-    background:
-      radial-gradient(60rem 40rem at 15% -10%, rgba(129,140,248,.22), transparent 60%),
-      radial-gradient(50rem 35rem at 110% 20%, rgba(110,231,183,.16), transparent 55%),
-      var(--bg);
-    display: flex; flex-direction: column; align-items: center;
-    padding: 4rem 1.25rem 2.5rem; gap: 2.75rem;
+    font-family: var(--font-sans);
+    background-color: var(--bg);
+    color: var(--text-body);
+    line-height: 1.45;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    position: relative;
+    overflow-x: hidden;
   }
-  .hero { text-align: center; max-width: 44rem; }
-  .badge {
-    display: inline-flex; align-items: center; gap: .5rem;
-    background: var(--ok-bg); color: var(--accent);
-    border: 1px solid rgba(110,231,183,.35); border-radius: 999px;
-    padding: .45rem 1rem; font-size: .85rem; font-weight: 600; letter-spacing: .02em;
+
+  .grid-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.65;
   }
-  .dot { width: .5rem; height: .5rem; border-radius: 999px; background: var(--accent);
-         box-shadow: 0 0 0 4px rgba(110,231,183,.18); animation: pulse 2s infinite; }
-  @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(110,231,183,.05);} }
-  h1 { font-size: clamp(1.9rem, 5vw, 3rem); line-height: 1.15; margin: 1.1rem 0 .7rem; letter-spacing: -.02em; }
-  h1 span { background: linear-gradient(92deg, var(--accent2), var(--accent));
-            -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .sub { color: var(--muted); font-size: 1.02rem; line-height: 1.65; }
-  .grid { display: grid; gap: 1rem; width: min(56rem, 100%);
-          grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
-  .card {
-    background: var(--card); border: 1px solid var(--border); border-radius: 1.1rem;
-    padding: 1.35rem 1.4rem; backdrop-filter: blur(10px);
-    display: flex; flex-direction: column; gap: .55rem; text-align: left;
-    transition: transform .18s ease, border-color .18s ease;
+
+  .console {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 58rem;
+    background-color: var(--frame);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   }
-  .card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,.25); }
-  .card .k { display: flex; align-items: center; gap: .6rem; font-size: .8rem; font-weight: 700;
-             text-transform: uppercase; letter-spacing: .09em; color: var(--muted); }
-  .card .v { font-size: 1.28rem; font-weight: 700; word-break: break-all; }
-  .card .n { color: var(--muted); font-size: .85rem; line-height: 1.5; }
-  .state-ok   { color: var(--accent); }
-  .state-warn { color: var(--warn); }
-  .chip { align-self: flex-start; font-size: .78rem; font-weight: 600; border-radius: 999px;
-          padding: .3rem .75rem; margin-top: .2rem; }
-  .chip.ok   { background: var(--ok-bg); color: var(--accent); }
-  .chip.warn { background: var(--warn-bg); color: var(--warn); }
-  a.btn {
-    align-self: flex-start; margin-top: .2rem; text-decoration: none; font-size: .88rem; font-weight: 600;
-    color: var(--bg); background: linear-gradient(92deg, var(--accent2), var(--accent));
-    padding: .5rem 1rem; border-radius: .65rem;
+
+  .console-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border);
   }
-  .powered { display: flex; flex-direction: column; align-items: center; gap: .9rem; text-align: center; }
-  .camel { font-size: 2.6rem; filter: drop-shadow(0 6px 18px rgba(129,140,248,.45)); }
-  .powered p { color: var(--muted); max-width: 34rem; line-height: 1.6; font-size: .95rem; }
-  .links { display: flex; flex-wrap: wrap; gap: .8rem; justify-content: center; }
-  .links a {
-    display: inline-flex; align-items: center; gap: .45rem; text-decoration: none; font-size: .9rem; font-weight: 600;
-    color: var(--text); background: var(--card); border: 1px solid var(--border);
-    padding: .55rem 1.05rem; border-radius: .75rem; transition: border-color .15s ease, transform .15s ease;
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: var(--text-head);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: -0.01em;
   }
-  .links a:hover { border-color: var(--accent2); transform: translateY(-2px); }
-  footer { color: var(--muted); font-size: .85rem; text-align: center; }
-  footer a { color: var(--text); font-weight: 700; text-decoration: none;
-             background: linear-gradient(92deg, var(--accent2), var(--accent));
-             -webkit-background-clip: text; background-clip: text; color: transparent; }
-  @media (prefers-color-scheme: light) {
-    :root { --bg:#f4f6fd; --card:rgba(255,255,255,.75); --border:rgba(15,23,42,.12);
-            --text:#101830; --muted:#5a6484; }
+
+  .brand-icon {
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+
+  .top-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .domain-tag {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--accent);
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+  }
+
+  .status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background-color: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    font-size: 0.725rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+
+  .status-dot {
+    width: 0.4rem;
+    height: 0.4rem;
+    background-color: var(--success);
+    border-radius: 9999px;
+  }
+
+  .console-hero {
+    padding: 1.5rem 1.5rem 1.25rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 1.5rem;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .hero-text h1 {
+    font-size: 1.45rem;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text-head);
+    line-height: 1.2;
+  }
+
+  .hero-text p {
+    font-size: 0.875rem;
+    color: var(--text-body);
+  }
+
+  .file-box {
+    background-color: var(--cell-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.65rem 0.95rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 17rem;
+  }
+
+  .file-box-lbl {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .file-box-path {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--text-head);
+    word-break: break-all;
+  }
+
+  .console-stack {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stack-cell {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.85rem;
+  }
+
+  .stack-cell:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+
+  .stack-cell-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .stack-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+
+  .stack-cell-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .stack-val {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text-head);
+  }
+
+  .stack-desc {
+    font-size: 0.775rem;
+    color: var(--text-body);
+    line-height: 1.4;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    width: fit-content;
+  }
+
+  .pill-ok {
+    background-color: var(--success-bg);
+    color: var(--success);
+    border: 1px solid var(--success-border);
+  }
+
+  .pill-warn {
+    background-color: var(--warning-bg);
+    color: var(--warning);
+    border: 1px solid var(--warning-border);
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background-color: #1e293b;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    text-decoration: none;
+    font-size: 0.775rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    width: fit-content;
+  }
+
+  .action-btn:hover {
+    background-color: #334155;
+    border-color: #475569;
+  }
+
+  .console-specs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 0.85rem 1.5rem;
+    gap: 1.25rem;
+    background-color: var(--cell-bg);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.775rem;
+  }
+
+  .spec-entry {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .spec-lbl {
+    font-weight: 600;
+    color: var(--text-head);
+    white-space: nowrap;
+  }
+
+  .spec-val {
+    color: var(--text-body);
+  }
+
+  .spec-val code {
+    font-family: var(--font-mono);
+    color: var(--accent);
+  }
+
+  .console-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    font-size: 0.775rem;
+  }
+
+  .footer-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .footer-nav a {
+    color: var(--text-body);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .footer-nav a:hover {
+    color: var(--text-head);
+  }
+
+  .footer-author {
+    color: var(--text-muted);
+  }
+
+  .footer-author a {
+    color: var(--text-body);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .footer-author a:hover {
+    color: var(--text-head);
+  }
+
+  @media (max-width: 768px) {
+    body {
+      height: auto;
+      padding: 1rem;
+    }
+    .console-hero {
+      grid-template-columns: 1fr;
+    }
+    .console-stack {
+      grid-template-columns: 1fr;
+    }
+    .stack-cell:not(:last-child) {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .console-specs {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+    .console-footer {
+      flex-direction: column;
+      gap: 0.6rem;
+      text-align: center;
+    }
   }
 </style>
 </head>
 <body>
-  <section class="hero">
-    <span class="badge"><span class="dot"></span> SEMUA SISTEM BERJALAN</span>
-    <h1>Situs <span><?= htmlspecialchars($site) ?></span> hidup!<br>Environment lokal kamu siap dipakai.</h1>
-    <p class="sub">Halaman ini disajikan langsung oleh Sabdopalon tanpa Apache/Nginx.
-       Edit file di <code>sites/<?= htmlspecialchars($site) ?>/public/index.php</code> untuk mulai membangun.</p>
-  </section>
+  <svg class="grid-bg" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <defs>
+      <pattern id="grid-pattern" width="80" height="80" patternUnits="userSpaceOnUse">
+        <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#161a26" stroke-width="1"/>
+        <circle cx="80" cy="80" r="1.5" fill="#252c40"/>
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+    <line x1="12%" y1="0" x2="12%" y2="100%" stroke="#1c2233" stroke-width="1" stroke-dasharray="4 6"/>
+    <line x1="28%" y1="0" x2="28%" y2="100%" stroke="#1c2233" stroke-width="1"/>
+    <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#242c42" stroke-width="1" stroke-dasharray="8 4"/>
+    <line x1="72%" y1="0" x2="72%" y2="100%" stroke="#1c2233" stroke-width="1"/>
+    <line x1="88%" y1="0" x2="88%" y2="100%" stroke="#1c2233" stroke-width="1" stroke-dasharray="4 6"/>
+    <line x1="0" y1="120" x2="100%" y2="120" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
+    <line x1="0" y1="360" x2="100%" y2="360" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
+    <line x1="0" y1="640" x2="100%" y2="640" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
+    <text x="12.5%" y="30" fill="#2d3752" font-size="9" font-family="monospace">110&deg; 22&apos; E</text>
+    <text x="50.5%" y="30" fill="#394566" font-size="9" font-family="monospace">MERIDIAN 0.0</text>
+    <text x="88.5%" y="30" fill="#2d3752" font-size="9" font-family="monospace">112&deg; 45&apos; E</text>
+  </svg>
 
-  <section class="grid">
-    <div class="card">
-      <span class="k">🐘 PHP</span>
-      <span class="v"><?= htmlspecialchars($phpVer) ?></span>
-      <span class="n">Interpreter aktif yang melayani situs ini.</span>
-      <span class="chip ok">● Aktif</span>
+  <main class="console">
+    <div class="console-top">
+      <a class="brand" href="http://localhost:9900" title="Buka Dashboard Sabdopalon">
+        <span class="brand-icon">&#128042;</span>
+        <span>Sabdopalon</span>
+      </a>
+      <div class="top-meta">
+        <span class="domain-tag"><?= htmlspecialchars($site) ?>.localhost</span>
+        <div class="status-tag">
+          <span class="status-dot"></span>
+          <span>SISTEM AKTIF</span>
+        </div>
+      </div>
     </div>
-    <div class="card">
-      <span class="k">🗄️ <?= htmlspecialchars($db['label']) ?></span>
-      <?php if ($db['ok']): ?>
-        <span class="v state-ok"><?= htmlspecialchars($db['ver']) ?></span>
-        <span class="n">Server MariaDB di 127.0.0.1:3306 merespons koneksi.</span>
-        <span class="chip ok">● Terhubung</span>
-      <?php else: ?>
-        <span class="v state-warn">Offline</span>
-        <span class="n">Nyalakan lewat dashboard → halaman Database.</span>
-        <span class="chip warn">○ Tidak terhubung</span>
-      <?php endif; ?>
-    </div>
-    <div class="card">
-      <span class="k">⚙️ phpMyAdmin</span>
-      <span class="v">Kelola database</span>
-      <span class="n">Antarmuka web untuk MariaDB — buat, inspeksi, ekspor.</span>
-      <a class="btn" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin ↗</a>
-    </div>
-  </section>
 
-  <section class="powered">
-    <div class="camel">🐫</div>
-    <strong>Powered by Sabdopalon</strong>
-    <p>Lingkungan development PHP lokal dalam satu folder — PHP, MariaDB,
-       phpMyAdmin, dan tools lain berjalan portabel tanpa instalasi sistem.</p>
-    <div class="links">
-      <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">★ GitHub</a>
-      <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">⬇ Unduh</a>
+    <div class="console-hero">
+      <div class="hero-text">
+        <h1>Situs siap dikembangkan</h1>
+        <p>Virtual host dialokasikan otomatis oleh Sabdopalon. Siap menerima request PHP.</p>
+      </div>
+      <div class="file-box">
+        <span class="file-box-lbl">Titik Masuk Utama</span>
+        <span class="file-box-path">sites/<?= htmlspecialchars($site) ?>/public/index.php</span>
+      </div>
     </div>
-  </section>
 
-  <footer>Dibuat dengan ❤ oleh <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a></footer>
+    <div class="console-stack">
+      <div class="stack-cell">
+        <div class="stack-cell-head">
+          <span class="stack-icon">&#128024;</span>
+          <span>PHP Runtime</span>
+        </div>
+        <div class="stack-cell-body">
+          <div class="stack-val"><?= htmlspecialchars($phpVer) ?></div>
+          <p class="stack-desc">Interpreter aktif melayani HTTP.</p>
+        </div>
+        <span class="pill pill-ok">&#9679; Aktif</span>
+      </div>
+
+      <div class="stack-cell">
+        <div class="stack-cell-head">
+          <span class="stack-icon">&#128452;&#65039;</span>
+          <span><?= htmlspecialchars($db['label']) ?></span>
+        </div>
+        <div class="stack-cell-body">
+          <?php if ($db['ok']): ?>
+            <div class="stack-val"><?= htmlspecialchars($db['ver']) ?></div>
+            <p class="stack-desc">127.0.0.1:3306 (user: <code>root</code>)</p>
+          <?php else: ?>
+            <div class="stack-val" style="color: var(--warning);">Offline</div>
+            <p class="stack-desc">Layanan database belum aktif.</p>
+          <?php endif; ?>
+        </div>
+        <?php if ($db['ok']): ?>
+          <span class="pill pill-ok">&#9679; Terhubung</span>
+        <?php else: ?>
+          <span class="pill pill-warn">&#9675; Tidak Terhubung</span>
+        <?php endif; ?>
+      </div>
+
+      <div class="stack-cell">
+        <div class="stack-cell-head">
+          <span class="stack-icon">&#9881;&#65039;</span>
+          <span>phpMyAdmin</span>
+        </div>
+        <div class="stack-cell-body">
+          <div class="stack-val">Basis Data</div>
+          <p class="stack-desc">Kelola skema &amp; tabel SQL visual.</p>
+        </div>
+        <a class="action-btn" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &rarr;</a>
+      </div>
+    </div>
+
+    <div class="console-specs">
+      <div class="spec-entry">
+        <span class="spec-lbl">Dokumen Root:</span>
+        <span class="spec-val"><code>public/</code></span>
+      </div>
+      <div class="spec-entry">
+        <span class="spec-lbl">Virtual Host:</span>
+        <span class="spec-val"><code><?= htmlspecialchars($site) ?>.localhost</code></span>
+      </div>
+      <div class="spec-entry">
+        <span class="spec-lbl">Dashboard:</span>
+        <span class="spec-val"><code>localhost:9900</code></span>
+      </div>
+    </div>
+
+    <div class="console-footer">
+      <nav class="footer-nav">
+        <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">&#9733; GitHub</a>
+        <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">&#8595; Unduh Rilis</a>
+        <a href="http://localhost:9900" target="_blank" rel="noopener">&#9776; Dashboard</a>
+      </nav>
+      <div class="footer-author">
+        Dibuat oleh <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a> &middot; Sabdopalon
+      </div>
+    </div>
+  </main>
 </body>
 </html>
