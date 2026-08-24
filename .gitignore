@@ -62,3 +62,6 @@ desktop.ini
 /desktop/src-tauri/resources/packages/**
 !/desktop/src-tauri/resources/packages/.gitkeep
 /desktop/node_modules/
+
+# Deployed phpMyAdmin (copied from bin/phpmyadmin at install time)
+/sites/phpmyadmin/
