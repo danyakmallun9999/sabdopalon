@@ -131,8 +131,8 @@ export default function SetupPage() {
       {/* subtle top glow */}
       <div className="pointer-events-none fixed inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/8 to-transparent" />
 
-      {/* Compact header — horizontal, keeps the wizard inside one screen */}
-      <header className="relative flex shrink-0 items-center gap-3 px-5 pt-4 pb-3">
+      {/* Header — same surface family as the title bar, with a clear seam */}
+      <header className="bg-background/85 border-border/60 relative flex shrink-0 items-center gap-3 border-b px-5 pt-4 pb-3 backdrop-blur">
         <div className="bg-primary/10 flex size-10 shrink-0 items-center justify-center rounded-xl">
           <SparklesIcon />
         </div>
@@ -272,7 +272,7 @@ export default function SetupPage() {
           </main>
 
           {/* Footer — CTA selalu terlihat tanpa scroll */}
-          <footer className="relative shrink-0 border-t bg-background/80 px-5 py-3 backdrop-blur">
+          <footer className="bg-background/85 border-border/60 relative shrink-0 border-t px-5 py-3 backdrop-blur">
             <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
               <p className="text-muted-foreground text-xs">
                 {selected.size > 0

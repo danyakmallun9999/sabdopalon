@@ -353,8 +353,15 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
 /// .desktop entry, so the shell shows a generic icon). Idempotent — files
 /// are rewritten only when their content changes — and entirely contained
 /// in the user's own ~/.local/share (no root, no system dirs).
+///
+/// Naming MUST match what Tauri's bundler ships inside the AppImage:
+/// the binary (and therefore the GTK WM_CLASS) and the bundled icon are
+/// both named after the Cargo package — `sabdopalon-desktop`. A
+/// StartupWMClass that doesn't match means the running window can never be
+/// associated with this launcher (generic icon in the dock).
 #[cfg(target_os = "linux")]
 fn integrate_desktop_entry(issues: &mut Vec<String>) {
+    const APP_ID: &str = "sabdopalon-desktop"; // = Cargo package name = WM_CLASS
     let home = match std::env::var("HOME") {
         Ok(h) if !h.is_empty() => h,
         _ => return,
@@ -368,14 +375,15 @@ fn integrate_desktop_entry(issues: &mut Vec<String>) {
         .or_else(|| std::env::current_exe().ok().map(|p| p.display().to_string()));
     let Some(exec) = exec else { return };
 
-    let icon_dir = std::path::PathBuf::from(format!("{home}/.local/share/icons/hicolor/512x512/apps"));
+    let icon_dir =
+        std::path::PathBuf::from(format!("{home}/.local/share/icons/hicolor/512x512/apps"));
     let app_dir = std::path::PathBuf::from(format!("{home}/.local/share/applications"));
     if std::fs::create_dir_all(&icon_dir).is_err() || std::fs::create_dir_all(&app_dir).is_err() {
         issues.push("desktop integration: could not create ~/.local/share dirs".into());
         return;
     }
 
-    let icon_dst = icon_dir.join("sabdopalon.png");
+    let icon_dst = icon_dir.join(format!("{APP_ID}.png"));
     let icon_bytes: &[u8] = include_bytes!("../icons/icon.png");
     if std::fs::read(&icon_dst).map(|b| b != icon_bytes).unwrap_or(true) {
         if let Err(err) = std::fs::write(&icon_dst, icon_bytes) {
@@ -391,19 +399,21 @@ fn integrate_desktop_entry(issues: &mut Vec<String>) {
          GenericName=Local PHP dev server\n\
          Comment=PHP + MariaDB + phpMyAdmin — portabel dalam satu folder\n\
          Exec=\"{exec}\"\n\
-         Icon=sabdopalon\n\
-         StartupWMClass=com.sabdopalon.app\n\
+         Icon={APP_ID}\n\
+         StartupWMClass={APP_ID}\n\
          Categories=Development;\n\
          Terminal=false\n\
          StartupNotify=true\n"
     );
-    let dst = app_dir.join("sabdopalon.desktop");
+    let dst = app_dir.join(format!("{APP_ID}.desktop"));
     if std::fs::read_to_string(&dst).map(|c| c != entry).unwrap_or(true) {
         if let Err(err) = std::fs::write(&dst, entry) {
             issues.push(format!("desktop integration: .desktop write failed: {err}"));
             return;
         }
-        issues.push("desktop launcher installed/updated (~/.local/share/applications/sabdopalon.desktop)".into());
+        issues.push(format!(
+            "desktop launcher installed/updated (~/.local/share/applications/{APP_ID}.desktop)"
+        ));
     }
 }
 

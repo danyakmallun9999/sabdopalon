@@ -7,10 +7,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ### Added
 - **Linux launcher integration (AppImage)** — the desktop shell now writes
-  a user-level `sabdopalon.desktop` + the camel icon into
+  a user-level launcher + the camel icon into
   `~/.local/share/{applications,icons}` (idempotent, no root), so the app
   shows up in the GNOME/KDE dash with the right icon instead of a generic
-  one. Exec points at the AppImage path ($APPIMAGE) when available.
+  one. Exec points at the AppImage path ($APPIMAGE) when available. Naming
+  matches Tauri's own bundle exactly (`sabdopalon-desktop` for the icon and
+  StartupWMClass) — the WM_CLASS comes from the Cargo binary name, and a
+  mismatched value makes the running window impossible to associate with
+  the launcher.
+- **Unified surface colors** — the sidebar token now matches the background
+  (title-bar surface) in both themes, so title bar, sidebar and pages read
+  as one continuous surface; the setup wizard follows it and adds explicit
+  seams (border lines) between header, content and footer.
 
 ### Fixed
 - **Quitting left databases and services running** — the desktop shell
