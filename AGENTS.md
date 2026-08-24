@@ -39,10 +39,15 @@ resist scope creep. New-feature proposals go to the backlog, not the tree.
 ## Known issues (as of v0.8.0)
 
 - **Windows / MariaDB:** bundled MariaDB on Windows is still broken (reported
-  by the maintainer during testing; triage pending). Related past work:
-  commit `65c9a7b` (registry seed, safe cert names, MariaDB win64).
-- **Linux:** minor bug observed during AppImage testing (details to be filled
-  in by the maintainer after triage).
+  by the maintainer during testing; triage pending — awaiting the exact
+  `logs/mariadb.log` from the affected machine). The shared daemon-start
+  fixes below remove the likeliest cross-platform culprits (port conflicts,
+  orphaned daemons, false-ready TCP probe); retest on Windows once logs are
+  available. Related past work: commit `65c9a7b`.
+- **Linux:** multi-instance port conflict (AppImage vs CLI), double-start on
+  a live data dir, and `[mariadbd] <defunct>` zombies were triaged and fixed
+  in the database-daemon hardening (see CHANGELOG [Unreleased]); verified on
+  Linux 2026-08-24.
 - Update this section as issues are triaged; remove entries once fixed.
 
 ## Repo layout

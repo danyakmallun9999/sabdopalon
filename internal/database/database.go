@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -37,8 +38,18 @@ const (
 var Engines = []string{"mariadb", "postgresql"}
 
 type daemonProc struct {
-	cmd   *exec.Cmd
+	cmd *exec.Cmd
+	// ready flips true once readiness checks pass; the monitor goroutine
+	// clears it (and unregisters the proc) when the daemon dies.
 	ready bool
+	// adopted marks a daemon that was already running for this data dir
+	// when Start() found it (e.g. started by an earlier session). We do not
+	// own its process handle; lifecycle goes through the pidfile pid.
+	adopted bool
+	pid     int // adopted: external pid
+	// done is closed by the monitor goroutine right after cmd.Wait()
+	// returns, so Stop() can reap the child and never leave zombies behind.
+	done chan struct{}
 }
 
 // Manager owns one daemon process per database engine.
@@ -104,6 +115,12 @@ func PrimaryEngine(cfg *config.Engine) string {
 
 // Start launches ONE engine's daemon. The failure reason is stored per
 // engine (LastError) so the dashboard can explain a stopped daemon.
+//
+// Start is idempotent and conflict-aware:
+//   - a daemon already owned by this Manager → friendly no-op;
+//   - an alive daemon for THIS data dir (pidfile) → adopted, not re-spawned;
+//   - the TCP port held by anything else → loud, specific error instead of
+//     a 30-second wait ending in "did not start".
 func (m *Manager) Start(engine string) (err error) {
 	defer func() {
 		m.mu.Lock()
@@ -114,6 +131,10 @@ func (m *Manager) Start(engine string) (err error) {
 		}
 		m.mu.Unlock()
 	}()
+
+	if m.Ready(engine) {
+		return nil // already ours — nothing to do
+	}
 
 	binary, err := binaryFor(m.cfg, engine)
 	if err != nil {
@@ -143,8 +164,23 @@ func (m *Manager) Start(engine string) (err error) {
 	if err != nil {
 		return err
 	}
+	defer logFile.Close()
 
 	port := EffectivePort(m.cfg, engine)
+
+	// Preflight: is something already listening on our port?
+	adoptPid, perr := checkPortOwner(engine, dataDir, port, processMatches)
+	if perr != nil {
+		return fmt.Errorf("%s failed to start: %w", engine, perr)
+	}
+	if adoptPid > 0 {
+		m.mu.Lock()
+		m.procs[engine] = &daemonProc{ready: true, adopted: true, pid: adoptPid}
+		m.mu.Unlock()
+		fmt.Printf("  ✓  %s already running (pid %d) — adopted\n", engine, adoptPid)
+		return nil
+	}
+
 	socket := filepath.Join(socketDir, "mysqld.sock")
 	args := startArgs(binary, dataDir, socket, engine, port)
 
@@ -158,11 +194,26 @@ func (m *Manager) Start(engine string) (err error) {
 	setProcessGroup(attr)
 	cmd.SysProcAttr = attr
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
 		return fmt.Errorf("start %s: %w", engine, err)
 	}
 
-	p := &daemonProc{cmd: cmd}
+	// Monitor from birth: whatever happens next — success, readiness
+	// timeout, manual stop — exactly one goroutine Waits() the child, so a
+	// dead daemon can never linger as a zombie.
+	p := &daemonProc{cmd: cmd, done: make(chan struct{})}
+	go func() {
+		_ = cmd.Wait()
+		close(p.done)
+		m.mu.Lock()
+		p.ready = false
+		if cur := m.procs[engine]; cur == p {
+			delete(m.procs, engine)
+		}
+		m.mu.Unlock()
+		if m.Verbose {
+			fmt.Printf("  ◾  %s process exited\n", engine)
+		}
+	}()
 	m.mu.Lock()
 	m.procs[engine] = p
 	m.mu.Unlock()
@@ -176,44 +227,61 @@ func (m *Manager) Start(engine string) (err error) {
 		ready = waitForSocket(socket, 30*time.Second)
 	}
 	if !ready {
-		logFile.Close()
+		tail := logTail(logPath, 5)
 		_ = m.Stop(engine)
-		return fmt.Errorf("%s did not start (see logs/%s.log)", engine, engine)
+		return fmt.Errorf("%s did not start: %s (see logs/%s.log)", engine, nonEmpty(tail, "no output captured"), engine)
+	}
+	// Readiness must be OUR daemon's, not any listener that happens to hold
+	// the port: compare the daemon's pidfile against the pid we spawned.
+	// This is what makes Windows' TCP-only probe trustworthy.
+	if got, ok := waitOwnedPid(engine, dataDir, cmd.Process.Pid, 10*time.Second); !ok {
+		tail := logTail(logPath, 5)
+		_ = m.Stop(engine)
+		if got > 0 {
+			return fmt.Errorf("%s did not start: port %d is answered by another process (pid %d) — stop that instance or change the database port (%s)", engine, port, got, nonEmpty(tail, "no log output"))
+		}
+		return fmt.Errorf("%s did not start: daemon pid file missing or unreadable (%s)", engine, nonEmpty(tail, "no log output"))
 	}
 	p.ready = true
 	fmt.Printf("  ✓  %s ready on port %d\n", engine, port)
-
-	// Reaper: a daemon that dies on its own must flip state and release its
-	// slot — otherwise it lingers as "ready" (or worse, as a zombie process)
-	// until the whole app exits.
-	go func(engine string, p *daemonProc, cmd *exec.Cmd) {
-		_ = cmd.Wait()
-		m.mu.Lock()
-		p.ready = false
-		if cur := m.procs[engine]; cur == p {
-			delete(m.procs, engine)
-		}
-		m.mu.Unlock()
-		if m.Verbose {
-			fmt.Printf("  ◾  %s process exited\n", engine)
-		}
-	}(engine, p, cmd)
 	return nil
 }
 
-// Stop terminates one engine's daemon (no-op when not running).
+// Stop terminates one engine's daemon (no-op when not running). For owned
+// daemons it waits for the monitor to reap the child; for adopted daemons it
+// terminates via the recorded pid (tree-kill on Windows).
 func (m *Manager) Stop(engine string) error {
 	m.mu.Lock()
 	p := m.procs[engine]
 	delete(m.procs, engine)
 	m.mu.Unlock()
-	if p == nil || p.cmd.Process == nil {
+	if p == nil {
 		return nil
 	}
-	killProcessGroup(p.cmd.Process)
-	signalTerm(p.cmd.Process)
-	time.Sleep(500 * time.Millisecond)
-	_ = p.cmd.Process.Kill()
+	if p.adopted {
+		if proc, err := os.FindProcess(p.pid); err == nil && processAlive(p.pid) {
+			terminateExternal(proc)
+		}
+		if m.Verbose {
+			fmt.Printf("  ◾  %s stopped (external pid %d)\n", engine, p.pid)
+		}
+		return nil
+	}
+	if p.cmd.Process != nil {
+		killProcessGroup(p.cmd.Process)
+		signalTerm(p.cmd.Process)
+	}
+	select {
+	case <-p.done:
+	case <-time.After(3 * time.Second):
+		if p.cmd.Process != nil {
+			killTree(p.cmd.Process)
+		}
+		select {
+		case <-p.done:
+		case <-time.After(2 * time.Second):
+		}
+	}
 	if m.Verbose {
 		fmt.Printf("  ◾  %s stopped\n", engine)
 	}
@@ -251,14 +319,28 @@ func (m *Manager) StopAll() {
 	}
 }
 
-// Running lists engines with a live process (ready or still starting).
+// Running lists engines with a live process (owned, ready or still starting)
+// plus adopted external daemons whose pid is still alive.
 func (m *Manager) Running() []string {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]string, 0, len(m.procs))
+	procs := make(map[string]*daemonProc, len(m.procs))
 	for e, p := range m.procs {
-		if p.cmd != nil && p.cmd.Process != nil {
-			out = append(out, e)
+		procs[e] = p
+	}
+	m.mu.Unlock()
+	out := make([]string, 0, len(procs))
+	for e, p := range procs {
+		switch {
+		case p.adopted:
+			if processAlive(p.pid) {
+				out = append(out, e)
+			}
+		case p.cmd != nil && p.cmd.Process != nil:
+			select {
+			case <-p.done: // exited; monitor will unregister it shortly
+			default:
+				out = append(out, e)
+			}
 		}
 	}
 	return out
@@ -424,6 +506,138 @@ func waitForSocket(socket string, timeout time.Duration) bool {
 		time.Sleep(200 * time.Millisecond)
 	}
 	return false
+}
+
+// --- start preflight: port conflicts & adoption ---
+
+// checkPortOwner decides how Start must proceed when something may already
+// be listening on the engine's port:
+//
+//   - port free → (0, nil): spawn normally;
+//   - alive daemon whose pidfile lives in OUR data dir → (pid, nil): adopt;
+//   - anything else holding the port → (0, err): loud and specific.
+//
+// matches is the per-platform "is this pid really our daemon binary"
+// predicate (injected so tests can stub it).
+func checkPortOwner(engine, dataDir string, port int, matches func(pid int, want string) bool) (int, error) {
+	if !portBusy(port) {
+		return 0, nil
+	}
+	pid, ok := liveEnginePid(engine, dataDir)
+	if ok && matches(pid, serverBinary(engine)) {
+		return pid, nil // same data dir, same binary — ours to adopt
+	}
+	hint := "stop that process or change the database port in config"
+	if ok {
+		// Pidfile fresh but the binary does not match — likely a reused PID.
+		hint = "the pid recorded in the data dir belongs to a different program; remove the stale pid file or change the port"
+	}
+	return 0, fmt.Errorf(
+		"port %d is already in use by another process — a leftover daemon from a previous session or another install. %s",
+		port, hint)
+}
+
+// portBusy probes whether 127.0.0.1:port accepts a bind right now.
+func portBusy(port int) bool {
+	ln, err := net.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return true
+	}
+	_ = ln.Close()
+	return false
+}
+
+// pidFilePath locates the daemon's pid file inside its data dir:
+// MariaDB gets one via --pid-file; PostgreSQL writes postmaster.pid itself.
+func pidFilePath(engine, dataDir string) string {
+	if engine == "postgresql" {
+		return filepath.Join(dataDir, "postmaster.pid")
+	}
+	return filepath.Join(dataDir, "pid")
+}
+
+// readPidFile parses the daemon pid out of its pid file (PostgreSQL's
+// postmaster.pid is multi-line; the first line is the pid).
+func readPidFile(path string) (int, bool) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	line := strings.TrimSpace(strings.SplitN(string(b), "\n", 2)[0])
+	pid, err := strconv.Atoi(strings.TrimSpace(line))
+	if err != nil || pid <= 0 {
+		return 0, false
+	}
+	return pid, true
+}
+
+// liveEnginePid reports the alive pid recorded in the engine's pid file.
+func liveEnginePid(engine, dataDir string) (int, bool) {
+	pid, ok := readPidFile(pidFilePath(engine, dataDir))
+	if !ok || !processAlive(pid) {
+		return 0, false
+	}
+	return pid, true
+}
+
+// waitOwnedPid polls until the daemon's pid file exists and records exactly
+// the pid we spawned. Returns the foreign pid (0 when unknown) plus ok=false
+// when ownership cannot be confirmed within the budget.
+func waitOwnedPid(engine, dataDir string, expect int, timeout time.Duration) (int, bool) {
+	pidPath := pidFilePath(engine, dataDir)
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		got, ok := readPidFile(pidPath)
+		switch {
+		case ok && got == expect:
+			return got, true
+		case ok && !processAlive(got):
+			// Stale file from a crashed earlier run — not a rival; clear it
+			// so the fresh daemon can write its own.
+			_ = os.Remove(pidPath)
+		case ok:
+			return got, false // genuinely alive, but it is not ours
+		}
+		if !processAlive(expect) {
+			return 0, false // our child already died — no point waiting
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return 0, false
+}
+
+// logTail returns the last non-empty lines of a log file as a compact
+// one-line summary for error messages (bounded length).
+func logTail(path string, lines int) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	all := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	var keep []string
+	for i := len(all) - 1; i >= 0 && len(keep) < lines; i-- {
+		s := strings.TrimSpace(all[i])
+		if s == "" {
+			continue
+		}
+		keep = append(keep, s)
+	}
+	// keep was collected back-to-front; restore chronological order.
+	for i, j := 0, len(keep)-1; i < j; i, j = i+1, j-1 {
+		keep[i], keep[j] = keep[j], keep[i]
+	}
+	out := strings.Join(keep, " | ")
+	if len(out) > 400 {
+		out = "…" + out[len(out)-399:]
+	}
+	return out
+}
+
+func nonEmpty(s, fallback string) string {
+	if s == "" {
+		return fallback
+	}
+	return s
 }
 
 func serverBinary(engine string) string {

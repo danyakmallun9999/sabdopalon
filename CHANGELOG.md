@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **Database daemon start: conflicts, double-starts and zombies** — the
+  shared MariaDB/PostgreSQL `Start()` path never checked whether the port
+  was taken or a daemon for the same data dir was already alive, so a second
+  install (e.g. AppImage alongside CLI) or a plain double-click on "Start"
+  spawned a doomed daemon that died 30 seconds later with a generic "did not
+  start". Now: port held by a foreign process fails fast with a message
+  naming the port; an alive daemon for this data dir (pidfile + binary
+  match) is adopted instead of re-spawned; readiness additionally verifies
+  the pidfile records OUR pid — closing Windows' false-ready hole where any
+  listener on the TCP port counted as success. The monitor goroutine now
+  Waits() every child from birth (readiness-timeout starts included) and
+  Stop() waits for it, eliminating `[mariadbd] <defunct>` zombies; Windows
+  Stop falls back to `taskkill /T /F` for orphaned trees. Failure messages
+  embed the last log lines so `logs/mariadb.log` explains itself in the UI.
+
 ## [0.8.0] — 2026-08-24
 
 ### Changed
