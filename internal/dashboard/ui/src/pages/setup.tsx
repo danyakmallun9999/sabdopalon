@@ -127,29 +127,23 @@ export default function SetupPage() {
   const activeTools = (status?.tools ?? []).filter((t) => t.installed)
 
   return (
-    <div className="flex h-[calc(100dvh-var(--tb-h,0px))] flex-col overflow-hidden bg-background">
-      {/* subtle top glow */}
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-40 bg-gradient-to-b from-primary/8 to-transparent" />
-
-      {/* Header — same surface family as the title bar, with a clear seam */}
-      <header className="bg-background/85 border-border/60 relative flex shrink-0 items-center gap-3 border-b px-5 pt-4 pb-3 backdrop-blur">
-        <div className="bg-primary/10 flex size-10 shrink-0 items-center justify-center rounded-xl">
-          <SparklesIcon />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-lg leading-tight font-semibold">Selamat datang di Sabdopalon</h1>
-          <p className="text-muted-foreground truncate text-xs">
-            Lingkungan development PHP lokal dalam satu folder — unduhan tervalidasi SHA-256, tanpa menyentuh sistem.
-          </p>
-        </div>
-      </header>
-
+    <div className="flex min-h-[calc(100dvh-var(--tb-h,0px))] flex-col bg-background">
       {installing ? (
         <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
       ) : (
         <>
-          <main className="relative mx-auto w-full max-w-6xl flex-1 min-h-0 overflow-y-auto px-5">
-            <div className="grid items-start gap-4 pb-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <main className="relative mx-auto w-full max-w-6xl flex-1 px-5 pt-5">
+            {/* Brand — kecil, langsung di atas kartu pertama */}
+            <div className="mb-4 flex items-center gap-2.5">
+              <img
+                src="/logo.png"
+                alt="Sabdopalon"
+                className="size-9 rounded-lg object-contain"
+              />
+              <span className="text-lg font-semibold tracking-tight">Sabdopalon</span>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
               {/* LEFT — core + settings */}
               <div className="flex flex-col gap-4">
                 <Card>
@@ -188,7 +182,7 @@ export default function SetupPage() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="flex-1">
                   <CardHeader className="p-4 pb-2">
                     <CardTitle className="text-sm">Pengaturan</CardTitle>
                   </CardHeader>
@@ -308,10 +302,6 @@ async function reloadWhenReady() {
     await new Promise((res) => setTimeout(res, 600))
   }
   window.location.reload()
-}
-
-function SparklesIcon() {
-  return <span className="text-2xl" role="img" aria-label="Sabdopalon">🐫</span>
 }
 
 function coreIcon(key: string) {
