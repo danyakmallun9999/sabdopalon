@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Changed
+- **Desktop installs land in a user-visible folder** — the Tauri shell now
+  points the sidecar's install root at `<home>/Sabdopalon`
+  (`/home/<user>/Sabdopalon` on Linux, `C:\Users\<user>\Sabdopalon` on
+  Windows) instead of the hidden OS app-data dir
+  (`~/.local/share/com.sabdopalon.app`). Existing installs in the legacy
+  location keep running there — only fresh setups use the friendly root.
+
 ## [0.8.1] — 2026-08-25
 
 ### Fixed

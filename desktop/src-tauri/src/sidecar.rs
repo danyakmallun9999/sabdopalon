@@ -1,6 +1,6 @@
 // Sidecar management: locate the bundled Go binary, launch it with
-// SABDOPALON_DIR pointing at the OS user-data dir, wait for the dashboard
-// HTTP endpoint, then point the window at it.
+// SABDOPALON_DIR pointing at the user-facing install root (~/Sabdopalon),
+// wait for the dashboard HTTP endpoint, then point the window at it.
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Child;
@@ -12,12 +12,35 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 // The sidecar process (owned here so it is killed on quit).
 static SIDECAR: Mutex<Option<Child>> = Mutex::new(None);
 
-/// The OS user-data dir where the sidecar keeps engine.toml, sites/, data/…
-/// (Herd-style: the app itself is installed read-only elsewhere).
+/// The install root where the sidecar keeps engine.toml, sites/, data/…
+///
+/// Friendly, user-visible location: `<home>/Sabdopalon` — Linux
+/// `/home/<user>/Sabdopalon`, Windows `C:\Users\<user>\Sabdopalon`.
+/// Herd-style: the app itself is installed read-only elsewhere; only this
+/// folder holds user data.
+///
+/// Back-compat: installs created before the friendly default lived under the
+/// OS app-data dir (`~/.local/share/com.sabdopalon.app` and friends). When
+/// that legacy dir is bootstrapped (engine.toml present) and the friendly
+/// one is not yet, keep using it — an upgrade must never strand user data.
 pub fn data_dir(app: &AppHandle) -> PathBuf {
-    app.path()
-        .app_data_dir()
-        .expect("app data dir")
+    let friendly = home_dir().join("Sabdopalon");
+    if let Ok(legacy) = app.path().app_data_dir() {
+        if legacy.join("config").join("engine.toml").is_file()
+            && !friendly.join("config").join("engine.toml").is_file()
+        {
+            return legacy;
+        }
+    }
+    friendly
+}
+
+/// The user's home directory (HOME on Unix, USERPROFILE on Windows).
+fn home_dir() -> PathBuf {
+    let key = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    std::env::var_os(key)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 /// Locate the sidecar binary candidates, best first:
