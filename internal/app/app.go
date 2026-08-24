@@ -834,6 +834,9 @@ func (a *App) enablePorts() int {
 			return 1
 		}
 		fmt.Println("✓ Done — restart sabdopalon to use http://site.<tld> without a port.")
+		fmt.Println("  ⚠ Note: rebuilding or re-copying this binary clears the capability —")
+		fmt.Println("     re-run 'enable-ports' after every rebuild.")
+		fmt.Println("  ⚠ The running instance (if any) must be restarted to pick this up.")
 	case "darwin":
 		fmt.Println("On macOS, one option is a pf redirect (no root at runtime):")
 		fmt.Printf("  echo 'rdr pass on lo0 inet proto tcp from any to any port 80 -> 127.0.0.1 port %d' | sudo tee /etc/pf.anchors/sabdopalon\n", a.Cfg.Proxy.HTTPPort)
