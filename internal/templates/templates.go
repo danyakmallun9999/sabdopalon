@@ -146,24 +146,19 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 <title><?= htmlspecialchars($site) ?> &middot; Sabdopalon</title>
 <style>
   :root {
-    --bg: #090a0f;
-    --frame: #10121a;
-    --cell-bg: #121520;
-    --cell-hover: #161a27;
-    --border: #1e2436;
-    --border-light: #2a334c;
-    --text-head: #f8fafc;
+    --bg: #030712;
+    --card-bg: #080d1a;
+    --border: #1f293d;
+    --border-subtle: #111827;
+    --text-title: #f8fafc;
     --text-body: #94a3b8;
     --text-muted: #64748b;
     --accent: #38bdf8;
-    --accent-bg: #082f49;
-    --accent-border: #0369a1;
+    --accent-bg: rgba(56, 189, 248, 0.1);
     --success: #10b981;
-    --success-bg: #022c22;
-    --success-border: #065f46;
+    --success-bg: rgba(16, 185, 129, 0.12);
     --warning: #f59e0b;
-    --warning-bg: #2d1800;
-    --warning-border: #78350f;
+    --warning-bg: rgba(245, 158, 11, 0.12);
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
@@ -175,51 +170,89 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
   }
 
   html, body {
-    height: 100%;
-  }
-
-  body {
-    font-family: var(--font-sans);
+    min-height: 100vh;
     background-color: var(--bg);
     color: var(--text-body);
-    line-height: 1.45;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1.25rem;
-    position: relative;
-    overflow-x: hidden;
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .grid-bg {
-    position: absolute;
-    inset: 0;
+  .page-layout {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    grid-template-rows: auto 16px 1fr 16px auto;
+    min-height: 100vh;
     width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.65;
+    background-color: var(--bg);
   }
 
-  .console {
-    position: relative;
-    z-index: 1;
-    width: 100%;
-    max-width: 58rem;
-    background-color: var(--frame);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  .gutter {
+    background-color: var(--bg);
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+    z-index: 2;
   }
 
-  .console-top {
+  .gutter-left {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    border-right: 1px solid var(--border);
+  }
+
+  .gutter-right {
+    grid-column: 3;
+    grid-row: 1 / -1;
+    border-left: 1px solid var(--border);
+  }
+
+  .navbar {
+    grid-column: 2;
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.85rem 1.25rem;
+    padding: 1rem 2rem;
+    max-width: 86rem;
+    width: 100%;
+    margin: 0 auto;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .hatched-divider {
+    grid-column: 1 / -1;
+    height: 16px;
+    border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
+    background-color: var(--bg);
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.035),
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+    z-index: 1;
+  }
+
+  .divider-nav {
+    grid-row: 2;
+  }
+
+  .divider-footer {
+    grid-row: 4;
+  }
+
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
   }
 
   .brand {
@@ -227,421 +260,472 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
-    color: var(--text-head);
+    color: var(--text-title);
     font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: -0.01em;
-  }
-
-  .brand-icon {
-    font-size: 1.2rem;
-    line-height: 1;
-  }
-
-  .top-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  .domain-tag {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--accent);
-    background-color: var(--accent-bg);
-    border: 1px solid var(--accent-border);
-    padding: 0.2rem 0.55rem;
-    border-radius: 4px;
-  }
-
-  .status-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background-color: var(--success-bg);
-    color: var(--success);
-    border: 1px solid var(--success-border);
-    padding: 0.2rem 0.6rem;
-    border-radius: 9999px;
-    font-size: 0.725rem;
-    font-weight: 600;
-    font-family: var(--font-mono);
-  }
-
-  .status-dot {
-    width: 0.4rem;
-    height: 0.4rem;
-    background-color: var(--success);
-    border-radius: 9999px;
-  }
-
-  .console-hero {
-    padding: 1.5rem 1.5rem 1.25rem;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 1.5rem;
-    align-items: center;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .hero-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-  }
-
-  .hero-text h1 {
-    font-size: 1.45rem;
-    font-weight: 700;
-    letter-spacing: -0.025em;
-    color: var(--text-head);
-    line-height: 1.2;
-  }
-
-  .hero-text p {
-    font-size: 0.875rem;
-    color: var(--text-body);
-  }
-
-  .file-box {
-    background-color: var(--cell-bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 0.65rem 0.95rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    min-width: 17rem;
-  }
-
-  .file-box-lbl {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-  }
-
-  .file-box-path {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    color: var(--text-head);
-    word-break: break-all;
-  }
-
-  .console-stack {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .stack-cell {
-    padding: 1.25rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: 0.85rem;
-  }
-
-  .stack-cell:not(:last-child) {
-    border-right: 1px solid var(--border);
-  }
-
-  .stack-cell-head {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--text-muted);
-  }
-
-  .stack-icon {
-    font-size: 1.1rem;
-    line-height: 1;
-  }
-
-  .stack-cell-body {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-  }
-
-  .stack-val {
-    font-size: 1.2rem;
-    font-weight: 700;
+    font-size: 1.15rem;
     letter-spacing: -0.02em;
-    color: var(--text-head);
   }
 
-  .stack-desc {
-    font-size: 0.775rem;
-    color: var(--text-body);
-    line-height: 1.4;
+  .brand-tag {
+    font-weight: 400;
+    color: var(--accent);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
-  .pill {
+  .announcement-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.15rem 0.5rem;
-    border-radius: 9999px;
-    width: fit-content;
-  }
-
-  .pill-ok {
-    background-color: var(--success-bg);
-    color: var(--success);
-    border: 1px solid var(--success-border);
-  }
-
-  .pill-warn {
-    background-color: var(--warning-bg);
-    color: var(--warning);
-    border: 1px solid var(--warning-border);
-  }
-
-  .action-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    background-color: #1e293b;
-    color: #f8fafc;
-    border: 1px solid #334155;
-    text-decoration: none;
-    font-size: 0.775rem;
-    font-weight: 600;
-    padding: 0.35rem 0.75rem;
-    border-radius: 4px;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-    width: fit-content;
-  }
-
-  .action-btn:hover {
-    background-color: #334155;
-    border-color: #475569;
-  }
-
-  .console-specs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    padding: 0.85rem 1.5rem;
-    gap: 1.25rem;
-    background-color: var(--cell-bg);
-    border-bottom: 1px solid var(--border);
-    font-size: 0.775rem;
-  }
-
-  .spec-entry {
-    display: flex;
-    align-items: baseline;
     gap: 0.5rem;
+    background-color: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.8125rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
 
-  .spec-lbl {
-    font-weight: 600;
-    color: var(--text-head);
-    white-space: nowrap;
+  .announcement-pill:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
   }
 
-  .spec-val {
-    color: var(--text-body);
-  }
-
-  .spec-val code {
-    font-family: var(--font-mono);
+  .sparkle {
     color: var(--accent);
   }
 
-  .console-footer {
+  .nav-right {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.775rem;
+    gap: 1.5rem;
   }
 
-  .footer-nav {
+  .nav-links {
     display: flex;
     align-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
+    font-size: 0.875rem;
+    font-weight: 500;
   }
 
-  .footer-nav a {
+  .nav-links a {
     color: var(--text-body);
     text-decoration: none;
     transition: color 0.15s ease;
   }
 
-  .footer-nav a:hover {
-    color: var(--text-head);
+  .nav-links a:hover {
+    color: var(--text-title);
   }
 
-  .footer-author {
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background-color: #f8fafc;
+    color: #030712;
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: 9999px;
+    transition: background-color 0.15s ease;
+  }
+
+  .btn-primary:hover {
+    background-color: #e2e8f0;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    text-decoration: none;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.55rem 1.15rem;
+    border-radius: 9999px;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.25);
+  }
+
+  .hero-container {
+    grid-column: 2;
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: 1.05fr 1.15fr;
+    gap: 3rem;
+    padding: 3.5rem 2rem 4rem;
+    align-items: center;
+    max-width: 86rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .hero-left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  .hero-title {
+    font-size: clamp(2.2rem, 4vw, 3.4rem);
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 1.12;
+    color: var(--text-title);
+    margin-bottom: 1.5rem;
+  }
+
+  .tech-bar {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 0.9rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-title);
+    flex-wrap: wrap;
+  }
+
+  .tech-item {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+
+  .tech-status {
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+  }
+
+  .status-ok {
+    color: var(--success);
+    background-color: var(--success-bg);
+  }
+
+  .status-warn {
+    color: var(--warning);
+    background-color: var(--warning-bg);
+  }
+
+  .hero-desc {
+    color: var(--text-body);
+    font-size: 1rem;
+    line-height: 1.65;
+    margin-bottom: 2rem;
+    max-width: 36rem;
+  }
+
+  .hero-desc code {
+    font-family: var(--font-mono);
+    color: #e2e8f0;
+    background-color: rgba(255, 255, 255, 0.06);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .hero-right {
+    position: relative;
+    border-radius: 1.25rem;
+    border: 1px solid var(--border);
+    background-color: #060a14;
+    overflow: hidden;
+    height: 480px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 20px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .showcase-grid {
+    position: absolute;
+    inset: -30px -40px -40px -30px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    transform: rotate(-14deg) skewX(8deg) scale(0.98);
+    transform-origin: center center;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .mock-card {
+    background-color: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+
+  .mock-card-light {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-color: rgba(0, 0, 0, 0.1);
+  }
+
+  .mock-card-light .mock-title {
+    color: #0f172a;
+  }
+
+  .mock-card-light .mock-sub {
+    color: #475569;
+  }
+
+  .mock-card-light .mock-code {
+    background-color: #e2e8f0;
+    color: #0f172a;
+  }
+
+  .mock-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mock-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+
+  .mock-pill {
+    font-size: 0.65rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+  }
+
+  .mock-sub {
+    font-size: 0.775rem;
+    color: #94a3b8;
+    line-height: 1.45;
+  }
+
+  .mock-code {
+    font-family: var(--font-mono);
+    font-size: 0.725rem;
+    background-color: #090d16;
+    padding: 0.5rem 0.65rem;
+    border-radius: 6px;
+    color: #38bdf8;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .footer {
+    grid-column: 2;
+    grid-row: 5;
+    padding: 1.25rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 86rem;
+    width: 100%;
+    margin: 0 auto;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .footer-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  .footer-links a {
+    color: var(--text-body);
+    text-decoration: none;
+  }
+
+  .footer-links a:hover {
+    color: var(--text-title);
   }
 
   .footer-author a {
     color: var(--text-body);
     text-decoration: underline;
-    text-underline-offset: 2px;
   }
 
-  .footer-author a:hover {
-    color: var(--text-head);
-  }
-
-  @media (max-width: 768px) {
-    body {
-      height: auto;
-      padding: 1rem;
-    }
-    .console-hero {
+  @media (max-width: 1024px) {
+    .page-layout {
       grid-template-columns: 1fr;
+      grid-template-rows: auto auto 1fr auto auto;
     }
-    .console-stack {
+    .gutter {
+      display: none;
+    }
+    .hero-container {
       grid-template-columns: 1fr;
+      gap: 2.5rem;
+      padding: 2rem 1.25rem;
     }
-    .stack-cell:not(:last-child) {
-      border-right: none;
-      border-bottom: 1px solid var(--border);
+    .navbar {
+      padding: 1rem 1.25rem;
     }
-    .console-specs {
-      grid-template-columns: 1fr;
-      gap: 0.5rem;
-    }
-    .console-footer {
-      flex-direction: column;
-      gap: 0.6rem;
-      text-align: center;
+    .footer {
+      padding: 1.25rem;
     }
   }
 </style>
 </head>
 <body>
-  <svg class="grid-bg" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
-    <defs>
-      <pattern id="grid-pattern" width="80" height="80" patternUnits="userSpaceOnUse">
-        <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#161a26" stroke-width="1"/>
-        <circle cx="80" cy="80" r="1.5" fill="#252c40"/>
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#grid-pattern)" />
-    <line x1="12%" y1="0" x2="12%" y2="100%" stroke="#1c2233" stroke-width="1" stroke-dasharray="4 6"/>
-    <line x1="28%" y1="0" x2="28%" y2="100%" stroke="#1c2233" stroke-width="1"/>
-    <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#242c42" stroke-width="1" stroke-dasharray="8 4"/>
-    <line x1="72%" y1="0" x2="72%" y2="100%" stroke="#1c2233" stroke-width="1"/>
-    <line x1="88%" y1="0" x2="88%" y2="100%" stroke="#1c2233" stroke-width="1" stroke-dasharray="4 6"/>
-    <line x1="0" y1="120" x2="100%" y2="120" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
-    <line x1="0" y1="360" x2="100%" y2="360" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
-    <line x1="0" y1="640" x2="100%" y2="640" stroke="#1c2233" stroke-width="1" stroke-dasharray="3 6"/>
-    <text x="12.5%" y="30" fill="#2d3752" font-size="9" font-family="monospace">110&deg; 22&apos; E</text>
-    <text x="50.5%" y="30" fill="#394566" font-size="9" font-family="monospace">MERIDIAN 0.0</text>
-    <text x="88.5%" y="30" fill="#2d3752" font-size="9" font-family="monospace">112&deg; 45&apos; E</text>
-  </svg>
+  <div class="page-layout">
+    <div class="gutter gutter-left"></div>
 
-  <main class="console">
-    <div class="console-top">
-      <a class="brand" href="http://localhost:9900" title="Buka Dashboard Sabdopalon">
-        <span class="brand-icon">&#128042;</span>
-        <span>Sabdopalon</span>
-      </a>
-      <div class="top-meta">
-        <span class="domain-tag"><?= htmlspecialchars($site) ?>.localhost</span>
-        <div class="status-tag">
-          <span class="status-dot"></span>
-          <span>SISTEM AKTIF</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="console-hero">
-      <div class="hero-text">
-        <h1>Situs siap dikembangkan</h1>
-        <p>Virtual host dialokasikan otomatis oleh Sabdopalon. Siap menerima request PHP.</p>
-      </div>
-      <div class="file-box">
-        <span class="file-box-lbl">Titik Masuk Utama</span>
-        <span class="file-box-path">sites/<?= htmlspecialchars($site) ?>/public/index.php</span>
-      </div>
-    </div>
-
-    <div class="console-stack">
-      <div class="stack-cell">
-        <div class="stack-cell-head">
-          <span class="stack-icon">&#128024;</span>
-          <span>PHP Runtime</span>
-        </div>
-        <div class="stack-cell-body">
-          <div class="stack-val"><?= htmlspecialchars($phpVer) ?></div>
-          <p class="stack-desc">Interpreter aktif melayani HTTP.</p>
-        </div>
-        <span class="pill pill-ok">&#9679; Aktif</span>
+    <header class="navbar">
+      <div class="nav-left">
+        <a class="brand" href="http://localhost:9900" title="Dashboard Sabdopalon">
+          <span>&#128042;</span>
+          <span>sabdopalon</span>
+          <span class="brand-tag">local</span>
+        </a>
+        <a class="announcement-pill" href="http://localhost:9900">
+          <span class="sparkle">&#10022;</span>
+          <span>Environment Aktif &middot; <?= htmlspecialchars($site) ?>.localhost &rsaquo;</span>
+        </a>
       </div>
 
-      <div class="stack-cell">
-        <div class="stack-cell-head">
-          <span class="stack-icon">&#128452;&#65039;</span>
-          <span><?= htmlspecialchars($db['label']) ?></span>
+      <nav class="nav-right">
+        <div class="nav-links">
+          <a href="http://localhost:9900">Dashboard</a>
+          <a href="<?= htmlspecialchars($pmaUrl) ?>">phpMyAdmin</a>
+          <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">GitHub</a>
         </div>
-        <div class="stack-cell-body">
-          <?php if ($db['ok']): ?>
-            <div class="stack-val"><?= htmlspecialchars($db['ver']) ?></div>
-            <p class="stack-desc">127.0.0.1:3306 (user: <code>root</code>)</p>
-          <?php else: ?>
-            <div class="stack-val" style="color: var(--warning);">Offline</div>
-            <p class="stack-desc">Layanan database belum aktif.</p>
-          <?php endif; ?>
+        <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &nearr;</a>
+      </nav>
+    </header>
+
+    <div class="hatched-divider divider-nav"></div>
+
+    <main class="hero-container">
+      <div class="hero-left">
+        <div class="eyebrow">LOCAL DEVELOPMENT ENVIRONMENT &middot; SABDOPALON</div>
+        <h1 class="hero-title">Situs <?= htmlspecialchars($site) ?>, siap dikembangkan.</h1>
+
+        <div class="tech-bar">
+          <div class="tech-item">
+            <span>&#128024; PHP <?= htmlspecialchars($phpVer) ?></span>
+            <span class="tech-status status-ok">Aktif</span>
+          </div>
+          <div class="tech-item">
+            <span>&#128452;&#65039; <?= htmlspecialchars($db['label']) ?></span>
+            <?php if ($db['ok']): ?>
+              <span class="tech-status status-ok"><?= htmlspecialchars($db['ver']) ?></span>
+            <?php else: ?>
+              <span class="tech-status status-warn">Offline</span>
+            <?php endif; ?>
+          </div>
+          <div class="tech-item">
+            <span>&#9881;&#65039; phpMyAdmin</span>
+          </div>
         </div>
-        <?php if ($db['ok']): ?>
-          <span class="pill pill-ok">&#9679; Terhubung</span>
-        <?php else: ?>
-          <span class="pill pill-warn">&#9675; Tidak Terhubung</span>
-        <?php endif; ?>
+
+        <p class="hero-desc">
+          Lingkungan lokal Sabdopalon menyajikan situs ini langsung melalui reverse proxy mandiri.
+          Mulai membangun aplikasi dengan mengedit berkas di <code>sites/<?= htmlspecialchars($site) ?>/public/index.php</code>.
+        </p>
+
+        <div class="hero-actions">
+          <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &nearr;</a>
+          <a class="btn-secondary" href="http://localhost:9900">Dashboard Sabdopalon</a>
+        </div>
       </div>
 
-      <div class="stack-cell">
-        <div class="stack-cell-head">
-          <span class="stack-icon">&#9881;&#65039;</span>
-          <span>phpMyAdmin</span>
-        </div>
-        <div class="stack-cell-body">
-          <div class="stack-val">Basis Data</div>
-          <p class="stack-desc">Kelola skema &amp; tabel SQL visual.</p>
-        </div>
-        <a class="action-btn" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &rarr;</a>
-      </div>
-    </div>
+      <div class="hero-right">
+        <div class="showcase-grid">
+          <div class="mock-card mock-card-light">
+            <div class="mock-head">
+              <span class="mock-title">&#128024; PHP Runtime</span>
+              <span class="mock-pill status-ok">● <?= htmlspecialchars($phpVer) ?></span>
+            </div>
+            <p class="mock-sub">Interpreter aktif melayani HTTP request pada folder root.</p>
+            <div class="mock-code">docroot: sites/<?= htmlspecialchars($site) ?>/public</div>
+          </div>
 
-    <div class="console-specs">
-      <div class="spec-entry">
-        <span class="spec-lbl">Dokumen Root:</span>
-        <span class="spec-val"><code>public/</code></span>
-      </div>
-      <div class="spec-entry">
-        <span class="spec-lbl">Virtual Host:</span>
-        <span class="spec-val"><code><?= htmlspecialchars($site) ?>.localhost</code></span>
-      </div>
-      <div class="spec-entry">
-        <span class="spec-lbl">Dashboard:</span>
-        <span class="spec-val"><code>localhost:9900</code></span>
-      </div>
-    </div>
+          <div class="mock-card">
+            <div class="mock-head">
+              <span class="mock-title">&#128452;&#65039; <?= htmlspecialchars($db['label']) ?></span>
+              <?php if ($db['ok']): ?>
+                <span class="mock-pill status-ok">● 127.0.0.1:3306</span>
+              <?php else: ?>
+                <span class="mock-pill status-warn">○ Tidak Terhubung</span>
+              <?php endif; ?>
+            </div>
+            <p class="mock-sub">Koneksi basis data MySQL/MariaDB dengan pengguna <code>root</code>.</p>
+            <div class="mock-code"><?= $db['ok'] ? 'server: ' . htmlspecialchars($db['ver']) : 'status: offline' ?></div>
+          </div>
 
-    <div class="console-footer">
-      <nav class="footer-nav">
+          <div class="mock-card">
+            <div class="mock-head">
+              <span class="mock-title">&#9881;&#65039; phpMyAdmin</span>
+              <span class="mock-pill status-ok">GUI SQL</span>
+            </div>
+            <p class="mock-sub">Kelola tabel, skema, impor, dan ekspor SQL dengan mudah.</p>
+            <div class="mock-code">url: <?= htmlspecialchars($pmaUrl) ?></div>
+          </div>
+
+          <div class="mock-card mock-card-light">
+            <div class="mock-head">
+              <span class="mock-title">&#127760; Virtual Host</span>
+              <span class="mock-pill status-ok">Port 80/443</span>
+            </div>
+            <p class="mock-sub">Alamat lokal terdaftar otomatis tanpa edit hosts manual.</p>
+            <div class="mock-code">host: http://<?= htmlspecialchars($site) ?>.localhost</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="hatched-divider divider-footer"></div>
+
+    <footer class="footer">
+      <div class="footer-links">
         <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">&#9733; GitHub</a>
         <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">&#8595; Unduh Rilis</a>
-        <a href="http://localhost:9900" target="_blank" rel="noopener">&#9776; Dashboard</a>
-      </nav>
+        <a href="http://localhost:9900" target="_blank" rel="noopener">&#9776; Dashboard (:9900)</a>
+      </div>
       <div class="footer-author">
         Dibuat oleh <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a> &middot; Sabdopalon
       </div>
-    </div>
-  </main>
+    </footer>
+
+    <div class="gutter gutter-right"></div>
+  </div>
 </body>
 </html>
 `
