@@ -68,6 +68,18 @@ export default function SetupPage() {
           setJob(j)
           if (j.done) setProgress(100)
           else setProgress((p) => Math.min(p + 1.5 + Math.random() * 4, 95))
+          // Orphaned job: the desktop shell restarted the sidecar after the
+          // setup completed — this fresh server knows nothing about the job
+          // (running=false, done=false, empty output). The install is over;
+          // head to the dashboard instead of freezing here forever.
+          if (!j.running && !j.done) {
+            api
+              .setupStatus()
+              .then((s) => {
+                if (s.bootstrapped) void reloadWhenReady()
+              })
+              .catch(() => {})
+          }
         })
         .catch(() => {})
     }, 800)
@@ -354,7 +366,7 @@ function InstallPanel({
 }) {
   return (
     <Card className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <CardHeader className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+      <CardHeader className="flex min-h-0 flex-1 flex-col items-stretch gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="text-base">
             {success ? (

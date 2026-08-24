@@ -305,20 +305,21 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         *guard = Some(child);
     }
 
-    // Setup-mode watcher: the wizard writes config/engine.toml when it
-    // finishes, but the RUNNING sidecar is the config-less setup instance —
-    // no proxy, no DB manager — so it can never serve the real dashboard
-    // (the dashboard meanwhile reloads into full chrome: "Proxy: 0", toast
-    // "database manager not available (setup mode)"). Restart the sidecar
-    // once the config appears; the next spawn skips --setup-mode.
+    // Setup-mode watcher: the wizard's install job writes config/engine.toml
+    // EARLY (before it deploys phpMyAdmin, creates the sample site and marks
+    // completion) — restarting on the config alone would kill the job
+    // mid-flight and freeze the wizard on a server that knows nothing about
+    // it. So wait for the COMPLETION MARKER too: only then is the setup
+    // instance safe to replace with the full one.
     if !bootstrapped {
         let app = app.clone();
         let cfg_path = dir.join("config").join("engine.toml");
+        let done_marker = dir.join(".sabdopalon-setup-complete");
         let log_path = sidecar_log.clone();
         std::thread::spawn(move || {
             for _ in 0..2400 {
                 std::thread::sleep(Duration::from_millis(750));
-                if !cfg_path.is_file() {
+                if !cfg_path.is_file() || !done_marker.is_file() {
                     continue;
                 }
                 let mut log = std::fs::OpenOptions::new()
@@ -338,7 +339,7 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 return;
             }
-            eprintln!("[sidecar] setup watcher gave up (no config after 30 min)");
+            eprintln!("[sidecar] setup watcher gave up (setup never completed)");
         });
     }
 
@@ -510,8 +511,17 @@ pub fn stop() {
 /// Poll 127.0.0.1:9900 until the dashboard answers, then show the window.
 pub fn wait_ready(app: AppHandle, win: WebviewWindow) {
     std::thread::spawn(move || {
-        for _ in 0..120 {
+        // First run extracts the bundled core (a 100+ MB archive expands to
+        // several hundred MB) BEFORE the dashboard can bind — the old 60s
+        // budget expired mid-extraction and the window showed a stale
+        // "Connection refused" page. Give it a generous 10 minutes.
+        for _ in 0..1200 {
             if std::net::TcpStream::connect("127.0.0.1:9900").is_ok() {
+                // The webview navigated to :9900 before the server existed
+                // and is showing that stale error page — reload onto the
+                // live app, then reveal the window.
+                let _ = win.eval("location.reload()");
+                std::thread::sleep(Duration::from_millis(300));
                 let _ = win.show();
                 let _ = win.set_focus();
                 return;
