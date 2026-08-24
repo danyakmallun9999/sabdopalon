@@ -98,9 +98,9 @@ function loadDock(): DockState {
   } catch {
     /* fresh */
   }
-  // Desktop: dock terbuka secara default; mobile/tablet tertutup agar
-  // tidak memakan layar (bisa dibuka lewat tombol Terminal di header).
-  return { open: window.innerWidth >= 1024, width: 480 }
+  // Terminal tertutup secara default di semua ukuran layar — dibuka lewat
+  // tombol Terminal di header. Pilihan user diingat via localStorage.
+  return { open: false, width: 480 }
 }
 
 function StatusDot({ s }: { s: TermStatus }) {
@@ -649,6 +649,7 @@ export default function SitesPage() {
                 <TerminalPanel
                   ref={panelRef}
                   dir={termDir}
+                  sessionKey={`sites-dock:${termSite?.name ?? "root"}`}
                   className="absolute inset-0 h-auto border-0 rounded-none"
                   onStatus={setTermStatus}
                 />

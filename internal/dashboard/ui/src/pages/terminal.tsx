@@ -74,6 +74,7 @@ export default function TerminalPage() {
               ref={(h) => {
                 if (h) panelRefs.current.set(t.id, h)
               }}
+              sessionKey={`term-page:${t.id}`}
               className="absolute inset-0 h-auto"
             />
           </div>

@@ -16,6 +16,12 @@ export type TerminalPanelHandle = {
 type Props = {
   /** Absolute directory the shell starts in ("" = Sabdopalon sites root). */
   dir?: string
+  /**
+   * Named server-side session: the shell survives disconnects (route
+   * changes, reloads) and reconnects replay its buffered output. Omit for
+   * the legacy ephemeral behaviour.
+   */
+  sessionKey?: string
   /** Extra CSS class for the container (default: h-[24rem]). */
   className?: string
   /** Connection state reporter for parent chrome (badges etc.). */
@@ -29,11 +35,14 @@ type Props = {
 // Resize is event-driven: xterm's onResize fires whenever FitAddon changes
 // the cell grid and the frame goes out immediately (no polling lag).
 const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
-  function TerminalPanel({ dir = "", className = "h-[24rem]", onStatus }, ref) {
+  function TerminalPanel({ dir = "", sessionKey, className = "h-[24rem]", onStatus }, ref) {
     const hostRef = useRef<HTMLDivElement>(null)
     const wsRef = useRef<WebSocket | null>(null)
     const restartRef = useRef<() => void>(() => {})
     const clearRef = useRef<() => void>(() => {})
+    // One-shot flag: the next (re)connect replaces the named server session
+    // with a brand-new shell instead of reattaching.
+    const freshRef = useRef(false)
 
     useEffect(() => {
       const host = hostRef.current
@@ -99,8 +108,16 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
       const connect = () => {
         if (disposed) return
         onStatus?.("connecting")
-        const qs = dir ? `?dir=${encodeURIComponent(dir)}` : ""
-        const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/terminal/ws${qs}`
+        const qs = new URLSearchParams()
+        if (dir) qs.set("dir", dir)
+        if (sessionKey) {
+          qs.set("session", sessionKey)
+          if (freshRef.current) {
+            qs.set("fresh", "1")
+            freshRef.current = false
+          }
+        }
+        const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/terminal/ws${qs.size ? `?${qs}` : ""}`
         const ws = new WebSocket(url)
         wsRef.current = ws
 
@@ -127,6 +144,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
       restartRef.current = () => {
         const ws = wsRef.current
         if (ws) { ws.onclose = null; ws.close() }
+        if (sessionKey) freshRef.current = true // replace the server session
         term.reset()
         connect()
       }
@@ -150,7 +168,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
         if (ws) { ws.onclose = null; ws.close() }
         term.dispose()
       }
-    }, [dir])
+    }, [dir, sessionKey])
 
     useImperativeHandle(ref, () => ({
       clear: () => clearRef.current?.(),

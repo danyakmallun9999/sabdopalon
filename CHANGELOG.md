@@ -11,8 +11,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   design system instead of the native OS chrome; macOS keeps the native
   traffic lights via the overlay title-bar style. The bar renders only
   inside the desktop app — the browser dashboard is untouched.
+- **Persistent terminal sessions** — named sessions (`?session=<key>`) now
+  survive disconnects: the Sites dock and Terminal page reattach to the same
+  live shell after a route change or reload and replay the buffered output
+  (ring buffer, 256 KB) instead of spawning a fresh shell. One permanent
+  pump per session reads the PTY; clients are swappable sinks, so reattach
+  can never steal bytes or interleave writers. Sessions are single-client
+  (reattach kicks), LRU-capped at 12, and reaped after 30 minutes detached;
+  `?fresh=1` still spawns a brand-new shell (Restart button).
 
 ### Changed
+- **Sites page: terminal dock starts closed** on every screen size — the
+  header button opens it and the choice is remembered in localStorage
+  (previously it forced itself open on desktops ≥1024 px).
 - **Desktop installs land in a user-visible folder** — the Tauri shell now
   points the sidecar's install root at `<home>/Sabdopalon`
   (`/home/<user>/Sabdopalon` on Linux, `C:\Users\<user>\Sabdopalon` on
