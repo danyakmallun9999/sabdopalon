@@ -61,16 +61,20 @@ export function App() {
   if (!setupLoaded) return null
 
   // Inside the Tauri desktop shell the native title bar is replaced by our
-  // own (design-system) bar; everything below shifts by --tb-h.
+  // own (design-system) bar: it is FIXED at the top (never scrolls away)
+  // and the whole frame is pushed down by --tb-h so no content hides
+  // underneath it.
   const tauri = isTauri()
-  const frameStyle = tauri ? ({ "--tb-h": TITLEBAR_H } as React.CSSProperties) : undefined
+  const frameStyle = tauri
+    ? ({ "--tb-h": TITLEBAR_H, paddingTop: TITLEBAR_H } as React.CSSProperties)
+    : undefined
 
   // First-run gate: the wizard takes over the WHOLE window — no sidebar, no
   // header, no dashboard chrome. The user cannot reach the dashboard until
   // setup completes (backend marker decides).
   if (setup !== null && !setup.bootstrapped) {
     return (
-      <div className={cn("flex min-h-dvh flex-col", tauri && "tb-frame")} style={frameStyle}>
+      <div className={cn("flex flex-col", tauri ? "tb-frame min-h-[calc(100dvh-var(--tb-h,0px))]" : "min-h-dvh")} style={frameStyle}>
         <AppTitlebar />
         <div className="flex flex-1 flex-col">
           <Suspense fallback={null}>
@@ -82,7 +86,7 @@ export function App() {
   }
 
   return (
-    <div className={cn("flex min-h-dvh flex-col", tauri && "tb-frame")} style={frameStyle}>
+    <div className={cn("flex flex-col", tauri ? "tb-frame min-h-[calc(100dvh-var(--tb-h,0px))]" : "min-h-dvh")} style={frameStyle}>
       <AppTitlebar />
       <LiveProvider>
       <SidebarProvider

@@ -13,6 +13,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   one. Exec points at the AppImage path ($APPIMAGE) when available.
 
 ### Fixed
+- **Quitting left databases and services running** — the desktop shell
+  killed the sidecar with SIGKILL, so the Go shutdown path (which stops
+  sites, databases and services) never ran and MariaDB/PostgreSQL kept
+  living as orphans. `sidecar::stop()` now sends SIGTERM first and waits
+  (bounded) before falling back to SIGKILL; on Windows taskkill /T takes
+  the whole tree. Tray Quit and the setup-restart both go through this.
+- **Title bar scrolled away and the sidebar sat under it** — the custom
+  title bar was in the normal document flow (it scrolled off with long
+  pages) and the fixed sidebar container (`data-slot="sidebar-container"`,
+  not `…-sidebar`) was never offset, so it hid under the bar. The bar is
+  now fixed at the top, the frame is padded by its height, and the
+  container starts below it.
 - **Desktop app trapped in setup mode after the wizard** — the setup-mode
   sidecar never exited: the dashboard reloaded into full chrome while the
   server was still the config-less instance (toast "database manager not

@@ -90,7 +90,7 @@ export function AppTitlebar() {
     <div
       data-tauri-drag-region
       style={{ height: TITLEBAR_H }}
-      className="bg-background/85 border-border/60 relative z-50 flex shrink-0 select-none items-center border-b backdrop-blur"
+      className="bg-background/85 border-border/60 fixed inset-x-0 top-0 z-50 flex select-none items-center border-b backdrop-blur"
     >
       <div data-tauri-drag-region className={cn("flex items-center gap-2 pl-3", mac && "pl-20")}>
         <span aria-hidden className="text-base leading-none">

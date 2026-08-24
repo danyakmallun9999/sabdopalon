@@ -465,10 +465,33 @@ fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Stop the sidecar (used by tray Quit and app exit).
+/// Stop the sidecar GRACEFULLY. The Go side handles SIGTERM by running its
+/// full shutdown path (stops sites, databases and services — those live in
+/// their own process groups and would be ORPHANED by a hard kill: MariaDB
+/// kept running after Quit). So: SIGTERM first, wait bounded, SIGKILL as
+/// the last resort. Windows has no signals — taskkill /T takes the whole
+/// process tree down instead.
 pub fn stop() {
     let mut guard = SIDECAR.lock().unwrap();
     if let Some(mut child) = guard.take() {
+        #[cfg(unix)]
+        {
+            let _ = std::process::Command::new("kill")
+                .arg(child.id().to_string())
+                .status();
+            for _ in 0..40 {
+                match child.try_wait() {
+                    Ok(Some(_)) => return, // graceful exit confirmed
+                    _ => std::thread::sleep(Duration::from_millis(250)),
+                }
+            }
+        }
+        #[cfg(windows)]
+        {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/T", "/F", "/PID", &child.id().to_string()])
+                .status();
+        }
         let _ = child.kill();
         let _ = child.wait();
     }
