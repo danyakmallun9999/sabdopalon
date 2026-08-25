@@ -46,11 +46,37 @@ import { useLive } from "@/lib/live"
 
 type Tab = "overview" | "config" | "logs" | "devtools" | "terminal"
 
+// Persist the active tab per-site across route changes and reloads, so a
+// refresh returns to the same view instead of snapping to "Overview". The
+// key is per-site (namespaced by name) so each site remembers its own tab.
+function tabKeyFor(name: string): string {
+  return `sabdopalon.site.${name}.tab`
+}
+function loadTab(name: string): Tab {
+  try {
+    const v = localStorage.getItem(tabKeyFor(name))
+    if (v === "overview" || v === "config" || v === "logs" || v === "devtools" || v === "terminal") return v
+  } catch {
+    /* fresh */
+  }
+  return "overview"
+}
+
 export default function SiteDetailPage() {
   const { name } = useParams<{ name: string }>()
   const [detail, setDetail] = useState<SiteDetail | null>(null)
-  const [tab, setTab] = useState<Tab>("overview")
+  const [tab, setTab] = useState<Tab>(() => (name ? loadTab(name) : "overview"))
   const [busy, setBusy] = useState<string | null>(null)
+
+  // Persist the active tab so a reload/route change returns to the same view.
+  useEffect(() => {
+    if (!name) return
+    try {
+      localStorage.setItem(tabKeyFor(name), tab)
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [tab, name])
 
   const load = useCallback(() => {
     if (!name) return

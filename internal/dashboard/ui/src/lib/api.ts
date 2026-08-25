@@ -74,6 +74,22 @@ export type InstallJob = {
   error?: string
 }
 
+// System tools (Node.js, Composer) live on the user's system, not in bin/.
+export type SysTool = {
+  name: string
+  label: string
+  installed: boolean
+  version: string
+}
+
+export type SysToolJob = {
+  name: string
+  running: boolean
+  done: boolean
+  output: string
+  error?: string
+}
+
 export type SslStatus = {
   ca_exists: boolean
   wildcard_cert: boolean
@@ -268,6 +284,12 @@ const api = {
   installPackage: (name: string) =>
     post<{ ok: boolean; message?: string; error?: string }>("/api/packages/install", { name }),
   installJob: () => request<InstallJob>("/api/packages/job"),
+
+  // System tools (Node.js, Composer) — installed onto the user's system.
+  listSysTools: () => request<SysTool[]>("/api/sys-tools"),
+  installSysTool: (name: string) =>
+    post<{ ok: boolean; message?: string; error?: string }>("/api/sys-tools/install", { name }),
+  sysToolJob: () => request<SysToolJob>("/api/sys-tools/job"),
 
   sslStatus: () => request<SslStatus>("/api/ssl"),
   sslCa: () => post<SslAction>("/api/ssl/ca"),

@@ -25,6 +25,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
 	"github.com/sabdopalon/sabdopalon/internal/ssl"
+	"github.com/sabdopalon/sabdopalon/internal/sysinstall"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/trust"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
@@ -32,7 +33,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.9.0"
+var Version = "0.10.0"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -670,12 +671,19 @@ func (a *App) pkgAdd(args []string) int {
 		fmt.Fprintln(os.Stderr, "available packages: sabdopalon pkg:list")
 		return 1
 	}
+	name := args[0]
+
+	// System tools (Node.js, Composer) install onto the user's system, not into
+	// bin/. They are NOT in packages.toml, so intercept before registry lookup.
+	if sysinstall.Find(name) != nil {
+		return a.installSysTool(name)
+	}
+
 	m, err := pkgmgr.New(a.cfgOrBare())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		return 1
 	}
-	name := args[0]
 	pkg, err := m.ResolvePackageName(name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
@@ -714,6 +722,31 @@ func (a *App) pkgAdd(args []string) int {
 	}
 	if strings.EqualFold(pkg, "phpmyadmin") {
 		return a.installPHPMyAdmin()
+	}
+	return 0
+}
+
+// installSysTool installs a system tool (Node.js, Composer) onto the user's
+// system — not into bin/. Per-user install (no sudo/admin). Outputs progress
+// to stdout. Returns a CLI exit code.
+func (a *App) installSysTool(name string) int {
+	t := sysinstall.Find(name)
+	if t == nil {
+		fmt.Fprintf(os.Stderr, "✗ unknown system tool: %s\n", name)
+		return 1
+	}
+	fmt.Printf("Installing %s onto your system (per-user, no sudo needed)…\n", t.Label)
+	if _, err := sysinstall.Install(name, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	// IsInstalled checks the running process PATH, which on Unix may not yet
+	// reflect the rc-file edit. The persistent PATH check is the source of
+	// truth here.
+	if sysinstall.IsOnPersistentPath(sysinstall.UserBinDir()) {
+		fmt.Printf("  ✓  %s installed. Open a NEW terminal for it to appear on PATH.\n", t.Label)
+	} else if sysinstall.IsInstalled(name) {
+		fmt.Printf("  ✓  %s %s ready on PATH.\n", t.Label, sysinstall.Version(name))
 	}
 	return 0
 }

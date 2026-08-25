@@ -733,6 +733,9 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 func setupLaravel(sitesDir, name string) error {
 	// We use composer create-project, then adjust the docroot.
 	// Laravel's public/ is the docroot, which matches Sabdopalon's convention.
+	if err := requireComposer(); err != nil {
+		return err
+	}
 	dir := filepath.Join(sitesDir, name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -740,7 +743,11 @@ func setupLaravel(sitesDir, name string) error {
 	fmt.Printf("  ⏳  Running composer create-project laravel/laravel...\n")
 	// Run: composer create-project laravel/laravel <name> --prefer-dist
 	// in the sites dir
-	return runCommand(sitesDir, "composer", "create-project", "laravel/laravel", name, "--prefer-dist")
+	if err := runCommand(sitesDir, "composer", "create-project", "laravel/laravel", name, "--prefer-dist"); err != nil {
+		_ = os.RemoveAll(dir) // clean up the partial scaffold so a retry is possible
+		return fmt.Errorf("composer create-project failed: %w", err)
+	}
+	return nil
 }
 
 func setupWordPress(sitesDir, name string) error {
@@ -774,12 +781,19 @@ func setupWordPress(sitesDir, name string) error {
 }
 
 func setupCodeIgniter(sitesDir, name string) error {
+	if err := requireComposer(); err != nil {
+		return err
+	}
 	dir := filepath.Join(sitesDir, name)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	fmt.Printf("  ⏳  Running composer create-project codeigniter4/appstarter...\n")
-	return runCommand(sitesDir, "composer", "create-project", "codeigniter4/appstarter", name, "--prefer-dist")
+	if err := runCommand(sitesDir, "composer", "create-project", "codeigniter4/appstarter", name, "--prefer-dist"); err != nil {
+		_ = os.RemoveAll(dir) // clean up the partial scaffold so a retry is possible
+		return fmt.Errorf("composer create-project failed: %w", err)
+	}
+	return nil
 }
 
 func runCommand(dir, name string, args ...string) error {
@@ -789,4 +803,16 @@ func runCommand(dir, name string, args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// requireComposer verifies that the composer executable is on PATH and returns
+// a clear, actionable error when it is missing. Templates that delegate project
+// scaffolding to `composer create-project` call this up front so a missing
+// composer produces one helpful message instead of a raw exec error.
+func requireComposer() error {
+	if _, err := exec.LookPath("composer"); err != nil {
+		return fmt.Errorf("composer is required but was not found on your PATH.\n" +
+			"Install Composer from https://getcomposer.org/download/ and retry.")
+	}
+	return nil
 }

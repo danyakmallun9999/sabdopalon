@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-08-25
+
+### Added
+- **System-tool installer (`internal/sysinstall`)** — Sabdopalon can now install
+  development tools onto the **user's system** (not into `bin/`) with no
+  admin/sudo rights. This first release covers Node.js (`node`) and Composer,
+  installable via `sabdopalon pkg:add node` / `sabdopalon pkg:add composer`. On
+  Linux/macOS the tool is unpacked to a per-user prefix and the user's shell rc
+  gets one idempotent, guarded `export` block so new terminals pick it up; on
+  Windows the per-user PATH (HKCU\Environment) is updated and
+  `WM_SETTINGCHANGE` is broadcast so new terminals/Explorer inherit it
+  without a logoff. The install is checksum-verified, idempotent (re-running
+  is a no-op), and safe: a missing rc file is created, and only missing-file
+  read errors are ignored so other I/O errors are never silently swallowed.
+- **Dashboard Packages page** gained a system-tools section that surfaces
+  Node.js/Composer install state and version, and a button to install them
+  directly from the UI.
+
 ### Fixed
 - **Database page reset to the Daemons tab on every reload** — the active tab
   (`Daemons` / `Backups` / `Terminal`) and the Terminal tab's selected engine

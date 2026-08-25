@@ -168,6 +168,15 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
       const ro = new ResizeObserver(fitNow)
       ro.observe(host)
       window.addEventListener("resize", fitNow)
+      // xterm's canvas renderer can stay blank if open() ran while the host
+      // was mid-layout (common when the panel mounts inside a tab). A fit()
+      // on the next animation frame, once the browser has a real size, forces
+      // a redraw and recovers the visible terminal.
+      requestAnimationFrame(() => {
+        if (disposed) return
+        fitNow()
+        sendResize()
+      })
 
       return () => {
         disposed = true

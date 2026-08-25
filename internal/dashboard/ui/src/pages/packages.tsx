@@ -2,7 +2,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Download, Loader2, X, XCircle } from "lucide-react"
 
-import api, { poll, type InstallJob, type Package, type SystemPHP } from "@/lib/api"
+import api, {
+  poll,
+  type InstallJob,
+  type Package,
+  type SystemPHP,
+  type SysTool,
+  type SysToolJob,
+} from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,6 +66,127 @@ function SystemPHPCard() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </CardHeader>
+    </Card>
+  )
+}
+
+// SystemToolsCard manages per-user installs of Node.js & Composer onto the
+// user's system (not into bin/). One-click install with live progress.
+function SystemToolsCard() {
+  const [tools, setTools] = useState<SysTool[]>([])
+  const [job, setJob] = useState<SysToolJob | null>(null)
+  const logRef = useRef<HTMLPreElement>(null)
+
+  const load = () =>
+    api.listSysTools().then((d) => setTools(Array.isArray(d) ? d : [])).catch(() => {})
+
+  useEffect(() => {
+    load()
+    const t = poll(load, 8000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Poll the install job while it runs.
+  useEffect(() => {
+    if (!job?.running) return
+    const t = setInterval(() => {
+      api.sysToolJob().then((j) => {
+        setJob(j)
+        if (j.output) requestAnimationFrame(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }))
+      }).catch(() => {})
+    }, 500)
+    return () => clearInterval(t)
+  }, [job?.running])
+
+  useEffect(() => {
+    if (job?.done && !job?.running) {
+      if (job.error) toast.error(job.error)
+      else toast.success(`${job.name} terpasang ✓`)
+      load()
+    }
+  }, [job?.done, job?.running])
+
+  async function install(name: string) {
+    const r = await api.installSysTool(name)
+    if (r.error) {
+      toast.error(r.error)
+      return
+    }
+    setJob({ name, running: true, done: false, output: "" })
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-col gap-1.5">
+          <CardTitle className="text-base">Alat sistem (Node.js &amp; Composer)</CardTitle>
+          <CardDescription>
+            Dipasang ke sistem kamu (bukan <code className="bg-muted rounded px-1 py-0.5">bin/</code>) — tersedia
+            untuk <code>composer create-project</code>, <code>npm install</code>, dan <code>vite</code>. Dipasang
+            per-user (tanpa sudo).
+          </CardDescription>
+        </div>
+        {tools.length === 0 ? (
+          <p className="text-muted-foreground text-sm">Memuat…</p>
+        ) : (
+          <div className="mt-2 flex flex-col gap-3">
+            {tools.map((t) => (
+              <div key={t.name} className="flex items-center justify-between gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">{t.label}</span>
+                  {t.installed ? (
+                    <span className="text-muted-foreground text-xs font-mono">{t.version}</span>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">belum terpasang</span>
+                  )}
+                </div>
+                {t.installed ? (
+                  <Badge variant="default" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                    terpasang
+                  </Badge>
+                ) : (
+                  <Button size="sm" disabled={!!job?.running} onClick={() => install(t.name)}>
+                    <Download className="size-4" />
+                    Pasang
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {job && (
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-sm">
+              {job.running ? (
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              ) : job.error ? (
+                <XCircle className="size-4 text-destructive" />
+              ) : (
+                <CheckCircle2 className="size-4 text-emerald-500" />
+              )}
+              <span>
+                {job.running
+                  ? `Memasang ${job.name}…`
+                  : job.error
+                    ? `Gagal memasang ${job.name}`
+                    : `${job.name} terpasang`}
+              </span>
+              {!job.running && (
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => setJob(null)} aria-label="Tutup">
+                  <X />
+                </Button>
+              )}
+            </div>
+            <pre
+              ref={logRef}
+              className={`bg-background text-muted-foreground max-h-40 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${job.error ? "border-destructive/40" : ""}`}
+            >
+              {job.output || (job.running ? "starting…" : "")}
+            </pre>
           </div>
         )}
       </CardHeader>
@@ -166,6 +294,8 @@ export default function PackagesPage() {
       </p>
 
       <SystemPHPCard />
+
+      <SystemToolsCard />
 
       {loadError && (
         <Card className="border-destructive/40">

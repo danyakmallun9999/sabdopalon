@@ -81,6 +81,12 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/packages/install", s.handleAPIPackageInstall)
 	s.mux.HandleFunc("/api/packages/job", s.handleAPIPackageJob)
 
+	// API: system tools (Node.js, Composer) — install onto the user's system,
+	// not into bin/. Separate from the bundled package registry.
+	s.mux.HandleFunc("/api/sys-tools", s.handleAPISysTools)
+	s.mux.HandleFunc("/api/sys-tools/install", s.handleAPISysToolInstall)
+	s.mux.HandleFunc("/api/sys-tools/job", s.handleAPISysToolJob)
+
 	// API: ssl
 	s.mux.HandleFunc("/api/ssl", s.handleAPISSLStatus)
 	s.mux.HandleFunc("/api/ssl/ca", s.handleAPISSLCA)

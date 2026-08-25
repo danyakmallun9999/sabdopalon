@@ -471,6 +471,9 @@ function TerminalTab({
   const card = cards.find((d) => d.key === engine)!
   const running = status?.db_states?.[engine] ?? cfg.db_states?.[engine] ?? false
   const installed = card.installed
+  // PostgreSQL terminal belum diimplementasikan: tampilkan pesan alih-alih
+  // mencoba meluncurkan psql (yang saat ini gagal di-resolve / belum didukung).
+  const pgUnsupported = engine === "postgresql"
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
@@ -498,7 +501,9 @@ function TerminalTab({
           })}
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {running ? (
+          {pgUnsupported ? (
+            <span>{card.label} — fitur terminal belum tersedia</span>
+          ) : running ? (
             <>
               <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
               {termStatus}
@@ -510,7 +515,20 @@ function TerminalTab({
       </div>
 
       {/* Terminal or not-running notice */}
-      {!installed ? (
+      {pgUnsupported ? (
+        <Card>
+          <CardContent className="flex flex-col gap-2 py-6 text-sm">
+            <span className="flex items-center gap-2">
+              <TerminalIcon className="size-4 shrink-0 text-muted-foreground" />
+              Terminal PostgreSQL belum tersedia.
+            </span>
+            <span className="text-muted-foreground">
+              Sementara gunakan klien <b>psql</b> bawaan, atau kelola PostgreSQL
+              via phpMyAdmin/port yang tampil di tab <b>Daemons</b>.
+            </span>
+          </CardContent>
+        </Card>
+      ) : !installed ? (
         <Card>
           <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
             <TerminalIcon className="size-4 shrink-0" />

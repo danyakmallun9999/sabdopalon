@@ -48,7 +48,8 @@ export function App() {
   const location = useLocation()
   const fullBleed = location.pathname === "/sites" ||
     location.pathname.startsWith("/sites/") ||
-    location.pathname === "/terminal"
+    location.pathname === "/terminal" ||
+    location.pathname === "/database"
 
   // One-shot bootstrap check: unbuilt installs redirect to the setup wizard.
   useEffect(() => {
