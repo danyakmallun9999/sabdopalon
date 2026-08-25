@@ -63,6 +63,14 @@ fn open_sites(app: &AppHandle) {
 
 fn restart(app: &AppHandle) {
     sidecar::stop();
+    // The Go sidecar's SIGTERM shutdown path stops sites, then each database
+    // daemon (up to ~5s each), then services — its internal budgets add up
+    // well past 10s. stop() already waits up to 30s for the child to exit,
+    // but the OS may still hold the TCP listener in TIME_WAIT or a daemon
+    // child may lag a beat behind. Poll the dashboard port until it clears
+    // (bounded) before spawning the replacement, so the new instance isn't
+    // greeted by "address already in use".
+    sidecar::wait_port_free("127.0.0.1:9900", std::time::Duration::from_secs(5));
     let _ = sidecar::start(app);
 }
 

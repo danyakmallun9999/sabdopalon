@@ -322,10 +322,35 @@ func (m *Manager) StartAll() map[string]error {
 	return errs
 }
 
-// StopAll terminates every running daemon.
+// StopAll terminates every running daemon, then sweeps ghosts: daemons of
+// our data dir that this Manager never owned — survivors of an earlier
+// session whose sidecar died before its cleanup ran (crash, SIGKILL, power
+// loss). Stopping only what we own would leave such strays holding our
+// ports forever.
 func (m *Manager) StopAll() {
 	for _, e := range Engines {
 		_ = m.Stop(e)
+	}
+	m.sweepGhosts()
+}
+
+// sweepGhosts finds and stops daemons pinned to OUR data dirs by command
+// line even though no pid file / Manager entry knows about them.
+func (m *Manager) sweepGhosts() {
+	for _, e := range Engines {
+		if e == "sqlite" {
+			continue // no daemon
+		}
+		pid, ok := findGhostDaemon(e, filepath.Join(m.cfg.Data, e), processMatches)
+		if !ok {
+			continue
+		}
+		if proc, err := os.FindProcess(pid); err == nil && processAlive(pid) {
+			terminateExternal(proc)
+			if m.Verbose {
+				fmt.Printf("  ◾  %s ghost stopped (orphan pid %d from an earlier session)\n", e, pid)
+			}
+		}
 	}
 }
 
@@ -533,9 +558,19 @@ func checkPortOwner(engine, dataDir string, port int, matches func(pid int, want
 	if !portBusy(port) {
 		return 0, nil
 	}
+	wantBin := serverBinary(engine)
 	pid, ok := liveEnginePid(engine, dataDir)
-	if ok && matches(pid, serverBinary(engine)) {
+	if ok && matches(pid, wantBin) {
 		return pid, nil // same data dir, same binary — ours to adopt
+	}
+	// Ghost recovery: the pid file can be missing while OUR daemon still
+	// lives (data dir deleted/reset underneath it, crash before the first
+	// write). Identity then comes from the process table instead: a
+	// serverBinary whose command line targets exactly this dataDir. Without
+	// this fallback every start would report a port conflict against our own
+	// orphan and the app would stay locked out until a manual kill.
+	if ghost, ok := findGhostDaemon(engine, dataDir, matches); ok {
+		return ghost, nil
 	}
 	hint := "stop that process or change the database port in config"
 	if ok {
@@ -554,6 +589,55 @@ func portBusy(port int) bool {
 		return true
 	}
 	_ = ln.Close()
+	return false
+}
+
+// --- ghost daemons: alive but no longer identifiable via pid file ---
+
+// processTable enumerates (pid, command line) pairs; indirect so tests can
+// stub the scan.
+var processTable = forEachProcess
+
+// findGhostDaemon scans the process table for OUR engine daemon: a live
+// serverBinary whose command line targets exactly our dataDir (--datadir=
+// <path>, or PostgreSQL's "-D <path>"). Returns its pid when found.
+func findGhostDaemon(engine, dataDir string, matches func(pid int, want string) bool) (int, bool) {
+	wantBin := serverBinary(engine)
+	target := strings.TrimRight(filepath.Clean(dataDir), `/\`)
+	var found int
+	processTable(func(pid int, args string) bool {
+		if !argsTargetDataDir(args, target) || !matches(pid, wantBin) {
+			return true // keep scanning — not a candidate (yet)
+		}
+		found = pid
+		return false // stop the walk
+	})
+	return found, found > 0
+}
+
+// argsTargetDataDir reports whether a daemon command line points at exactly
+// dataDir: MariaDB's "--datadir=<path>", PostgreSQL's "-D <path>", or the
+// bare path as an argument. Compared case-insensitively and without trailing
+// separators, because Windows path comparisons are case-insensitive.
+func argsTargetDataDir(args, dataDir string) bool {
+	fields := strings.Fields(args)
+	for i, raw := range fields {
+		f := strings.TrimRight(raw, `/\`)
+		var val string
+		switch {
+		case strings.HasPrefix(strings.ToLower(f), "--datadir="):
+			val = f[len("--datadir="):]
+		case strings.EqualFold(f, "-D"):
+			if i+1 < len(fields) {
+				val = strings.TrimRight(fields[i+1], `/\`)
+			}
+		default:
+			val = f
+		}
+		if val != "" && strings.EqualFold(val, dataDir) {
+			return true
+		}
+	}
 	return false
 }
 

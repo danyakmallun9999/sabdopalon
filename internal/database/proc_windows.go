@@ -78,3 +78,32 @@ func processMatches(pid int, wantBinary string) bool {
 	}
 	return strings.Contains(strings.ToLower(string(out)), strings.ToLower(wantBinary))
 }
+
+// forEachProcess walks the whole process table via PowerShell CIM — wmic no
+// longer ships on current Win11 builds. Each line is "<pid>|<commandline>";
+// returning false from yield stops the walk early.
+func forEachProcess(yield func(pid int, args string) bool) {
+	script := `Get-CimInstance Win32_Process | ForEach-Object { "{0}|{1}" -f $_.ProcessId, $_.CommandLine }`
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	// Keep the query off the desktop: a windowsgui sidecar must never flash
+	// a PowerShell console while shutting down.
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	out, err := cmd.Output()
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		pidStr, args, found := strings.Cut(line, "|")
+		if !found {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+		if err != nil || pid <= 0 || args == "" {
+			continue
+		}
+		if !yield(pid, args) {
+			return
+		}
+	}
+}

@@ -18,6 +18,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/dashboard"
 	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/deploy"
+	"github.com/sabdopalon/sabdopalon/internal/lock"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
@@ -243,6 +244,23 @@ func (a *App) serve() int {
 		return a.serveSetupMode()
 	}
 
+	// Single-instance lock BEFORE any port is bound. The Tauri desktop
+	// sidecar and the CLI share this lock so they can never both start and
+	// fight over 9900/8080/3306 — the root cause of "AppImage vs CLI"
+	// conflicts. Held for the whole process; released on exit.
+	lockHandle, err := lock.Acquire(a.Cfg.RootDir)
+	if err != nil {
+		var held *lock.HeldError
+		if errors.As(err, &held) {
+			fmt.Fprintln(os.Stderr, "✗ "+held.Error())
+			fmt.Fprintln(os.Stderr, "  Sabdopalon sudah berjalan. Buka dashboard-nya, atau quit dulu lalu jalankan ulang.")
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "✗ lock: %v\n", err)
+		return 1
+	}
+	defer lockHandle.Release()
+
 	// Safety net: guarantee the layout exists even when the config predates
 	// the bootstrap step (older installs).
 	if err := bootstrap.EnsureLayout(a.Cfg.RootDir); err != nil {
@@ -342,6 +360,25 @@ func (a *App) serve() int {
 		srv.EnvProvider = svcMgr.EnvVars
 	}
 
+	// Handle Ctrl+C / SIGTERM gracefully. Installed as early as possible —
+	// before the dashboard starts — so a signal during startup still shuts
+	// down whatever daemons have already started instead of leaving them
+	// orphaned. srv.Stop() (not StopAll()) also closes the HTTPS listener and
+	// its watcher so no socket is left dangling for the next start to trip on.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Println("\n\nStopping Sabdopalon...")
+		n := srv.Stop()
+		dbMgr.StopAll()
+		if svcMgr != nil {
+			svcMgr.StopAll()
+		}
+		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
+		os.Exit(0)
+	}()
+
 	dashboard.Version = Version
 	dashURL := fmt.Sprintf("http://localhost:%d", a.Cfg.Dashboard.Port)
 
@@ -355,21 +392,6 @@ func (a *App) serve() int {
 			}
 		}()
 	}
-
-	// Handle Ctrl+C / SIGTERM gracefully: stop proxy + DB + services, then exit.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigCh
-		fmt.Println("\n\nStopping Sabdopalon...")
-		n := srv.StopAll()
-		dbMgr.StopAll()
-		if svcMgr != nil {
-			svcMgr.StopAll()
-		}
-		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
-		os.Exit(0)
-	}()
 
 	// Warn once when local HTTPS exists but browsers won't trust it yet.
 	if st := trust.CheckStatus(a.Cfg); st.CAExists && !st.Installed {

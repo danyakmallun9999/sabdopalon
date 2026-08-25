@@ -257,19 +257,24 @@ jobs:
 
           case "${{ matrix.name }}" in
             windows)
-              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+              # spc-max: the fullest Windows static-php combo (mysqli, gd,
+              # zip, curl) — spc-min has only 7 extensions and phpMyAdmin
+              # needs mysqli.
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-max/php-8.5.5-cli-win.zip
               (cd "$CORE/php/8.5" && unzip -q /tmp/php.zip)
               curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
               (cd "$CORE/mariadb" && unzip -q /tmp/mariadb.zip && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
               ;;
             macos)
-              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/bulk/php-8.5.8-cli-macos-aarch64.tar.gz
               tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
               # MariaDB macOS: tidak tersedia upstream — via `add mariadb`/Homebrew
               rm -rf "$CORE/mariadb"
               ;;
             linux)
-              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+              # bulk combo: phpMyAdmin requires mysqli, which the "common"
+              # combo does not compile in.
+              curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/php.tar.gz https://dl.static-php.dev/static-php-cli/bulk/php-8.5.8-cli-linux-x86_64.tar.gz
               tar xzf /tmp/php.tar.gz -C "$CORE/php/8.5"
               curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o /tmp/mariadb.tar.gz https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz
               tar xzf /tmp/mariadb.tar.gz -C "$CORE/mariadb" --strip-components=1

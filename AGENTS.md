@@ -47,7 +47,10 @@ resist scope creep. New-feature proposals go to the backlog, not the tree.
 - **Linux:** multi-instance port conflict (AppImage vs CLI), double-start on
   a live data dir, and `[mariadbd] <defunct>` zombies were triaged and fixed
   in the database-daemon hardening (see CHANGELOG [Unreleased]); verified on
-  Linux 2026-08-24.
+  Linux 2026-08-24. The AppImage-vs-CLI root cause was closed by a shared
+  single-instance lock (`internal/lock`) acquired by both the CLI and the
+  Tauri sidecar; OS-shutdown orphaning and the tray-restart port race were
+  fixed in the same pass.
 - Update this section as issues are triaged; remove entries once fixed.
 
 ## Repo layout
@@ -62,6 +65,7 @@ internal/
   pkgmgr/              package manager: downloads, extraction, SHA pins,
                        ResolveDefaultPHP (system-vs-bundled preference)
   bootstrap/           layout creation, bundled-core detection, setup marker
+  lock/                cross-process single-instance lock (flock/LockFileEx)
   deploy/              phpMyAdmin/site deployment
   proxy/               HTTP/HTTPS proxy; auto-binds :80/:443 when permitted
   ssl/, trust/         local CA, wildcard certs, per-OS trust stores

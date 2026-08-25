@@ -6,6 +6,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 ## [Unreleased]
 
 ### Fixed
+- **phpMyAdmin: "The mysqli extension is missing"** — the pinned static-php
+  builds were too small: the unix "common" combo compiles pdo_mysql but not
+  mysqli (phpMyAdmin requires mysqli), and the Windows spc-min build ships
+  only 7 extensions. The default PHP ([php]/[php85]) now pins the "bulk"
+  combo (~55 extensions: mysqli, pdo_mysql, gd, zip, intl, imagick, redis,
+  opcache, …) on unix and the "spc-max" combo (mysqli, gd, zip, curl, …) on
+  Windows (8.5.5, the newest spc-max asset). All five SHA-256 pins
+  re-computed from full downloads; versioned extras (php81–php83) still use
+  "common".
+- **Database page showed "Port aktif di: 0" while the daemon ran fine** —
+  the setup wizard never wrote `mariadb_port` (only the legacy `port`
+  field), the config API reported that raw 0, and the UI's `?? 3306`
+  fallback does not catch a literal 0. The API now reports the *effective*
+  port (config → legacy fallback → default), the wizard writes
+  `mariadb_port = 3306` explicitly, and the UI treats 0 as unset.
+- **Ghost MariaDB locked every launch out of its own port** — a daemon can
+  outlive its sidecar (crash, SIGKILL, data dir deleted while running) and
+  lose its pid file with it; from then on every start reported "port 3306
+  is already in use by another process" against the app's own orphan.
+  `checkPortOwner` now falls back to process-table identity: a mariadbd/
+  postgres whose command line pins OUR data dir (`--datadir=…`/`-D …`) is
+  adopted even without a pid file, and `StopAll` sweeps such ghosts so quit
+  reclaims their ports.
+- **Quit could SIGKILL the sidecar mid-cleanup** — the shell waited only
+  10s for the graceful Go shutdown (sites → databases → services, each with
+  its own budget) before SIGKILL, exactly how daemons get orphaned. The
+  grace period is now 30s.
+- **Setup-mode SIGTERM skipped cleanup** — the handler was a bare
+  `os.Exit(0)`; it now stops site children first, mirroring the full
+  server's shutdown path.
 - **First launch stalled with no feedback** — the sidecar extracted the
   bundled core (100+ MB archive) BEFORE starting the dashboard, so the
   native window stayed hidden for up to a minute and the webview showed a
@@ -21,6 +51,64 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 - **Install log panel collapsed to ~80px** — shadcn CardHeader ships
   items-start which survived cn() and shrank flex children to content
   width; items-stretch restores full-width logs.
+- **AppImage vs CLI port conflict** — the Tauri single-instance plugin only
+  knows about Tauri processes, so launching the CLI (`sabdopalon`) while the
+  desktop app ran (or vice-versa) started a second instance that failed to
+  bind 9900/8080/3306 and left the user staring at a generic error or
+  half-started daemons. Both launch paths now acquire a shared advisory lock
+  (flock on Unix, LockFileEx on Windows) on `<data>/.sabdopalon.lock` before
+  binding any port; a second instance refuses to start with a clear message
+  naming the holder PID.
+- **OS shutdown/logout orphaned the sidecar** — only tray Quit called
+  `sidecar::stop()`; an OS-initiated exit (logout, shutdown, SIGTERM to the
+  Tauri process) left the Go sidecar and its database/service daemons
+  running, holding ports so the next launch failed to bind. The desktop
+  shell now hooks `RunEvent::Exit` so `sidecar::stop()` runs on every
+  termination path.
+- **Shutdown left the HTTPS listener dangling** — the SIGTERM handler called
+  `srv.StopAll()` (PHP sites only) instead of `srv.Stop()`, so the HTTPS
+  listener and its cert watcher were never closed; the next start could trip
+  on the leftover socket. Both the full server and setup-mode handlers now
+  call `srv.Stop()`, and the handler is installed before the dashboard
+  starts so a signal during startup still cleans up.
+- **Tray Restart raced the freed port** — `restart()` spawned the
+  replacement sidecar immediately after `stop()`, but the OS could still
+  hold the dashboard port in TIME_WAIT or a daemon child could lag a beat.
+  The new instance would then fail to bind. `restart()` now polls the port
+  until it clears (bounded) before starting the replacement.
+- **Blank white window after Quit → relaunch (AppImage)** — `wait_ready`
+  polled TCP connectability (layer 4) but the dashboard's HTTP handler
+  (layer 7) was not ready yet; the reload then landed on a stale error
+  page that WebKitGTK does not re-fetch, leaving the window permanently
+  white while the server itself came up fine seconds later (verifiable in
+  a browser). The readiness probe now sends a real HTTP HEAD request and
+  waits for an HTTP response, and the reload is a `location.replace()`
+  (which forces a fresh navigation even from an error page) instead of
+  `location.reload()`.
+- **Package install hung at "starting…" (web + desktop)** — the install
+  handler piped the package manager's progress through an unbuffered
+  `io.Pipe` and read it with `io.ReadAll` *after* `Download` returned.
+  `io.Pipe` has no internal buffer, so the very first progress `Write`
+  blocked waiting for a reader that would never run until the download
+  finished — a classic deadlock. The install never completed and the UI
+  sat on "Memasang … starting…" forever, with no success/failure
+  feedback. Progress is now written straight into the job's output buffer
+  via a mutex-guarded writer, so the UI poll sees lines live; the progress
+  card now shows an explicit running/success/failure state (spinner → ✓/✗)
+  with a dismissible result, and the log auto-scrolls.
+- **PHP package cards contradicted the status header** — `/api/packages`
+  reported `installed` based solely on the bundled copy in `bin/`, so when
+  the host system supplied the PHP Sabdopalon was actively running (the
+  header said "php 8.5.8"), every PHP card still showed "not installed" — a
+  direct contradiction that left users unsure whether anything worked. The
+  registry also defines both a generic `[php]` and a versioned `[php85]`
+  pointing at the identical artifact, which rendered two near-duplicate
+  cards ("PHP 8.5" and "Default PHP") for the same download. The packages
+  API now exposes an `active` flag set when a PHP package's version matches
+  the PHP Sabdopalon is currently using (bundled or system); the UI
+  de-duplicates PHP cards by short version (keeping one) and shows a green
+  "aktif" badge for the PHP in use, distinct from "installed" (bundled) and
+  "not installed" (installable).
 
 ## [0.8.3] — 2026-08-25
 

@@ -59,3 +59,28 @@ func processMatches(pid int, wantBinary string) bool {
 	}
 	return strings.Contains(string(out), wantBinary)
 }
+
+// forEachProcess walks the whole process table, calling yield(pid, args) per
+// process with its full command line; returning false from yield stops the
+// walk early. One `ps` pass covers Linux and macOS alike (macOS has no
+// /proc to read).
+func forEachProcess(yield func(pid int, args string) bool) {
+	out, err := exec.Command("ps", "-axo", "pid=", "-o", "args=").Output()
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		pidStr, args, found := strings.Cut(line, " ")
+		if !found {
+			continue
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+		if err != nil || pid <= 0 || args == "" {
+			continue
+		}
+		if !yield(pid, args) {
+			return
+		}
+	}
+}

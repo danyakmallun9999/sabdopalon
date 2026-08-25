@@ -126,14 +126,17 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 			DBEngine:         s.cfg.Database.Engine,
 			DBPort:           intPtr(s.cfg.Database.Port),
 			DBMariadbEnabled: boolPtr(s.cfg.Database.MariaDBEnabled),
-			DBMariadbPort:    intPtr(s.cfg.Database.MariaDBPort),
-			DBPgEnabled:      boolPtr(s.cfg.Database.PGEnabled),
-			DBPgPort:         intPtr(s.cfg.Database.PGPort),
-			DashEnabled:      boolPtr(s.cfg.Dashboard.Enabled),
-			DashPort:         intPtr(s.cfg.Dashboard.Port),
-			AutoOpen:         boolPtr(s.cfg.Dashboard.AutoOpen),
-			Mailpit:          boolPtr(s.cfg.Services.Mailpit),
-			DBRunning:        dbRunning,
+			// Effective ports, not the raw config fields: 0 means "unset"
+			// (fall back to the legacy port / built-in default), and the
+			// dashboard must never display — or prefill — a literal 0.
+			DBMariadbPort: intPtr(database.EffectivePort(s.cfg, "mariadb")),
+			DBPgEnabled:   boolPtr(s.cfg.Database.PGEnabled),
+			DBPgPort:      intPtr(database.EffectivePort(s.cfg, "postgresql")),
+			DashEnabled:   boolPtr(s.cfg.Dashboard.Enabled),
+			DashPort:      intPtr(s.cfg.Dashboard.Port),
+			AutoOpen:      boolPtr(s.cfg.Dashboard.AutoOpen),
+			Mailpit:       boolPtr(s.cfg.Services.Mailpit),
+			DBRunning:     dbRunning,
 		}
 		inst := map[string]bool{}
 		for _, eng := range []string{"sqlite", "mariadb", "postgresql"} {

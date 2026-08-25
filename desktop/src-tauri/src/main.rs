@@ -49,6 +49,17 @@ fn main() {
                 api.prevent_close();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Sabdopalon desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building Sabdopalon desktop")
+        // RunEvent::Exit fires on ALL termination paths — tray Quit (which
+        // calls sidecar::stop() itself, making this a harmless no-op) AND
+        // OS-initiated exit: logout, shutdown, SIGTERM/SIGINT to the Tauri
+        // process. Without this hook, an OS-initiated exit would leave the Go
+        // sidecar and its database/service daemons orphaned, holding ports
+        // 9900/8080/3306 so the next launch fails to bind.
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                sidecar::stop();
+            }
+        });
 }

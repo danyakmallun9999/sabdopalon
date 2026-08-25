@@ -272,9 +272,13 @@ func (f *handshakeFilter) Write(p []byte) (int, error) {
 	return f.next.Write(p)
 }
 
-// Stop signals the proxy to shut down and kills all PHP servers.
-func (s *Server) Stop() {
-	s.StopAll()
+// Stop signals the proxy to shut down and kills all PHP servers, closes the
+// HTTPS listener and its watcher, and unblocks Start(). Returns the number of
+// per-site PHP servers that were stopped. Call this (not StopAll) on shutdown
+// so the HTTPS socket and watcher are released cleanly — a dangling listener
+// is exactly what makes the next start fail to bind.
+func (s *Server) Stop() int {
+	n := s.StopAll()
 	if s.httpsWatch != nil {
 		close(s.httpsWatch)
 		s.httpsWatch = nil
@@ -283,6 +287,7 @@ func (s *Server) Stop() {
 		_ = s.httpsSrv.Close()
 	}
 	close(s.stopCh)
+	return n
 }
 
 // ServeHTTP routes by Host header to the matching site's PHP server.

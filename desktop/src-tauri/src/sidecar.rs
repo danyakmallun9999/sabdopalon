@@ -536,7 +536,11 @@ pub fn stop() {
             let _ = std::process::Command::new("kill")
                 .arg(child.id().to_string())
                 .status();
-            for _ in 0..40 {
+            // The Go shutdown path stops sites, then every database daemon
+            // (up to ~5s each), then services — its own internal budgets add
+            // up well past 10s, and SIGKILL-ing mid-shutdown is exactly how
+            // orphaned daemons happen. Give it a full 30s before escalating.
+            for _ in 0..120 {
                 match child.try_wait() {
                     Ok(Some(_)) => return, // graceful exit confirmed
                     _ => std::thread::sleep(Duration::from_millis(250)),
@@ -554,7 +558,8 @@ pub fn stop() {
     }
 }
 
-/// Poll 127.0.0.1:9900 until the dashboard answers, then show the window.
+/// Poll 127.0.0.1:9900 until the dashboard answers an HTTP request, then
+/// show the window.
 pub fn wait_ready(app: AppHandle, win: WebviewWindow) {
     std::thread::spawn(move || {
         // First run extracts the bundled core (a 100+ MB archive expands to
@@ -562,11 +567,19 @@ pub fn wait_ready(app: AppHandle, win: WebviewWindow) {
         // budget expired mid-extraction and the window showed a stale
         // "Connection refused" page. Give it a generous 10 minutes.
         for _ in 0..1200 {
-            if std::net::TcpStream::connect("127.0.0.1:9900").is_ok() {
-                // The webview navigated to :9900 before the server existed
-                // and is showing that stale error page — reload onto the
-                // live app, then reveal the window.
-                let _ = win.eval("location.reload()");
+            // Check HTTP readiness, not just TCP connectable: the OS kernel
+            // completes the TCP handshake as soon as the socket is bound,
+            // but the Go HTTP server may not have entered its accept loop
+            // yet. A bare TcpStream::connect succeeding → location.reload()
+            // would reload a blank/error page (WebKitGTK does not re-fetch
+            // the original URL when reloading an error page), leaving the
+            // window stuck white on fast relaunches (e.g. after tray Quit).
+            if http_ready("127.0.0.1", 9900) {
+                // location.replace (not reload()) forces a fresh navigation to
+                // the URL even when the webview is sitting on a connection-
+                // refused error page — reload() alone does not re-fetch in
+                // that state on WebKitGTK.
+                let _ = win.eval("window.location.replace('http://localhost:9900')");
                 std::thread::sleep(Duration::from_millis(300));
                 let _ = win.show();
                 let _ = win.set_focus();
@@ -579,4 +592,48 @@ pub fn wait_ready(app: AppHandle, win: WebviewWindow) {
         let _ = win.show();
         let _ = app.emit("sidecar-timeout", ());
     });
+}
+
+/// Minimal HTTP readiness probe: open a TCP connection, send a HEAD
+/// request, and check for an HTTP response. This confirms the dashboard's
+/// HTTP handler (not just the TCP listener) is ready to serve — which is
+/// what the webview actually needs. No external HTTP dependency needed.
+fn http_ready(host: &str, port: u16) -> bool {
+    use std::io::{Read, Write};
+    let addr: std::net::SocketAddr = format!("{host}:{port}").parse().unwrap_or(([127, 0, 0, 1], port).into());
+    let mut stream = match std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let req = format!("HEAD /api/status HTTP/1.0\r\nHost: {host}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 64];
+    match stream.read(&mut buf) {
+        Ok(n) if n > 0 => {
+            // Any HTTP response (200, 404, even 500) means the server is up
+            // and handling requests. We don't care about the status code —
+            // we just need to know the handler is live.
+            let head = String::from_utf8_lossy(&buf[..n]);
+            head.starts_with("HTTP/")
+        }
+        _ => false,
+    }
+}
+
+/// Wait until a TCP port is no longer connectable (i.e. the previous owner
+/// has released it), bounded by `timeout`. Used after stop() before a restart
+/// so the replacement isn't greeted by "address already in use". Non-blocking
+/// on success, best-effort on timeout (proceeds anyway — the Go side's lock
+/// and bind errors will surface a clear message if the port is truly stuck).
+pub fn wait_port_free(addr: &str, timeout: Duration) {
+    let deadline = std::time::Instant::now() + timeout;
+    while std::time::Instant::now() < deadline {
+        if std::net::TcpStream::connect(addr).is_err() {
+            return; // port is free (connection refused = nothing listening)
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
 }

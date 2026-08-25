@@ -36,20 +36,27 @@ type DaemonCfg = {
 
 // Every daemon gets its own card and can run at the same time — each with
 // its own port ("default aktif semua").
+
+// 0 in the config means "unset" (legacy port field wins) — never display or
+// prefill it; show the fallback instead.
+function portOr(v: number | undefined, fallback: number): number {
+  return v && v > 0 ? v : fallback
+}
+
 function daemonCards(cfg: ConfigPayload): DaemonCfg[] {
   return [
     {
       key: "mariadb",
       label: "MariaDB",
       enabled: cfg.db_mariadb_enabled ?? true,
-      port: cfg.db_mariadb_port ?? 3306,
+      port: portOr(cfg.db_mariadb_port, 3306),
       installed: cfg.db_installed?.mariadb ?? false,
     },
     {
       key: "postgresql",
       label: "PostgreSQL",
       enabled: cfg.db_pg_enabled ?? true,
-      port: cfg.db_pg_port ?? 5433,
+      port: portOr(cfg.db_pg_port, 5433),
       installed: cfg.db_installed?.postgresql ?? false,
     },
   ]
@@ -72,8 +79,8 @@ export default function DatabasePage() {
         setCfg(c)
         if (!syncedRef.current) {
           setPorts({
-            mariadb: c.db_mariadb_port ?? 3306,
-            postgresql: c.db_pg_port ?? 5433,
+            mariadb: portOr(c.db_mariadb_port, 3306),
+            postgresql: portOr(c.db_pg_port, 5433),
           })
           syncedRef.current = true
         }

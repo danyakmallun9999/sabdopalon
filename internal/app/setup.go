@@ -2,6 +2,7 @@ package app
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/bootstrap"
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/dashboard"
+	"github.com/sabdopalon/sabdopalon/internal/lock"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
@@ -181,6 +183,22 @@ func (a *App) serveSetupMode() int {
 		return 1
 	}
 
+	// Single-instance lock — setup mode also binds :9900, so a second
+	// instance (e.g. a stray CLI launched while the desktop wizard runs)
+	// must be refused rather than failing to bind silently.
+	lockHandle, err := lock.Acquire(rootDir)
+	if err != nil {
+		var held *lock.HeldError
+		if errors.As(err, &held) {
+			fmt.Fprintln(os.Stderr, "✗ "+held.Error())
+			fmt.Fprintln(os.Stderr, "  Sabdopalon sudah berjalan. Buka dashboard-nya, atau quit dulu lalu jalankan ulang.")
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "✗ lock: %v\n", err)
+		return 1
+	}
+	defer lockHandle.Release()
+
 	// Minimal in-memory config: default ports, no daemons started.
 	cfg := &config.Engine{RootDir: rootDir}
 	cfg.TLD = "localhost"
@@ -203,12 +221,17 @@ func (a *App) serveSetupMode() int {
 	dash := dashboard.New(cfg, srv, bk, nil, nil)
 
 	// Serve until SIGINT/SIGTERM; the desktop app quits the sidecar the same
-	// way a Ctrl+C would.
+	// way a Ctrl+C would. Cleanup mirrors the full server's shutdown path:
+	// a bare os.Exit would skip whatever children a later wiring change
+	// puts under this process (that class of bug is exactly how orphaned
+	// daemons happen). srv.Stop() also closes the HTTPS listener/watcher.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		fmt.Println("\nStopping Sabdopalon (setup mode)...")
+		n := srv.Stop()
+		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
 		os.Exit(0)
 	}()
 

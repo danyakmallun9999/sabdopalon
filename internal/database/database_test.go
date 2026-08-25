@@ -183,6 +183,97 @@ func TestWaitOwnedPidStaleFileCleared(t *testing.T) {
 	}
 }
 
+func TestArgsTargetDataDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "mariadb")
+	cases := []struct {
+		args string
+		want bool
+	}{
+		{fmt.Sprintf("/usr/bin/mariadbd --datadir=%s --port=3306", dir), true},
+		{fmt.Sprintf("mariadbd --datadir=%s/ --port=3306", dir), true}, // trailing slash
+		{fmt.Sprintf("mariadbd --DATADIR=%s --port=3306", dir), true},  // case-insensitive (Windows paths)
+		{fmt.Sprintf("postgres -D %s -p 5433", dir), true},             // PostgreSQL form
+		{fmt.Sprintf("postgres -D %s", dir), true},                     // -D as last argument
+		{fmt.Sprintf("mariadbd %s", dir), true},                        // bare path argument
+		{"mariadbd --datadir=/var/lib/mysql --port=3306", false},       // another install
+		{fmt.Sprintf("mariadbd --datadir=%s-backup", dir), false},      // prefix must not match
+		{fmt.Sprintf("mariadbd --datadir=%s.old", dir), false},         // suffix must not match
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := argsTargetDataDir(c.args, dir); got != c.want {
+			t.Errorf("argsTargetDataDir(%q) = %v, want %v", c.args, got, c.want)
+		}
+	}
+}
+
+func TestFindGhostDaemonAdoptsWithoutPidFile(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "mariadb")
+	ghostArgs := fmt.Sprintf(
+		"%s --datadir=%s --port=3306 --bind-address=127.0.0.1",
+		filepath.Join(dataDir, "..", "bin", "mariadb", "bin", "mariadbd"), dataDir)
+	foreignArgs := "/usr/sbin/mariadbd --datadir=/var/lib/mysql --port=3306"
+
+	old := processTable
+	processTable = func(yield func(int, string) bool) {
+		if !yield(101, foreignArgs) {
+			return
+		}
+		_ = yield(262823, ghostArgs)
+	}
+	t.Cleanup(func() { processTable = old })
+
+	// Binary identity is stubbed: only pid 262823 claims to be mariadbd.
+	pid, ok := findGhostDaemon("mariadb", dataDir, func(p int, _ string) bool {
+		return p == 262823
+	})
+	if !ok || pid != 262823 {
+		t.Fatalf("expected ghost pid 262823, got pid=%d ok=%v", pid, ok)
+	}
+
+	// A data dir of ours that nothing references must never adopt anything.
+	if pid, ok := findGhostDaemon("mariadb", filepath.Join(t.TempDir(), "other"),
+		func(int, string) bool { return true }); ok {
+		t.Fatalf("unrelated data dir must not adopt, got pid %d", pid)
+	}
+
+	// PostgreSQL's -D form resolves too.
+	pgDir := filepath.Join(t.TempDir(), "postgresql")
+	processTable = func(yield func(int, string) bool) {
+		yield(42, fmt.Sprintf("/usr/lib/postgresql/bin/postgres -D %s -p 5433", pgDir))
+	}
+	pid, ok = findGhostDaemon("postgresql", pgDir, func(int, string) bool { return true })
+	if !ok || pid != 42 {
+		t.Fatalf("expected postgres ghost pid 42, got pid=%d ok=%v", pid, ok)
+	}
+}
+
+func TestCheckPortOwnerAdoptsGhostWhenPidFileLost(t *testing.T) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+
+	// Port busy, NO pid file (the deleted-datadir scenario) — recovery must
+	// come from the process table, not end in a permanent port conflict.
+	dataDir := filepath.Join(t.TempDir(), "mariadb")
+	old := processTable
+	processTable = func(yield func(int, string) bool) {
+		yield(7777, fmt.Sprintf(
+			"/home/u/Sabdopalon/bin/mariadb/bin/mariadbd --datadir=%s --port=%d",
+			dataDir, port))
+	}
+	t.Cleanup(func() { processTable = old })
+
+	pid, perr := checkPortOwner("mariadb", dataDir, port,
+		func(int, string) bool { return true })
+	if perr != nil || pid != 7777 {
+		t.Fatalf("expected ghost adoption of pid 7777, got pid=%d err=%v", pid, perr)
+	}
+}
+
 func contains(s, sub string) bool {
 	return len(s) >= len(sub) && (func() bool {
 		for i := 0; i+len(sub) <= len(s); i++ {

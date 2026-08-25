@@ -269,6 +269,10 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	cfg.Database.Engine = dbEngine
 	cfg.Database.Path = filepath.Join(rootDir, "data", "sabdopalon.db")
 	cfg.Database.Port = 3306
+	// Per-engine port written explicitly: leaving it 0 forces every reader
+	// through the EffectivePort fallback chain and used to surface as
+	// "Port aktif di: 0" on the Database page.
+	cfg.Database.MariaDBPort = 3306
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = false

@@ -45,19 +45,23 @@ license = "GPL-2.0 (with FOSS exception)"
 
 # Default PHP — installed by `sabdopalon add php` and by first-run auto-download.
 [php]
-# static-php.dev provides self-contained static PHP binaries with 30+
-# extensions (pdo_mysql, pdo_sqlite, curl, gd, mbstring, zip, opcache, ...).
-# Source: https://dl.static-php.dev/static-php-cli/common/
+# static-php.dev self-contained static PHP binaries. The "bulk" combo ships
+# ~55 extensions INCLUDING mysqli/pdo_mysql/gd/zip/intl — phpMyAdmin refuses
+# to run without mysqli, and the smaller "common" combo has only pdo_mysql.
+# Source: https://dl.static-php.dev/static-php-cli/bulk/
+# Windows has no bulk build; "spc-max" is the fullest Windows combo (mysqli,
+# gd, zip, curl...). spc-max 8.5.5 is the newest Windows asset — hence the
+# older version_windows.
 # NOTE: in url_windows, {version} automatically resolves to version_windows.
 version = "8.5.8"
-version_windows = "8.5.7"
-url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
-sha256_linux_x86_64 = "517a18e0f0874de35669fe134eb3c52508e128a6d1da5bf890760cb800ada410"
-sha256_linux_aarch64 = "af995ef6b3187b39932a00714dfb97e44bfa40a9243c4c29f61f19d583950753"
-sha256_macos_aarch64 = "cba9bd8b38b51ef2c7cebf02af689e4481bbd07f65edc0b63d3a43b04e0c9db7"
-sha256_macos_x86_64 = "05751000c6643f82e8377ed19d55bc159f84bbed46ace1fcc6f62be9866c787c"
-sha256_windows_x64 = "8b4c7ba06b486834cbdb91cc82fded5a19455beaa995ff84cb3e15132fbf3b05"
+version_windows = "8.5.5"
+url = "https://dl.static-php.dev/static-php-cli/bulk/php-{version}-cli-{os}-{arch}.tar.gz"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-max/php-{version}-cli-win.zip"
+sha256_linux_x86_64 = "bfaa12e0f6f5788259bc20d0d3f08e1e851bce7f05d43e38fb77041e12a32663"
+sha256_linux_aarch64 = "86ea1fe2f6d2415eff78c2e0bcb479b221d5637c89d72e19809b65c4c0527c27"
+sha256_macos_aarch64 = "5e5032e8244a2367b1e8a9c70ff6f793dee7433966c9291da85fadf2167cd55f"
+sha256_macos_x86_64 = "d5a9a505ebce66c7f6b4f4e16629c36f385f2d360df915875722d67fe8bb2161"
+sha256_windows_x64 = "1eaacf3a0c91069a596cd9ce59d2931216c56cd575034514ac4bfb30cf8e1892"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"
@@ -114,14 +118,14 @@ license = "PHP License"
 
 [php85]
 version = "8.5.8"
-version_windows = "8.5.7"
-url = "https://dl.static-php.dev/static-php-cli/common/php-{version}-cli-{os}-{arch}.tar.gz"
-url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-min/php-{version}-cli-win.zip"
-sha256_linux_x86_64 = "517a18e0f0874de35669fe134eb3c52508e128a6d1da5bf890760cb800ada410"
-sha256_linux_aarch64 = "af995ef6b3187b39932a00714dfb97e44bfa40a9243c4c29f61f19d583950753"
-sha256_macos_aarch64 = "cba9bd8b38b51ef2c7cebf02af689e4481bbd07f65edc0b63d3a43b04e0c9db7"
-sha256_macos_x86_64 = "05751000c6643f82e8377ed19d55bc159f84bbed46ace1fcc6f62be9866c787c"
-sha256_windows_x64 = "8b4c7ba06b486834cbdb91cc82fded5a19455beaa995ff84cb3e15132fbf3b05"
+version_windows = "8.5.5"
+url = "https://dl.static-php.dev/static-php-cli/bulk/php-{version}-cli-{os}-{arch}.tar.gz"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-max/php-{version}-cli-win.zip"
+sha256_linux_x86_64 = "bfaa12e0f6f5788259bc20d0d3f08e1e851bce7f05d43e38fb77041e12a32663"
+sha256_linux_aarch64 = "86ea1fe2f6d2415eff78c2e0bcb479b221d5637c89d72e19809b65c4c0527c27"
+sha256_macos_aarch64 = "5e5032e8244a2367b1e8a9c70ff6f793dee7433966c9291da85fadf2167cd55f"
+sha256_macos_x86_64 = "d5a9a505ebce66c7f6b4f4e16629c36f385f2d360df915875722d67fe8bb2161"
+sha256_windows_x64 = "1eaacf3a0c91069a596cd9ce59d2931216c56cd575034514ac4bfb30cf8e1892"
 target = "php/{version_short}"
 strip_root = false
 type = "tar.gz"

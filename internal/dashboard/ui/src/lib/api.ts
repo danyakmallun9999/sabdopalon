@@ -62,6 +62,7 @@ export type Package = {
   license: string
   installed: boolean
   is_php: boolean
+  active: boolean
 }
 
 export type InstallJob = {

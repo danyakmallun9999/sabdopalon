@@ -365,56 +365,54 @@ function InstallPanel({
   logRef: React.RefObject<HTMLPreElement | null>
 }) {
   return (
-    <Card className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-      <CardHeader className="flex min-h-0 flex-1 flex-col items-stretch gap-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <CardTitle className="text-base">
-            {success ? (
-              <span className="inline-flex items-center gap-2 text-emerald-500">
-                <CheckCircle2 /> Sabdopalon siap digunakan!
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-2">
-                <LoaderCircle className="size-4 animate-spin" /> Menyiapkan Sabdopalon…
-              </span>
-            )}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Progress value={progress} className="w-44" />
-            <span className="text-muted-foreground text-xs tabular-nums">{Math.round(progress)}%</span>
-          </div>
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 px-5 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="inline-flex items-center gap-2 text-base font-semibold">
+          {success ? (
+            <span className="inline-flex items-center gap-2 text-emerald-500">
+              <CheckCircle2 /> Sabdopalon siap digunakan!
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-2">
+              <LoaderCircle className="size-4 animate-spin" /> Menyiapkan Sabdopalon…
+            </span>
+          )}
+        </h2>
+        <div className="flex items-center gap-2">
+          <Progress value={progress} className="w-44" />
+          <span className="text-muted-foreground text-xs tabular-nums">{Math.round(progress)}%</span>
         </div>
-        <pre
-          ref={logRef}
-          className="bg-background text-muted-foreground min-h-0 flex-1 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
-        >
-          {job?.output || "Memulai…"}
-        </pre>
-        {job?.error && (
-          <div className="bg-destructive/10 rounded-lg border border-destructive/30 p-3">
-            <p className="text-destructive text-sm">Setup gagal: {job.error}</p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Kamu bisa mencoba lagi dari sini, atau lanjutkan manual lewat halaman Packages nanti.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="mt-2"
-              onClick={() => window.location.reload()}
-            >
-              Muat ulang wizard
-            </Button>
-          </div>
-        )}
-        {success && (
-          <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 p-3">
-            <p className="text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
-            <Button size="sm" onClick={() => void reloadWhenReady()}>
-              Masuk ke Dashboard <ArrowRight />
-            </Button>
-          </div>
-        )}
-      </CardHeader>
-    </Card>
+      </div>
+      <pre
+        ref={logRef}
+        className="bg-background text-muted-foreground min-h-0 flex-1 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
+      >
+        {job?.output || "Memulai…"}
+      </pre>
+      {job?.error && (
+        <div className="bg-destructive/10 rounded-lg border border-destructive/30 p-3">
+          <p className="text-destructive text-sm">Setup gagal: {job.error}</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Kamu bisa mencoba lagi dari sini, atau lanjutkan manual lewat halaman Packages nanti.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2"
+            onClick={() => window.location.reload()}
+          >
+            Muat ulang wizard
+          </Button>
+        </div>
+      )}
+      {success && (
+        <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 p-3">
+          <p className="text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
+          <Button size="sm" onClick={() => void reloadWhenReady()}>
+            Masuk ke Dashboard <ArrowRight />
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }

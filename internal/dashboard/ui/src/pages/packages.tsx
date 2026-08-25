@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
-import { CheckCircle2, Download } from "lucide-react"
+import { CheckCircle2, Download, Loader2, X, XCircle } from "lucide-react"
 
 import api, { poll, type InstallJob, type Package, type SystemPHP } from "@/lib/api"
 import { Badge } from "@/components/ui/badge"
@@ -95,21 +95,52 @@ export default function PackagesPage() {
     return () => clearInterval(t)
   }, [])
 
-  // Poll the install job only while it runs; animate a soft progress bar.
+  // The registry has both a generic "[php]" entry (the default, resolved by
+  // `sabdopalon add php`) and versioned "[php85]" entries. They often point
+  // at the SAME artifact (same version, same SHA) — rendering both produces
+  // two near-identical cards, which confused users ("which one do I install?").
+  // De-duplicate PHP packages by short version: when the generic "php" and a
+  // "phpNN" entry share a version, keep only one. We prefer the explicit
+  // "phpNN" name (it reads as "PHP 8.5"), but carry over the "php" label so the
+  // card still describes itself as the default.
+  const deduped = useMemo(() => {
+    const byShort = new Map<string, Package>()
+    for (const p of pkgs) {
+      if (!p.is_php) {
+        byShort.set("__pkg::" + p.name, p)
+        continue
+      }
+      const key = p.short
+      const existing = byShort.get(key)
+      // Prefer the explicit "phpNN" name; fall back to "php" only if absent.
+      if (!existing || (!existing.name.startsWith("php8") && p.name.startsWith("php8"))) {
+        byShort.set(key, p)
+      }
+    }
+    return Array.from(byShort.values())
+  }, [pkgs])
+
+  // Poll the install job while it runs; update the live progress log.
   useEffect(() => {
     if (!job?.running) {
       setProgress((p) => (job?.done ? 100 : p))
       if (!job?.running) return
     }
+    // Nudge the progress bar while running (the package manager reports no
+    // numeric progress, so this is an indeterminate feel capped at 90%; it
+    // jumps to 100 when done lands).
     const t = setInterval(() => {
-      setProgress((p) => Math.min(p + 2 + Math.random() * 6, 95))
-      api.installJob().then(setJob).catch(() => {})
-    }, 700)
+      setProgress((p) => Math.min(p + 1 + Math.random() * 3, 90))
+      api.installJob().then((j) => {
+        setJob(j)
+        // Auto-scroll the log to the bottom as new lines arrive.
+        if (j.output) requestAnimationFrame(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }))
+      }).catch(() => {})
+    }, 500)
     return () => clearInterval(t)
   }, [job?.running])
 
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight })
     if (job?.done && !job?.running) {
       if (job.error) toast.error(job.error)
       else toast.success(`Terpasang ✓`)
@@ -149,47 +180,88 @@ export default function PackagesPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
-        {pkgs.map((p) => (
-          <Card key={p.name}>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex flex-col gap-1.5">
-                  <CardTitle className="text-base">{LABELS[p.name] ?? p.name}</CardTitle>
-                  <CardDescription>
-                    v{p.version}
-                    {p.license ? ` · ${p.license}` : ""}
-                  </CardDescription>
+        {deduped.map((p) => {
+          // Status priority: active (in use now) > installed (bundled) >
+          // not installed. "active" covers PHP supplied by the host system
+          // that the "installed" check (bin/ only) does not see.
+          const status = p.active ? "active" : p.installed ? "installed" : "available"
+          // For the active PHP, show "Default PHP (auto-used by all sites)" so
+          // it is obvious this is the one Sabdopalon runs; other PHP versions
+          // show "PHP 8.x".
+          const label = p.active && p.is_php
+            ? LABELS["php"] ?? `PHP ${p.short}`
+            : LABELS[p.name] ?? (p.is_php ? `PHP ${p.short}` : p.name)
+          return (
+            <Card key={p.name}>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1.5">
+                    <CardTitle className="text-base">{label}</CardTitle>
+                    <CardDescription>
+                      v{p.version}
+                      {p.license ? ` · ${p.license}` : ""}
+                    </CardDescription>
+                  </div>
+                  <Badge
+                    variant={status === "available" ? "outline" : "default"}
+                    className={status === "active" ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400" : ""}
+                  >
+                    {status === "active" ? "aktif" : status === "installed" ? "installed" : "not installed"}
+                  </Badge>
                 </div>
-                <Badge variant={p.installed ? "default" : "outline"}>
-                  {p.installed ? "installed" : "not installed"}
-                </Badge>
-              </div>
-              <Button
-                className="mt-3 w-fit"
-                variant={p.installed ? "secondary" : "default"}
-                disabled={p.installed || !!job?.running}
-                onClick={() => install(p.name)}
-              >
-                {p.installed ? <CheckCircle2 /> : <Download />}
-                {p.installed ? "Installed" : "Install"}
-              </Button>
-            </CardHeader>
-          </Card>
-        ))}
+                <Button
+                  className="mt-3 w-fit"
+                  variant={status === "available" ? "default" : "secondary"}
+                  disabled={status !== "available" || !!job?.running}
+                  onClick={() => install(p.name)}
+                >
+                  {status === "available" ? <Download /> : <CheckCircle2 />}
+                  {status === "available" ? "Install" : status === "active" ? "Aktif" : "Installed"}
+                </Button>
+              </CardHeader>
+            </Card>
+          )
+        })}
       </div>
 
-      {job && job.running && (
+      {job && (
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Memasang {job.name}…</CardTitle>
-              <Progress value={progress} className="w-40" />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {job.running ? (
+                  <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                ) : job.error ? (
+                  <XCircle className="size-4 text-destructive" />
+                ) : (
+                  <CheckCircle2 className="size-4 text-emerald-500" />
+                )}
+                <CardTitle className="text-base">
+                  {job.running
+                    ? `Memasang ${job.name}…`
+                    : job.error
+                      ? `Gagal memasang ${job.name}`
+                      : `${job.name} terpasang`}
+                </CardTitle>
+              </div>
+              {!job.running && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setJob(null)}
+                  aria-label="Tutup"
+                >
+                  <X />
+                </Button>
+              )}
             </div>
+            {job.running && <Progress value={progress} className="w-full" />}
             <pre
               ref={logRef}
-              className="bg-background text-muted-foreground max-h-56 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
+              className={`bg-background text-muted-foreground max-h-56 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${job.error ? "border-destructive/40" : ""}`}
             >
-              {job.output || "starting…"}
+              {job.output || (job.running ? "starting…" : "")}
             </pre>
           </CardHeader>
         </Card>
