@@ -15,6 +15,7 @@ config/php.ini
 /logs/
 /tmp/
 /backups/
+/.sabdopalon.lock
 
 # SSL certs (generated locally)
 /certs/*.pem

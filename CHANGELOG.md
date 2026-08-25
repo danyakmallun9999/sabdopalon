@@ -5,6 +5,48 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-25
+
+### Added
+- **Per-site detail page** — every site now has a dedicated detail page at
+  `/sites/:name` with tabbed views: Overview (framework, PHP, database, URLs,
+  running dev-tools), Config (inline `.sabdopalon.yml` editor), Logs
+  (multi-source tailer: php/vite/artisan), Dev Tools (start/stop Vite, artisan,
+  npm, composer), and an inline Terminal. Clicking a site name in the sites
+  list navigates here; the row menu gets a "View details" entry.
+- **Dev-tools supervisor (`internal/devtools`)** — a new package that manages
+  per-site development tool processes (Vite, Artisan serve, npm run dev,
+  npm run build, composer install/update). Mirrors the `internal/services`
+  pattern but is scoped per site: each site gets its own Vite on its own port,
+  and tools are killed when the site is stopped or Sabdopalon shuts down.
+  Available tools are auto-detected from the project dir (vite.config,
+  artisan, package.json, composer.json).
+- **Framework-aware PHP router** — the proxy now detects the site's
+  framework (Laravel, WordPress, CodeIgniter, Symfony) and writes the right
+  `.sabdopalon-router.php` content. Laravel gets a dedicated router that sets
+  `SCRIPT_NAME`/`PATH_INFO` correctly so the front controller and route
+  matching work under `php -S` without `.htaccess`.
+- **Vite reverse-proxy** — when a Vite dev server is started from the Dev Tools
+  tab, the proxy intercepts Vite HMR/asset paths (`/@vite/`,
+  `/node_modules/.vite/`) and reverses them to the running Vite dev server.
+  This makes `name.localhost` serve Vite HMR directly — no need to run
+  `composer run dev` in a separate terminal or visit `localhost:8000`. The
+  Vite port is also injected into PHP env (`SABDOPALON_VITE_PORT/HOST`) so
+  `vite.config.js` can wire HMR to the Sabdopalon-managed Vite server.
+- **Site detail API** — `GET /api/sites/<name>` returns a full aggregate
+  (framework, PHP binary, config, dev-tools status, available logs);
+  `GET /api/sites/<name>/logs?log=<source>` tails a specific log;
+  `POST /api/sites/<name>/devtools {tool, action}` starts/stops a dev-tool.
+- **Inline database controls on the dashboard** — MariaDB and PostgreSQL now
+  have dedicated cards directly on the dashboard (status badge, error hint,
+  Start/Stop buttons) so the engines can be started/stopped without navigating
+  to the Database page. They reuse the same `api.databaseControl` endpoint as
+  the Database page; the Database page remains the place for port config,
+  restart, and backups. This resolves the confusion where the dashboard's
+  Start All / Stop All only touched optional services (MinIO, Meilisearch,
+  …) while the DBMS engines — prominently shown in the Databases stat card —
+  had no controls on the dashboard itself.
+
 ### Fixed
 - **phpMyAdmin: "The mysqli extension is missing"** — the pinned static-php
   builds were too small: the unix "common" combo compiles pdo_mysql but not
@@ -117,6 +159,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   de-duplicates PHP cards by short version (keeping one) and shows a green
   "aktif" badge for the PHP in use, distinct from "installed" (bundled) and
   "not installed" (installable).
+- **Windows built-in terminal opened an external console window instead of
+  the embedded one** — `startProcess` in `conpty_windows.go` allocated a
+  `ProcThreadAttributeList` for the pseudo console but never filled it with
+  the `PSEUDOCONSOLE` attribute (the `attrs.Update(…)` call from the upstream
+  go-pty reference was dropped during adaptation). `CreateProcess` therefore
+  received `EXTENDED_STARTUPINFO_PRESENT` with an empty attribute list, did
+  not know about our `HPSEUDOCONSOLE`, and fell back to allocating a fresh
+  visible console window for the PowerShell child — so the desktop app's
+  embedded terminal stayed dead while a separate PowerShell window popped
+  up. The missing `attrs.Update(_PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, &hpc,
+  sizeof(hpc))` is restored (passing `&hpc` rather than casting the handle to
+  a pointer to satisfy `go vet`'s unsafe.Pointer rules), which attaches the
+  child to the pseudo console and routes its I/O through our pipes.
 
 ## [0.8.3] — 2026-08-25
 
