@@ -69,17 +69,26 @@ jobs:
           done
 
           # --- PHP 8.5 (static-php.dev per platform; tarball berisi satu
-          #     file `php` langsung di root — tanpa strip) ---
-          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-linux.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-linux-x86_64.tar.gz
+          #     file `php` langsung di root — tanpa strip).
+          #     bulk combo (NOT common): phpMyAdmin requires mysqli, which the
+          #     "common" combo does not compile in. bulk ships ~55 extensions
+          #     (mysqli, pdo_mysql, gd, zip, intl, …) — matches the desktop
+          #     build and packages.toml. Common used to ship here, so the CLI
+          #     bundle could not run phpMyAdmin on any platform. ---
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-linux.tar.gz https://dl.static-php.dev/static-php-cli/bulk/php-8.5.8-cli-linux-x86_64.tar.gz
           mkdir -p linux-x86_64/bin/php/8.5 && tar xzf php-linux.tar.gz -C linux-x86_64/bin/php/8.5
 
-          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-x86_64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-x86_64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-x86_64.tar.gz https://dl.static-php.dev/static-php-cli/bulk/php-8.5.8-cli-macos-x86_64.tar.gz
           mkdir -p macos-x86_64/bin/php/8.5 && tar xzf php-macos-x86_64.tar.gz -C macos-x86_64/bin/php/8.5
 
-          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-aarch64.tar.gz https://dl.static-php.dev/static-php-cli/common/php-8.5.8-cli-macos-aarch64.tar.gz
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-macos-aarch64.tar.gz https://dl.static-php.dev/static-php-cli/bulk/php-8.5.8-cli-macos-aarch64.tar.gz
           mkdir -p macos-aarch64/bin/php/8.5 && tar xzf php-macos-aarch64.tar.gz -C macos-aarch64/bin/php/8.5
 
-          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-win.zip https://dl.static-php.dev/static-php-cli/windows/spc-min/php-8.5.7-cli-win.zip
+          # spc-max (Windows): the fullest Windows static-php combo (mysqli,
+          # gd, zip, curl). 8.5.5 is the newest spc-max asset. Matches the
+          # desktop build and packages.toml. The unix bundles above use the
+          # bulk combo — the cross-platform equivalent.
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o php-win.zip https://dl.static-php.dev/static-php-cli/windows/spc-max/php-8.5.5-cli-win.zip
           mkdir -p windows/bin/php/8.5 && (cd windows/bin/php/8.5 && unzip -q "$OLDPWD/php-win.zip")
 
           # --- MariaDB 11.4.13 (linux tar.gz + windows zip; macOS tidak

@@ -15,6 +15,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   Windows (8.5.5, the newest spc-max asset). All five SHA-256 pins
   re-computed from full downloads; versioned extras (php81–php83) still use
   "common".
+- **CLI release bundle shipped PHP without mysqli (Windows + Linux/macOS)**
+  — the release workflow's CLI bundle step downloaded the "common" combo on
+  unix and "spc-min" on Windows, while the desktop build and the package
+  registry already used "bulk"/"spc-max". The CLI bundle was therefore the
+  one distribution path where phpMyAdmin still failed with "mysqli extension
+  is missing". The CLI bundle now downloads the same "bulk" (unix) /
+  "spc-max" (Windows, 8.5.5) builds as the desktop app and registry, so all
+  three distribution paths ship a PHP with mysqli.
 - **Database page showed "Port aktif di: 0" while the daemon ran fine** —
   the setup wizard never wrote `mariadb_port` (only the legacy `port`
   field), the config API reported that raw 0, and the UI's `?? 3306`
