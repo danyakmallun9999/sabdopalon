@@ -58,7 +58,12 @@ type Manager struct {
 	mu       sync.Mutex
 	procs    map[string]*daemonProc // engine -> process
 	lastErrs map[string]string      // engine -> last Start() failure
-	Verbose  bool
+	// startMu serializes Start(): a second concurrent call (double-click,
+	// Start All + per-engine button) waits for the first to finish, then
+	// sees Ready() and becomes a friendly no-op instead of spawning a
+	// duplicate daemon that loses the port race and kills the winner.
+	startMu sync.Mutex
+	Verbose bool
 }
 
 // New creates a DB Manager.
@@ -122,6 +127,11 @@ func PrimaryEngine(cfg *config.Engine) string {
 //   - the TCP port held by anything else → loud, specific error instead of
 //     a 30-second wait ending in "did not start".
 func (m *Manager) Start(engine string) (err error) {
+	// One Start per engine at a time — concurrent callers queue here and
+	// the late one becomes a no-op via the Ready() check below.
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+
 	defer func() {
 		m.mu.Lock()
 		if err != nil {
