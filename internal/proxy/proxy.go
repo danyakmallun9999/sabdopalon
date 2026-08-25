@@ -545,6 +545,15 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 			phpIniOverride = filepath.Join(s.cfg.Root, name, phpIniOverride)
 		}
 	}
+	// If no explicit per-site override, auto-detect a php.ini sitting next to
+	// the PHP binary (e.g. bin/php/8.3/php.ini from a manually-dropped build).
+	// This mirrors how PHP natively searches for ini next to its binary, so
+	// users who supply their own PHP build can bundle their php.ini with it.
+	if phpIniOverride == "" && phpBin != "" {
+		if sidecar := filepath.Join(filepath.Dir(phpBin), "php.ini"); fileExists(sidecar) {
+			phpIniOverride = sidecar
+		}
+	}
 
 	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride)
 	if err != nil {
