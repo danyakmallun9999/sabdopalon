@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Save } from "lucide-react"
+import { Save, FileText } from "lucide-react"
 
-import api, { type ConfigPayload as Config, type Profile } from "@/lib/api"
+import api, { type ConfigPayload as Config, type Profile, type PhpIni } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -26,10 +26,14 @@ export default function SettingsPage() {
   const [cfg, setCfg] = useState<Config>({})
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [saving, setSaving] = useState(false)
+  const [ini, setIni] = useState<PhpIni | null>(null)
+  const [iniContent, setIniContent] = useState("")
+  const [savingIni, setSavingIni] = useState(false)
 
   useEffect(() => {
     api.getConfig().then(setCfg).catch(() => {})
     api.listProfiles().then((p) => setProfiles(Array.isArray(p) ? p : [])).catch(() => {})
+    api.getPhpIni().then((d) => { setIni(d); setIniContent(d.content) }).catch(() => {})
   }, [])
 
   function set<K extends keyof Config>(key: K, value: Config[K]) {
@@ -52,6 +56,17 @@ export default function SettingsPage() {
     const r = await api.applyProfile(name)
     if (r.error) toast.error(r.error)
     else toast.success(r.message ?? "Applied")
+  }
+
+  async function savePhpIni() {
+    setSavingIni(true)
+    try {
+      const r = await api.savePhpIni(iniContent)
+      if (r.error) toast.error(r.error)
+      else toast.success(r.message)
+    } finally {
+      setSavingIni(false)
+    }
   }
 
   return (
@@ -120,6 +135,36 @@ export default function SettingsPage() {
           <Button className="mt-3 w-fit" onClick={save} disabled={saving}>
             <Save /> Save settings
           </Button>
+        </CardHeader>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" /> Konfigurasi PHP (php.ini)
+          </CardTitle>
+          <CardDescription>
+            File ini berlaku untuk semua situs (diteruskan via PHPRC).{" "}
+            {ini?.version && (
+              <>PHP aktif: <code>{ini.version}</code>. </>
+            )}
+            Disimpan di <code>{ini?.path ?? "config/php.ini"}</code>.
+          </CardDescription>
+          <textarea
+            className="border-input bg-background focus-visible:ring-ring mt-2 min-h-[280px] w-full rounded-md border p-3 font-mono text-xs focus-visible:ring-1 focus-visible:outline-none"
+            value={iniContent}
+            onChange={(e) => setIniContent(e.target.value)}
+            spellCheck={false}
+            placeholder="memory_limit = 256M&#10;upload_max_filesize = 64M&#10;..."
+          />
+          <div className="mt-2 flex items-center gap-2">
+            <Button className="w-fit" onClick={savePhpIni} disabled={savingIni}>
+              <Save /> Simpan php.ini
+            </Button>
+            <span className="text-muted-foreground text-xs">
+              Menyimpan akan me-restart situs yang sedang berjalan.
+            </span>
+          </div>
         </CardHeader>
       </Card>
 

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/database"
@@ -401,6 +403,109 @@ func (s *Server) handleAPIServiceStop(w http.ResponseWriter, name string, r *htt
 	_ = s.svc.Stop(name)
 	s.json(w, map[string]any{"ok": true, "message": name + " stopped.", "status": s.svc.Status(name)})
 }
+
+// phpIniPath returns the absolute path to the global php.ini that every PHP
+// process reads via PHPRC. The file lives at config/php.ini under the install
+// root and is created on first serve by proxy.ensurePHPIni.
+func phpIniPath(rootDir string) string {
+	return filepath.Join(rootDir, "config", "php.ini")
+}
+
+// handleAPIPhpIni serves GET/PUT /api/php-ini — the PHP configuration editor.
+// GET  returns {path, content, version} where version is the active PHP
+//
+//	binary's version (or "" if none is active yet).
+//
+// PUT  replaces the file body and restarts all running sites so the new
+//
+//	settings take effect immediately.
+func (s *Server) handleAPIPhpIni(w http.ResponseWriter, r *http.Request) {
+	path := phpIniPath(s.cfg.RootDir)
+
+	switch r.Method {
+	case http.MethodGet:
+		content, err := os.ReadFile(path)
+		if err != nil {
+			// No php.ini yet — return defaults so the editor is never empty.
+			content = []byte(defaultPHPIniContent)
+		}
+		version := ""
+		if s.cfg.PHP.Binary != "" {
+			version = pkgmgr.PHPBinaryVersion(s.cfg.PHP.Binary)
+		}
+		s.json(w, map[string]any{
+			"path":    path,
+			"content": string(content),
+			"version": version,
+		})
+
+	case http.MethodPut:
+		var body struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			s.fail(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		// Basic sanity: reject if it doesn't look like an ini file at all.
+		trimmed := strings.TrimSpace(body.Content)
+		if trimmed != "" && !strings.Contains(trimmed, "=") && !strings.HasPrefix(trimmed, ";") && !strings.HasPrefix(trimmed, "[") {
+			s.fail(w, http.StatusBadRequest, "content doesn't look like a php.ini file (expected key=value, [sections], or ; comments)")
+			return
+		}
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			s.fail(w, http.StatusInternalServerError, "cannot create config dir: %v", err)
+			return
+		}
+		if err := os.WriteFile(path, []byte(body.Content), 0o644); err != nil {
+			s.fail(w, http.StatusInternalServerError, "cannot write php.ini: %v", err)
+			return
+		}
+
+		// Restart all running sites so PHPRC picks up the new ini.
+		restarted := 0
+		for _, site := range s.proxy.RunningSites() {
+			host := site.Host
+			name := strings.TrimSuffix(host, "."+s.cfg.TLD)
+			if err := s.proxy.RestartSite(name); err == nil {
+				restarted++
+			}
+		}
+		msg := "php.ini saved."
+		if restarted > 0 {
+			msg += fmt.Sprintf(" Restarted %d running site(s).", restarted)
+		} else {
+			msg += " Changes apply on next site visit."
+		}
+		s.json(w, map[string]any{"ok": true, "message": msg, "restarted": restarted})
+
+	default:
+		s.methodNotAllowed(w, "GET, PUT")
+	}
+}
+
+// defaultPHPIniContent mirrors the defaults written by proxy.ensurePHPIni so
+// the dashboard editor has something to show before the first serve.
+const defaultPHPIniContent = `; Sabdopalon global PHP configuration.
+; This file is passed to every PHP process via PHPRC — edit it freely,
+; then restart Sabdopalon (or restart the site) to apply.
+
+memory_limit = 256M
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 120
+date.timezone = UTC
+
+; Optional: uncomment to surface errors during development.
+; display_errors = On
+; error_reporting = E_ALL
+
+; Optional: extension examples (bundled PHP already includes these).
+; extension = pdo_mysql
+; extension = mbstring
+; extension = zip
+`
 
 func intPtr(n int) *int    { return &n }
 func boolPtr(b bool) *bool { return &b }

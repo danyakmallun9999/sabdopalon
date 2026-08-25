@@ -114,6 +114,12 @@ export type ConfigPayload = {
   mailpit_enabled?: boolean
 }
 
+export type PhpIni = {
+  path: string
+  content: string
+  version?: string
+}
+
 export type Profile = {
   Name: string
   PHP: string
@@ -238,6 +244,13 @@ const api = {
     request<{ ok: boolean; message: string; restart_required: boolean; error?: string }>(
       "/api/config",
       { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
+    ),
+
+  getPhpIni: () => request<PhpIni>("/api/php-ini"),
+  savePhpIni: (content: string) =>
+    request<{ ok: boolean; message: string; restarted: number; error?: string }>(
+      "/api/php-ini",
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) },
     ),
 
   listProfiles: () => request<Profile[]>("/api/profiles"),

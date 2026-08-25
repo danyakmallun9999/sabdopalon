@@ -92,6 +92,9 @@ func (s *Server) routes() {
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
 
+	// API: php.ini editor (GET/PUT the global PHP config; PUT restarts sites)
+	s.mux.HandleFunc("/api/php-ini", s.handleAPIPhpIni)
+
 	// API: live status stream (SSE) — the single feed all pages subscribe to.
 	s.mux.HandleFunc("/api/events", s.handleAPIEvents)
 	// API: database control — /api/database/{engine}/{action} (legacy
