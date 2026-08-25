@@ -10,9 +10,13 @@ import (
 )
 
 // newSession spawns PowerShell attached to a real ConPTY so colors, resize
-// and interactive programs work in the embedded terminal.
-func newSession(cfg *config.Engine, dir string, extraEnv []string) (*Session, error) {
+// and interactive programs work in the embedded terminal. When cmd is
+// non-empty it overrides PowerShell (e.g. a DB client prompt).
+func newSession(cfg *config.Engine, dir string, extraEnv []string, cmd []string) (*Session, error) {
 	shell := shellCommand()
+	if len(cmd) > 0 {
+		shell = cmd
+	}
 	env := envFor(cfg, extraEnv)
 
 	exe, err := exec.LookPath(shell[0])

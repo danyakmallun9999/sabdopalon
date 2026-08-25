@@ -13,21 +13,25 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
 
-// newSession spawns the shell on a creack/pty pseudo-terminal.
-func newSession(cfg *config.Engine, dir string, extraEnv []string) (*Session, error) {
+// newSession spawns the shell on a creack/pty pseudo-terminal. When cmd is
+// non-empty it overrides the interactive shell (e.g. a DB client prompt).
+func newSession(cfg *config.Engine, dir string, extraEnv []string, cmd []string) (*Session, error) {
 	shell := shellCommand()
+	if len(cmd) > 0 {
+		shell = cmd
+	}
 	env := envFor(cfg, extraEnv)
 
-	cmd := exec.Command(shell[0], shell[1:]...)
-	cmd.Dir = dir
-	cmd.Env = env
+	proc := exec.Command(shell[0], shell[1:]...)
+	proc.Dir = dir
+	proc.Env = env
 
 	s := &Session{}
-	ptmx, err := pty.Start(cmd)
+	ptmx, err := pty.Start(proc)
 	if err != nil {
 		return nil, err
 	}
-	s.cmd = cmd
+	s.cmd = proc
 	s.ptmx = ptmx
 	s.in = ptmx
 	s.out = ptmx

@@ -84,6 +84,24 @@ func (c *conPty) startProcess(exe string, args []string, dir string, env []strin
 	}
 	defer attrs.Delete()
 
+	// Attach the child to our pseudo console: without this Update call
+	// CreateProcess is never told about hpc, so Windows allocates a fresh
+	// console WINDOW for the child (PowerShell pops up externally) and the
+	// inPipe/outPipe stay unwired — i.e. the embedded terminal is dead and a
+	// real console window appears on the desktop. This is the ConPTY step
+	// that aymanbagabas/go-pty does in updateProcThreadAttribute().
+	//
+	// Win32 wants a pointer to the HPC value (not the handle cast to a
+	// pointer); pass &hpc with size sizeof(hpc).
+	hpc := c.handle
+	if err := attrs.Update(
+		uintptr(_PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE),
+		unsafe.Pointer(&hpc),
+		unsafe.Sizeof(hpc),
+	); err != nil {
+		return fmt.Errorf("pseudoconsole attribute: %w", err)
+	}
+
 	siEx := &windows.StartupInfoEx{}
 	siEx.Cb = uint32(unsafe.Sizeof(*siEx))
 	siEx.ProcThreadAttributeList = attrs.List()

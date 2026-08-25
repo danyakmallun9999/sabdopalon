@@ -34,14 +34,20 @@ type Session struct {
 // PATH, DB client vars so `mysql`/`psql` just work, service env) and returns
 // the session. extraEnv (e.g. running-service vars from the services
 // manager) is appended last and wins over duplicates.
-func New(cfg *config.Engine, dir string, extraEnv []string) (*Session, error) {
+//
+// An optional cmd overrides the default interactive shell: when provided
+// (e.g. {"mariadb"} or {"psql"}), that program becomes the session's child
+// process instead of zsh/bash/PowerShell. envFor still seeds DB-client env
+// vars, so a bare `mariadb`/`psql` connects to Sabdopalon's daemons without
+// any flags. Omitting cmd preserves the legacy shell behaviour.
+func New(cfg *config.Engine, dir string, extraEnv []string, cmd ...string) (*Session, error) {
 	if dir == "" {
 		dir = cfg.Root
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
 	}
-	return newSession(cfg, dir, extraEnv)
+	return newSession(cfg, dir, extraEnv, cmd)
 }
 
 // Write sends bytes to the shell.
