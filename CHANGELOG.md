@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.9.1] — 2026-08-25
+
+### Fixed
+- **Desktop installers were stamped 0.8.3 in the v0.9.0 release** — the
+  Tauri/Cargo/npm version pins (`tauri.conf.json`, `Cargo.toml`,
+  `package.json`, `package-lock.json`) still read `0.8.3`, so the release
+  produced `Sabdopalon_0.8.3_*.{AppImage,deb,dmg,exe}` assets under the
+  v0.9.0 tag while the CLI bundles were correct. All four desktop version
+  pins are bumped to `0.9.1`.
+
 ## [0.9.0] — 2026-08-25
 
 ### Added
