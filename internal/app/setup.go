@@ -169,18 +169,16 @@ func (a *App) setup() int {
 // serveSetupMode boots a config-less, minimal server: only the dashboard on
 // :9900 (with setup endpoints), no proxy/DB/services. Used by the desktop
 // sidecar and by bare first-run so the GUI wizard can set everything up.
+//
+// NOTE: the bundled core archive is deliberately NOT extracted here — the
+// dashboard must bind within ~1s of launch (the native window waits for
+// it); extraction runs during the wizard's install job instead, with
+// progress in its log.
 func (a *App) serveSetupMode() int {
 	rootDir := a.installDir()
 	if err := bootstrap.EnsureLayout(rootDir); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ layout: %v\n", err)
 		return 1
-	}
-
-	// Linux desktop bundles ship the core stack as one archive — unpack it
-	// into the writable bin dir before the wizard runs, so bundled PHP is
-	// detected immediately (no-op when no archive shipped).
-	if err := bootstrap.EnsureCoreExtracted(filepath.Join(rootDir, "bin")); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠ core archive: %v\n", err)
 	}
 
 	// Minimal in-memory config: default ports, no daemons started.

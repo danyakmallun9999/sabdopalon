@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **First launch stalled with no feedback** — the sidecar extracted the
+  bundled core (100+ MB archive) BEFORE starting the dashboard, so the
+  native window stayed hidden for up to a minute and the webview showed a
+  stale "Connection refused" page. The dashboard now binds within ~1s of
+  double-click; the bundled core is extracted during the wizard's install
+  step instead, with progress in its log ("📦 memeriksa core bundle…").
+- **Setup wizard froze at "Memulai…" (10%)** — the desktop setup watcher
+  restarted the sidecar the moment config/engine.toml appeared, but the
+  install job writes that config first and keeps working (phpMyAdmin
+  deploy, sample site, completion marker). The restart killed the job
+  mid-flight; the watcher now waits for the completion marker, and the
+  wizard recovers from an orphaned job by navigating to the dashboard.
+- **Install log panel collapsed to ~80px** — shadcn CardHeader ships
+  items-start which survived cn() and shrank flex children to content
+  width; items-stretch restores full-width logs.
+
 ## [0.8.3] — 2026-08-25
 
 ### Added

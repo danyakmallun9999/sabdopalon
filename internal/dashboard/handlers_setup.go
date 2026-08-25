@@ -230,6 +230,17 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	}
 	write("✓ layout ready at %s\n", rootDir)
 
+	// Linux desktop bundles ship the core stack as one archive — unpack it
+	// NOW (during the install the user asked for), not at app launch: the
+	// dashboard must bind within ~1s of double-click. No-op when nothing is
+	// bundled or it is already extracted.
+	write("📦 memeriksa core bundle…\n")
+	if err := bootstrap.EnsureCoreExtracted(filepath.Join(rootDir, "bin")); err != nil {
+		write("⚠ core archive: %v\n", err)
+	} else if bootstrap.Bundled(rootDir) {
+		write("✓ core bundle siap (PHP/MariaDB/phpMyAdmin) — tidak perlu unduhan\n")
+	}
+
 	// Defaults
 	dbEngine := req.DBEngine
 	if dbEngine == "" {
