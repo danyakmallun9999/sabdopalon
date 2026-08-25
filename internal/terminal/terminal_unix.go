@@ -86,3 +86,14 @@ func shellCommand() []string {
 // Unix, ".exe" on Windows). Used by lookPathInEnv so a bare "mariadb" name
 // resolves to mariadb.exe under the Sabdopalon PATH on Windows.
 func execSuffix() string { return "" }
+
+// isExecutable reports whether p is an executable file. On Unix this is the
+// owner execute bit (matching exec.LookPath); symlinks to binaries are
+// accepted via Stat. A directory is never executable.
+func isExecutable(p string) bool {
+	info, err := os.Stat(p)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode()&0o111 != 0
+}

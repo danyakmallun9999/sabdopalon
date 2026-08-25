@@ -4,6 +4,9 @@ package terminal
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
@@ -61,3 +64,28 @@ func shellCommand() []string {
 // Windows, "" on Unix). Used by lookPathInEnv so a bare "mariadb" name
 // resolves to mariadb.exe under the Sabdopalon PATH.
 func execSuffix() string { return ".exe" }
+
+// isExecutable reports whether p is an executable file on Windows. Windows has
+// no Unix execute bit, so executability is determined by the file extension
+// (matching how exec.LookPath applies PATHEXT). Any existing non-directory
+// file whose name ends in a known executable suffix is runnable.
+func isExecutable(p string) bool {
+	info, err := os.Stat(p)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(p))
+	for _, e := range executableExtensions {
+		if ext == e {
+			return true
+		}
+	}
+	return false
+}
+
+// executableExtensions are the Windows executable suffixes (lowercase),
+// mirroring the PATHEXT defaults exec.LookPath honors.
+var executableExtensions = []string{
+	".com", ".exe", ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse",
+	".wsf", ".wsh", ".msc", ".ps1",
+}

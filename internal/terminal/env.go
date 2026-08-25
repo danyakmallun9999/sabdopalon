@@ -69,17 +69,6 @@ func envPath(env []string) string {
 	return os.Getenv("PATH")
 }
 
-func isExecutable(p string) bool {
-	// Lstat avoids following symlinks (a link to a binary is executable too,
-	// but we stat the link itself the way exec.LookPath does for the owner
-	// execute bit on Unix).
-	info, err := os.Stat(p)
-	if err != nil || info.IsDir() {
-		return false
-	}
-	return info.Mode()&0o111 != 0
-}
-
 // envFor builds the child environment shared by both platforms: bin dirs
 // first on PATH, the Sabdopalon env vars sites get, DB CLIENT defaults (so
 // `mariadb`, `mysql`, `psql` connect without flags), and a sane TERM for
