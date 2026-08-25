@@ -537,7 +537,16 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	}
 	sort.Strings(extraEnv)
 
-	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir)
+	// Per-site php.ini override (absolute path or relative to site dir).
+	phpIniOverride := ""
+	if scErr == nil && sc.PHPIni != "" {
+		phpIniOverride = sc.PHPIni
+		if !filepath.IsAbs(phpIniOverride) {
+			phpIniOverride = filepath.Join(s.cfg.Root, name, phpIniOverride)
+		}
+	}
+
+	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride)
 	if err != nil {
 		lf.Close()
 		return nil, err

@@ -139,7 +139,7 @@ export default function SitesPage() {
     localStorage.setItem(DOCK_KEY, JSON.stringify(dock))
   }, [dock])
 
-  const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", docroot: "", aliases: [], env: {} })
+  const [cfg, setCfg] = useState<SiteConfigPayload>({ php: "", php_ini: "", docroot: "", aliases: [], env: {} })
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
   const [savingCfg, setSavingCfg] = useState(false)
 
@@ -202,6 +202,7 @@ export default function SitesPage() {
     if (!("error" in (cfgData as object))) {
       setCfg({
         php: cfgData.php ?? "",
+        php_ini: cfgData.php_ini ?? "",
         docroot: cfgData.docroot ?? "",
         aliases: cfgData.aliases ?? [],
         env: cfgData.env ?? {},
@@ -692,6 +693,19 @@ export default function SitesPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="cfg-phpini">Custom php.ini (absolute path or relative to site folder)</Label>
+              <Input
+                id="cfg-phpini"
+                placeholder="php-custom.ini"
+                value={cfg.php_ini ?? ""}
+                onChange={(e) => setCfg({ ...cfg, php_ini: e.target.value })}
+              />
+              <p className="text-muted-foreground text-xs">
+                Override the global php.ini for this site only. Leave empty to use the global config.
+              </p>
             </div>
 
             <div className="flex flex-col gap-2">

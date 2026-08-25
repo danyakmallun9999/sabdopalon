@@ -48,3 +48,31 @@ func TestValidateRejectsShellChars(t *testing.T) {
 		t.Error("expected error for shell metacharacters in php value")
 	}
 }
+
+func TestParsePHPIni(t *testing.T) {
+	const s = `php: "8.3"
+php_ini: php-custom.ini
+`
+	sc, err := parseYAML(s)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if sc.PHPIni != "php-custom.ini" {
+		t.Errorf("php_ini = %q, want %q", sc.PHPIni, "php-custom.ini")
+	}
+}
+
+func TestSaveLoadPHPIni(t *testing.T) {
+	dir := t.TempDir()
+	sc := &SiteConfig{PHP: "8.3", PHPIni: "php-custom.ini", Env: map[string]string{}}
+	if err := Save(dir, "mysite", sc); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	loaded, err := Load(dir, "mysite")
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if loaded.PHPIni != "php-custom.ini" {
+		t.Errorf("round-trip php_ini = %q, want %q", loaded.PHPIni, "php-custom.ini")
+	}
+}

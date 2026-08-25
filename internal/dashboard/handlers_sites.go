@@ -184,6 +184,7 @@ func trashSite(rootDir, name string) error {
 // siteConfigPayload is the editable per-site configuration (.sabdopalon.yml).
 type siteConfigPayload struct {
 	PHP     string            `json:"php"`
+	PHPIni  string            `json:"php_ini"`
 	Docroot string            `json:"docroot"`
 	Aliases []string          `json:"aliases"`
 	Env     map[string]string `json:"env"`
@@ -206,6 +207,7 @@ func (s *Server) getSiteConfig(w http.ResponseWriter, name string) {
 	}
 	s.json(w, siteConfigPayload{
 		PHP:     sc.PHP,
+		PHPIni:  sc.PHPIni,
 		Docroot: sc.Docroot,
 		Aliases: sc.Aliases,
 		Env:     sc.Env,
@@ -231,6 +233,7 @@ func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Reque
 
 	clean := &siteconfig.SiteConfig{
 		PHP:     strings.TrimSpace(p.PHP),
+		PHPIni:  strings.TrimSpace(p.PHPIni),
 		Docroot: filepath.ToSlash(filepath.Clean("/" + strings.TrimSpace(p.Docroot)))[1:],
 		Aliases: make([]string, 0, len(p.Aliases)),
 		Env:     map[string]string{},

@@ -19,6 +19,7 @@ import (
 // SiteConfig holds per-project overrides.
 type SiteConfig struct {
 	PHP      string            // override PHP version or binary path
+	PHPIni   string            // override php.ini path (absolute or relative to site)
 	Node     string            // override Node.js version
 	Database string            // override DB engine for this site
 	Docroot  string            // override document root (relative to site folder)
@@ -63,6 +64,9 @@ func Save(sitesDir, siteName string, sc *SiteConfig) error {
 	if sc.PHP != "" {
 		fmt.Fprintf(&b, "php: %s\n", writeVal(sc.PHP))
 	}
+	if sc.PHPIni != "" {
+		fmt.Fprintf(&b, "php_ini: %s\n", writeVal(sc.PHPIni))
+	}
 	if sc.Docroot != "" {
 		fmt.Fprintf(&b, "docroot: %s\n", writeVal(sc.Docroot))
 	}
@@ -98,6 +102,7 @@ func Save(sitesDir, siteName string, sc *SiteConfig) error {
 		return fmt.Errorf("saved config does not re-parse: %w", err)
 	}
 	if back.PHP != sc.PHP || back.Docroot != sc.Docroot ||
+		back.PHPIni != sc.PHPIni ||
 		strings.Join(back.Aliases, "|") != strings.Join(sc.Aliases, "|") {
 		return fmt.Errorf("saved config did not round-trip correctly")
 	}
@@ -157,6 +162,8 @@ func parseYAML(s string) (*SiteConfig, error) {
 		switch key {
 		case "php":
 			sc.PHP = val
+		case "php_ini":
+			sc.PHPIni = val
 		case "node":
 			sc.Node = val
 		case "database":

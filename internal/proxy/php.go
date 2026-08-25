@@ -57,8 +57,9 @@ func ensurePHPIni(rootDir string) string {
 // with stdout/stderr redirected to logFile. Environment variables for the
 // database connection are injected so PHP apps can use them, plus any
 // per-site extra env vars from .sabdopalon.yml. PHPRC points at
-// config/php.ini so global PHP settings are user-editable.
-func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir string) (*managedPHP, error) {
+// config/php.ini so global PHP settings are user-editable, unless
+// phpIniOverride is set (a per-site php.ini path from .sabdopalon.yml).
+func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string) (*managedPHP, error) {
 	router := docroot + "/../.sabdopalon-router.php"
 	args := []string{
 		"-S", fmt.Sprintf("127.0.0.1:%d", port),
@@ -79,7 +80,12 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		fmt.Sprintf("SABDOPALON_DB_ENGINE=%s", dbEngine),
 		fmt.Sprintf("SABDOPALON_DB_PATH=%s", dbPath),
 	)
-	if ini := ensurePHPIni(rootDir); ini != "" {
+	// Per-site php.ini override takes priority; otherwise use the global one.
+	if phpIniOverride != "" {
+		if _, err := os.Stat(phpIniOverride); err == nil {
+			env = append(env, "PHPRC="+phpIniOverride)
+		}
+	} else if ini := ensurePHPIni(rootDir); ini != "" {
 		env = append(env, "PHPRC="+ini)
 	}
 	env = append(env, extraEnv...)

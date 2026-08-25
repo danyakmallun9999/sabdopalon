@@ -38,6 +38,7 @@ export type SystemPHP = {
 
 export type SiteConfigPayload = {
   php: string
+  php_ini: string
   docroot: string
   aliases: string[]
   env: Record<string, string>
