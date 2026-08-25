@@ -89,3 +89,63 @@ func TestPHPMyAdminRepairsPartialDeploy(t *testing.T) {
 		t.Error("re-deploy did not repair the partial tree")
 	}
 }
+
+// makeAdminerSrc stages a fake adminer-<v>.php file in a temp bin/adminer dir.
+func makeAdminerSrc(t *testing.T) string {
+	t.Helper()
+	src := filepath.Join(t.TempDir(), "adminer")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "adminer-5.3.0.php"), []byte("<?php // adminer\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return src
+}
+
+// TestAdminerFromDeploys: a healthy source deploys adminer.php + index.php
+// (the pre-wired login shim) into sites/adminer/public.
+func TestAdminerFromDeploys(t *testing.T) {
+	cfg := testCfg(t)
+	src := makeAdminerSrc(t)
+	if err := AdminerFrom(src, cfg); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+	dest := filepath.Join(cfg.Root, "adminer", "public")
+	for _, rel := range []string{"adminer.php", "index.php"} {
+		if _, err := os.Stat(filepath.Join(dest, rel)); err != nil {
+			t.Errorf("deployed adminer missing %s: %v", rel, err)
+		}
+	}
+}
+
+// TestAdminerFromMissingSource: no adminer-*.php in the source dir must fail
+// loudly (a silent "success" would leave a half-installed site).
+func TestAdminerFromMissingSource(t *testing.T) {
+	cfg := testCfg(t)
+	src := filepath.Join(t.TempDir(), "empty-adminer")
+	if err := os.MkdirAll(src, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := AdminerFrom(src, cfg); err == nil {
+		t.Fatal("expected error deploying adminer from empty source")
+	}
+}
+
+// TestAdminerFromReDeploysOverExisting: re-deploying Adminer overwrites the
+// previous files instead of failing (idempotent upgrade path).
+func TestAdminerFromReDeploysOverExisting(t *testing.T) {
+	cfg := testCfg(t)
+	src := makeAdminerSrc(t)
+	if err := AdminerFrom(src, cfg); err != nil {
+		t.Fatalf("initial deploy: %v", err)
+	}
+	// Re-deploy must succeed (overwrite), not fail.
+	if err := AdminerFrom(src, cfg); err != nil {
+		t.Fatalf("re-deploy: %v", err)
+	}
+	dest := filepath.Join(cfg.Root, "adminer", "public")
+	if _, err := os.Stat(filepath.Join(dest, "adminer.php")); err != nil {
+		t.Error("re-deploy lost adminer.php")
+	}
+}

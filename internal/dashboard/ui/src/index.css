@@ -131,6 +131,22 @@
     @apply font-sans;
     }
 }
+
+/* Native-app scrollbars: hide the system scrollbar so the webview feels like
+   a desktop app instead of a browser page, while keeping the content
+   scrollable (scroll via trackpad/wheel/keyboard). WebKitGTK (Tauri/Linux)
+   and Chrome/WebKit respect ::-webkit-scrollbar; Firefox uses
+   scrollbar-width: none. */
+@layer utilities {
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+  }
+}
 /* Custom desktop title bar (Tauri shell only): the FIXED sidebar container
    must start below the bar instead of the viewport top (it used to sit
    under the title bar — "buried sidebar"). */

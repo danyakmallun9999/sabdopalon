@@ -718,61 +718,11 @@ func isServicePackage(pkg string) bool {
 	return false
 }
 
-// installAdminer moves the downloaded single-file GUI into sites/adminer so it
-// is served like any other site at http://adminer.<tld>.
+// installAdminer deploys the downloaded single-file GUI as a site at
+// http://adminer.<tld> via the shared deploy package.
 func (a *App) installAdminer() int {
 	cfg := a.cfgOrBare()
-	bin := filepath.Join(cfg.RootDir, "bin", "adminer")
-	var src string
-	entries, _ := os.ReadDir(bin)
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), "adminer-") && strings.HasSuffix(e.Name(), ".php") {
-			src = filepath.Join(bin, e.Name())
-			break
-		}
-	}
-	if src == "" {
-		fmt.Fprintln(os.Stderr, "✗ downloaded Adminer file not found")
-		return 1
-	}
-	dest := filepath.Join(cfg.Root, "adminer", "public")
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
-		return 1
-	}
-	data, err := os.ReadFile(src)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
-		return 1
-	}
-	if err := os.WriteFile(filepath.Join(dest, "adminer.php"), data, 0o644); err != nil {
-		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
-		return 1
-	}
-	// index.php is a thin shim around the stock Adminer file:
-	//   - prefill the login form with the local credentials (root@127.0.0.1)
-	//   - allow the empty root password: Adminer 5 refuses passwordless
-	//     logins by default, but the bundled MariaDB is Laragon/XAMPP-style
-	//     root-with-no-password and only listens on 127.0.0.1
-	// The database field is deliberately left blank — an empty db lists
-	// every database on the server. Logged-in requests ignore these GET
-	// keys, so the prefill is safe to apply on every GET.
-	shim := `<?php
-// Sabdopalon wrapper: local-dev Adminer (see installAdminer).
-function adminer_object() {
-	return new class extends \Adminer\Adminer {
-		function login($login, $password) {
-			return true;
-		}
-	};
-}
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['username'])) {
-	$_GET['server'] = $_GET['server'] ?? '127.0.0.1';
-	$_GET['username'] = 'root';
-}
-require __DIR__ . '/adminer.php';
-`
-	if err := os.WriteFile(filepath.Join(dest, "index.php"), []byte(shim), 0o644); err != nil {
+	if err := deploy.Adminer(cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}

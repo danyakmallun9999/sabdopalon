@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/sabdopalon/sabdopalon/internal/deploy"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 )
 
@@ -127,17 +128,41 @@ func (s *Server) handleAPIPackageInstall(w http.ResponseWriter, r *http.Request)
 		// permanently on "starting…".
 		m, merr := pkgmgr.New(cfg)
 		var derr error
+		name := req.Name
 		if merr != nil {
 			derr = merr
 		} else {
 			m.Out = jobWriter{job}
 			// Resolve shorthands like "php84" / "8.4" to registry names.
-			name := req.Name
 			if resolved, rerr := m.ResolvePackageName(name); rerr == nil {
 				name = resolved
 				fmt.Fprintf(m.Out, "(%s → package %q)\n", req.Name, name)
 			}
 			derr = m.Download(name)
+		}
+		if derr == nil {
+			// Web GUI packages (phpMyAdmin, Adminer) are "served as a site":
+			// downloading the archive is only half the job — the tree/file
+			// must be deployed into sites/<name>/public so the proxy serves
+			// it at <name>.<tld>. The CLI (`add phpmyadmin`/`add adminer`)
+			// does this in a post-download step; the dashboard install flow
+			// used to skip it, leaving the package "installed" in bin/ but
+			// with no reachable route.
+			if name == "phpmyadmin" {
+				fmt.Fprintf(m.Out, "Deploying phpMyAdmin as a site…\n")
+				if err := deploy.PHPMyAdmin(cfg); err != nil {
+					derr = err
+				} else {
+					fmt.Fprintf(m.Out, "✓ phpMyAdmin ready → http://phpmyadmin.%s\n", cfg.TLD)
+				}
+			} else if name == "adminer" {
+				fmt.Fprintf(m.Out, "Deploying Adminer as a site…\n")
+				if err := deploy.Adminer(cfg); err != nil {
+					derr = err
+				} else {
+					fmt.Fprintf(m.Out, "✓ Adminer ready → http://adminer.%s\n", cfg.TLD)
+				}
+			}
 		}
 
 		job.mu.Lock()

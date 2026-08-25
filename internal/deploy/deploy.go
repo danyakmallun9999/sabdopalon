@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
@@ -121,6 +122,81 @@ $cfg['SaveDir'] = '';
 	}
 	if hadOld {
 		_ = os.RemoveAll(backup)
+	}
+	return nil
+}
+
+// Adminer deploys the single-file database GUI into sites/adminer/public and
+// writes a pre-wired index.php shim that prefills the local MariaDB
+// credentials (root@127.0.0.1, no password) and allows passwordless logins
+// (Adminer 5 refuses them by default, but the bundled MariaDB is Laragon-style
+// root-with-no-password on 127.0.0.1 only).
+//
+// Mirrors PHPMyAdmin: the downloaded file lives in bin/adminer/adminer-<v>.php;
+// this copies it to sites/adminer/public/adminer.php plus index.php. Idempotent
+// (overwrites a previous deploy). Shared by the CLI (`add adminer`) and the
+// dashboard package-install flow.
+func Adminer(cfg *config.Engine) error {
+	return AdminerFrom(filepath.Join(cfg.RootDir, "bin", "adminer"), cfg)
+}
+
+// AdminerFrom deploys Adminer from an explicit source dir (writable bin/ or a
+// read-only resource dir in desktop mode). It finds the first adminer-*.php
+// file in src and copies it to sites/adminer/public.
+func AdminerFrom(src string, cfg *config.Engine) error {
+	var phpFile string
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("adminer not found (run 'sabdopalon add adminer' first): %w", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), "adminer-") && strings.HasSuffix(e.Name(), ".php") {
+			phpFile = e.Name()
+			break
+		}
+	}
+	if phpFile == "" {
+		return fmt.Errorf("no adminer-*.php found in %s — reinstall with 'sabdopalon add adminer'", src)
+	}
+
+	dest := filepath.Join(cfg.Root, "adminer", "public")
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return fmt.Errorf("create adminer docroot: %w", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(src, phpFile))
+	if err != nil {
+		return fmt.Errorf("read adminer %s: %w", phpFile, err)
+	}
+	if err := os.WriteFile(filepath.Join(dest, "adminer.php"), data, 0o644); err != nil {
+		return fmt.Errorf("write adminer.php: %w", err)
+	}
+
+	// index.php is a thin shim around the stock Adminer file:
+	//   - prefill the login form with the local credentials (root@127.0.0.1)
+	//   - allow the empty root password: Adminer 5 refuses passwordless
+	//     logins by default, but the bundled MariaDB is Laragon/XAMPP-style
+	//     root-with-no-password and only listens on 127.0.0.1
+	// The database field is deliberately left blank — an empty db lists
+	// every database on the server. Logged-in requests ignore these GET
+	// keys, so the prefill is safe to apply on every GET.
+	shim := `<?php
+// Sabdopalon wrapper: local-dev Adminer (see deploy.Adminer).
+function adminer_object() {
+	return new class extends \Adminer\Adminer {
+		function login($login, $password) {
+			return true;
+		}
+	};
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' && !isset($_GET['username'])) {
+	$_GET['server'] = $_GET['server'] ?? '127.0.0.1';
+	$_GET['username'] = 'root';
+}
+require __DIR__ . '/adminer.php';
+`
+	if err := os.WriteFile(filepath.Join(dest, "index.php"), []byte(shim), 0o644); err != nil {
+		return fmt.Errorf("write adminer index.php: %w", err)
 	}
 	return nil
 }
