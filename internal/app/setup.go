@@ -218,7 +218,7 @@ func (a *App) serveSetupMode() int {
 
 	srv := proxy.New(cfg)
 	bk := backup.New(cfg, 5)
-	dash := dashboard.New(cfg, srv, bk, nil, nil)
+	dash := dashboard.New(cfg, srv, bk, nil, nil, nil)
 
 	// Serve until SIGINT/SIGTERM; the desktop app quits the sidecar the same
 	// way a Ctrl+C would. Cleanup mirrors the full server's shutdown path:

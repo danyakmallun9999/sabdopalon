@@ -89,6 +89,29 @@ func TestCanBindFallsBackGracefully(t *testing.T) {
 	_ = canBind(0)
 }
 
+// TestIsReservedPort verifies the allocator skips ports claimed by optional
+// services. This is the guard that prevents a PHP site from grabbing the
+// MinIO console port (9001) and making MinIO fail with "port 9001 busy".
+func TestIsReservedPort(t *testing.T) {
+	s := testServer(t)
+	// No ReservedPorts wired → nothing is reserved.
+	if s.isReservedPort(9001) {
+		t.Error("9001 should not be reserved when ReservedPorts is nil")
+	}
+	// Simulate a service manager claiming 9000/9001 (MinIO) + 7700 (Meilisearch).
+	s.ReservedPorts = func() []int { return []int{9000, 9001, 7700} }
+	for _, p := range []int{9000, 9001, 7700} {
+		if !s.isReservedPort(p) {
+			t.Errorf("port %d should be reserved", p)
+		}
+	}
+	for _, p := range []int{9002, 8080, 6379} {
+		if s.isReservedPort(p) {
+			t.Errorf("port %d should NOT be reserved", p)
+		}
+	}
+}
+
 func TestStartStopSiteLifecycle(t *testing.T) {
 	s := testServer(t)
 	info, err := s.StartSite("myapp")

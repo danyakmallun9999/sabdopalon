@@ -176,6 +176,10 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 	dir := r.URL.Query().Get("dir")
 	key := strings.TrimSpace(r.URL.Query().Get("session"))
 	fresh := r.URL.Query().Get("fresh") == "1"
+	// Optional command override (repeated query param, e.g. ?cmd=mariadb):
+	// instead of an interactive shell the session spawns that program as its
+	// child (used by the Database page to drop straight into a DB client).
+	cmd := r.URL.Query()["cmd"]
 
 	// kill=1: destroy the named session WITHOUT creating a replacement —
 	// used when the UI closes a terminal tab.
@@ -210,7 +214,7 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 		}
 		ts = termReg[key]
 		if ts == nil {
-			sess, err := terminal.New(s.cfg, dir, extraEnv)
+			sess, err := terminal.New(s.cfg, dir, extraEnv, cmd...)
 			if err != nil {
 				termMu.Unlock()
 				http.Error(w, "terminal: "+err.Error(), http.StatusInternalServerError)
@@ -245,7 +249,7 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 		}
 		termMu.Unlock()
 	} else {
-		sess, err := terminal.New(s.cfg, dir, extraEnv)
+		sess, err := terminal.New(s.cfg, dir, extraEnv, cmd...)
 		if err != nil {
 			http.Error(w, "terminal: "+err.Error(), http.StatusInternalServerError)
 			return

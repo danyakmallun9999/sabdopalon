@@ -18,6 +18,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/dashboard"
 	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/deploy"
+	"github.com/sabdopalon/sabdopalon/internal/devtools"
 	"github.com/sabdopalon/sabdopalon/internal/lock"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
@@ -354,11 +355,19 @@ func (a *App) serve() int {
 		svcMgr = services.New(a.Cfg)
 	}
 
+	// Per-site dev-tools supervisor (Vite, Artisan, npm, composer). Always
+	// created so the dashboard can start/stop tools at runtime; tools are
+	// killed on shutdown and when their site is stopped.
+	dtMgr := devtools.New()
+
 	srv := proxy.New(a.Cfg)
 	srv.Verbose = a.Verbose
 	if svcMgr != nil {
 		srv.EnvProvider = svcMgr.EnvVars
+		srv.ReservedPorts = svcMgr.ReservedPorts
 	}
+	// Kill dev-tools when a site is stopped so Vite/artisan don't linger.
+	srv.OnStopSite = dtMgr.StopAllForSite
 
 	// Handle Ctrl+C / SIGTERM gracefully. Installed as early as possible —
 	// before the dashboard starts — so a signal during startup still shuts
@@ -371,6 +380,7 @@ func (a *App) serve() int {
 		<-sigCh
 		fmt.Println("\n\nStopping Sabdopalon...")
 		n := srv.Stop()
+		dtMgr.StopAll()
 		dbMgr.StopAll()
 		if svcMgr != nil {
 			svcMgr.StopAll()
@@ -385,7 +395,7 @@ func (a *App) serve() int {
 	// Start the interactive dashboard (goroutine).
 	if a.Cfg.Dashboard.Enabled {
 		bk := backup.New(a.Cfg, 5)
-		dash := dashboard.New(a.Cfg, srv, bk, svcMgr, dbMgr)
+		dash := dashboard.New(a.Cfg, srv, bk, svcMgr, dbMgr, dtMgr)
 		go func() {
 			if err := dash.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠ dashboard: %v\n", err)

@@ -127,22 +127,37 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			s.json(w, map[string]any{"ok": true})
+		case "devtools":
+			s.handleAPISiteDevTools(w, name, r)
 		default:
 			s.json(w, map[string]string{"error": "unknown action (start|stop|restart)"})
 		}
 
 	case http.MethodGet:
-		if action == "config" {
+		switch action {
+		case "config":
 			s.getSiteConfig(w, name)
-			return
+		case "logs":
+			s.handleAPISiteLogs(w, name, r)
+		case "devtools":
+			s.handleAPISiteDevTools(w, name, r)
+		case "phpini":
+			s.handleAPISitePhpIni(w, name, r)
+		case "":
+			s.handleAPISiteDetail(w, name)
+		default:
+			w.Header().Set("Allow", "POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			s.json(w, map[string]string{"error": "method not allowed, use POST"})
 		}
-		w.Header().Set("Allow", "POST")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		s.json(w, map[string]string{"error": "method not allowed, use POST"})
 
 	case http.MethodPut:
 		if action == "config" {
 			s.putSiteConfig(w, name, r)
+			return
+		}
+		if action == "phpini" {
+			s.handleAPISitePhpIni(w, name, r)
 			return
 		}
 		w.Header().Set("Allow", "POST, DELETE")
@@ -275,3 +290,105 @@ func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Reque
 	u, _ := s.siteURLs(name)
 	s.json(w, map[string]any{"ok": true, "message": msg, "restarted": restarted, "url": u})
 }
+
+// phpIniFile returns the absolute path to the per-site php.ini and whether it
+// exists yet. The file always lives at sites/<name>/php.ini — a fixed,
+// predictable location so the dashboard can edit its contents directly
+// instead of asking the user for a path.
+func (s *Server) phpIniFile(name string) (string, bool) {
+	p := filepath.Join(s.cfg.Root, name, "php.ini")
+	_, err := os.Stat(p)
+	return p, err == nil
+}
+
+// handleAPISitePhpIni serves GET/PUT /api/sites/<name>/phpini — an inline editor
+// for the per-site php.ini contents.
+//
+//	GET  → { "content": "<file or default>", "exists": bool }
+//	PUT  { "content": "…" }  → writes sites/<name>/php.ini, auto-links it in
+//	      .sabdopalon.yml (sets php_ini when empty), and restarts the site if
+//	      it was running so the new directives take effect immediately.
+func (s *Server) handleAPISitePhpIni(w http.ResponseWriter, name string, r *http.Request) {
+	if strings.ContainsAny(name, "/\\") || strings.HasPrefix(name, ".") {
+		s.json(w, map[string]string{"error": "invalid site name"})
+		return
+	}
+	siteDir := filepath.Join(s.cfg.Root, name)
+	if _, err := os.Stat(siteDir); err != nil {
+		s.json(w, map[string]string{"error": "site not found: " + name})
+		return
+	}
+	iniPath, exists := s.phpIniFile(name)
+
+	switch r.Method {
+	case http.MethodGet:
+		if !exists {
+			// Return the default global ini as a starting point so the editor
+			// is never empty — the user sees what they would get otherwise.
+			s.json(w, map[string]any{"content": defaultPHPIniForEditor, "exists": false})
+			return
+		}
+		data, err := os.ReadFile(iniPath)
+		if err != nil {
+			s.json(w, map[string]string{"error": "read failed: " + err.Error()})
+			return
+		}
+		s.json(w, map[string]any{"content": string(data), "exists": true})
+
+	case http.MethodPut:
+		var req struct {
+			Content string `json:"content"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			s.json(w, map[string]string{"error": "invalid JSON"})
+			return
+		}
+		if err := os.WriteFile(iniPath, []byte(req.Content), 0o644); err != nil {
+			s.json(w, map[string]string{"error": "write failed: " + err.Error()})
+			return
+		}
+		// Auto-link: if .sabdopalon.yml has no php_ini override yet, set it to
+		// "php.ini" (relative) so the proxy picks this file up via PHPRC.
+		sc, _ := siteconfig.Load(s.cfg.Root, name)
+		if sc != nil && sc.PHPIni == "" {
+			sc.PHPIni = "php.ini"
+			_ = siteconfig.Save(s.cfg.Root, name, sc)
+		}
+		// Restart the site if running so the new directives apply.
+		wasRunning := s.proxy.IsRunning(name)
+		restarted := false
+		if wasRunning {
+			if err := s.proxy.RestartSite(name); err == nil {
+				restarted = true
+			}
+		}
+		msg := "php.ini saved."
+		if restarted {
+			msg += " Site restarted to apply the changes."
+		} else if wasRunning {
+			msg += " Restart the site to apply the changes."
+		}
+		s.json(w, map[string]any{"ok": true, "message": msg, "restarted": restarted})
+
+	default:
+		w.Header().Set("Allow", "GET, PUT")
+		s.json(w, map[string]string{"error": "method not allowed"})
+	}
+}
+
+// defaultPHPIniForEditor is the default content shown in the php.ini editor
+// when no per-site file exists yet (mirrors the global default).
+const defaultPHPIniForEditor = `; Per-site PHP configuration for this project.
+; This file is loaded via PHPRC and overrides the global config/php.ini.
+; Edit freely, then save to apply (the site restarts automatically if running).
+
+memory_limit = 256M
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 120
+date.timezone = UTC
+
+; Optional: surface errors during development.
+; display_errors = On
+; error_reporting = E_ALL
+`

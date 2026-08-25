@@ -232,6 +232,7 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [logFor, setLogFor] = useState<string | null>(null)
+  const [dbBusy, setDbBusy] = useState<string | null>(null)
   const [serviceHistory, setServiceHistory] = useState<{ t: number; running: number; enabled: number }[]>([])
   const [setupDone, setSetupDone] = useState(false)
 
@@ -358,16 +359,51 @@ export default function DashboardPage() {
     }
   }
 
+  // Inline DBMS start/stop (MariaDB & PostgreSQL) — same API the Database
+  // page uses. Lets users start/stop a database without leaving the dashboard.
+  // The full Database page keeps port config, restart, and backups.
+  async function dbAction(engine: "mariadb" | "postgresql", action: "start" | "stop") {
+    setDbBusy(engine + action)
+    try {
+      const r = await api.databaseControl(engine, action)
+      if (r.error) toast.error(`${engine} ${action}: ${r.error}`)
+      else toast.success(r.message ?? `${engine}: ${action} OK`)
+      // db_states arrives via the live status poll; nothing extra to fetch.
+    } finally {
+      setDbBusy(null)
+    }
+  }
+
   // Start All / Stop All: hanya service yang terinstall.
   async function startAll() {
     setBusy("all")
     try {
+      let attempted = 0
+      let failed = 0
+      const failures: string[] = []
       for (const svc of services) {
         if (svc.running || !svc.installed) continue
+        attempted++
         const r = await api.startService(svc.name)
-        if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
+        if (r.error) {
+          failed++
+          failures.push(`${svc.label}: ${r.error}`)
+          setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
+        }
       }
-      toast.success("Start All selesai")
+      if (attempted === 0) {
+        toast.info("Tidak ada service untuk dijalankan.")
+      } else if (failed === 0) {
+        toast.success(`Start All selesai — ${attempted} service dijalankan.`)
+      } else if (failed === attempted) {
+        toast.error(`Start All gagal — ${failed}/${attempted} service tidak bisa dijalankan.`, {
+          description: failures.join("\n"),
+        })
+      } else {
+        toast.warning(`Start All: ${attempted - failed} berhasil, ${failed} gagal.`, {
+          description: failures.join("\n"),
+        })
+      }
       loadAllRef.current()
     } finally {
       setBusy(null)
@@ -377,12 +413,32 @@ export default function DashboardPage() {
   async function stopAll() {
     setBusy("all")
     try {
+      let attempted = 0
+      let failed = 0
+      const failures: string[] = []
       for (const svc of services) {
         if (!svc.running) continue
+        attempted++
         const r = await api.stopService(svc.name)
-        if (r.error) setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
+        if (r.error) {
+          failed++
+          failures.push(`${svc.label}: ${r.error}`)
+          setErrors((e) => ({ ...e, [svc.name]: r.error || "" }))
+        }
       }
-      toast.success("Stop All selesai")
+      if (attempted === 0) {
+        toast.info("Tidak ada service yang sedang berjalan.")
+      } else if (failed === 0) {
+        toast.success(`Stop All selesai — ${attempted} service dihentikan.`)
+      } else if (failed === attempted) {
+        toast.error(`Stop All gagal — ${failed}/${attempted} service tidak bisa dihentikan.`, {
+          description: failures.join("\n"),
+        })
+      } else {
+        toast.warning(`Stop All: ${attempted - failed} berhasil, ${failed} gagal.`, {
+          description: failures.join("\n"),
+        })
+      }
       loadAllRef.current()
     } finally {
       setBusy(null)
@@ -505,6 +561,62 @@ export default function DashboardPage() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Database engines — inline start/stop (port config & backups on the
+          Database page). Each engine is independent and can run at once. */}
+      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
+        {(["mariadb", "postgresql"] as const).map((engine) => {
+          const running = Boolean(status?.db_states?.[engine])
+          const err = status?.db_errors?.[engine]
+          const isBusy = dbBusy !== null && dbBusy.startsWith(engine)
+          return (
+            <Card key={engine}>
+              <CardHeader>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-col gap-1">
+                    <CardTitle className="text-base">{engine === "mariadb" ? "MariaDB" : "PostgreSQL"}</CardTitle>
+                    <CardDescription className="font-mono text-xs">
+                      {engine === "mariadb" ? ":3306" : ":5433"}
+                    </CardDescription>
+                  </div>
+                  <Badge variant={running ? "default" : "outline"} className={running ? "" : "text-muted-foreground"}>
+                    {running ? "berjalan" : "berhenti"}
+                  </Badge>
+                </div>
+                {err && (
+                  <p className="text-destructive mt-1 flex items-center gap-1 text-xs">
+                    <CircleAlert className="size-3" /> {err}
+                  </p>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {running ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isBusy}
+                      onClick={() => dbAction(engine, "stop")}
+                    >
+                      {isBusy && dbBusy === engine + "stop" ? <RefreshCw className="animate-spin" /> : <Square />}
+                      Stop
+                    </Button>
+                  ) : (
+                    <Button size="sm" disabled={isBusy} onClick={() => dbAction(engine, "start")}>
+                      {isBusy && dbBusy === engine + "start" ? <RefreshCw className="animate-spin" /> : <Play />}
+                      Start
+                    </Button>
+                  )}
+                  <a
+                    href="/database"
+                    className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                  >
+                    Kelola <ExternalLink className="size-3.5" />
+                  </a>
+                </div>
+              </CardHeader>
+            </Card>
+          )
+        })}
+      </div>
 
       {/* Service grid — hanya tool yang terinstall */}
       {installed.length > 0 ? (

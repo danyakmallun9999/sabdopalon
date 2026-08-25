@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { HardDriveDownload, Play, RotateCw, Square } from "lucide-react"
+import { Database, HardDriveDownload, Play, RotateCw, Server, Square, Terminal as TerminalIcon } from "lucide-react"
 
 import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
 import { useLive } from "@/lib/live"
+import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -15,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -25,9 +28,11 @@ import {
 } from "@/components/ui/table"
 
 type DbAction = "start" | "stop" | "restart"
+type Tab = "daemons" | "backups" | "terminal"
+type Engine = "mariadb" | "postgresql"
 
 type DaemonCfg = {
-  key: "mariadb" | "postgresql"
+  key: Engine
   label: string
   enabled?: boolean
   port?: number
@@ -62,6 +67,12 @@ function daemonCards(cfg: ConfigPayload): DaemonCfg[] {
   ]
 }
 
+// CLI client binary spawned by the Terminal tab per engine. The terminal
+// backend seeds MYSQL_TCP_PORT / PGHOST etc. so these connect with no flags.
+function dbClientCmd(engine: Engine): string[] {
+  return engine === "mariadb" ? ["mariadb"] : ["psql"]
+}
+
 export default function DatabasePage() {
   const { status } = useLive()
   const [cfg, setCfg] = useState<ConfigPayload>({})
@@ -69,6 +80,7 @@ export default function DatabasePage() {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [busyBackup, setBusyBackup] = useState(false)
   const [ports, setPorts] = useState<Record<string, number | "">>({})
+  const [tab, setTab] = useState<Tab>("daemons")
   // Port drafts sync once per load; polling never clobbers edits.
   const syncedRef = useRef(false)
 
@@ -157,7 +169,66 @@ export default function DatabasePage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
+    <div className="flex h-full min-h-0 flex-col gap-4 px-4 lg:px-6">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="daemons"><Server className="size-3.5" /> Daemons</TabsTrigger>
+          <TabsTrigger value="backups"><Database className="size-3.5" /> Backups</TabsTrigger>
+          <TabsTrigger value="terminal"><TerminalIcon className="size-3.5" /> Terminal</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="daemons" className="mt-4 min-h-0 flex-1 overflow-y-auto">
+          <DaemonsTab
+            cfg={cfg}
+            status={status}
+            ports={ports}
+            busyKey={busyKey}
+            setPort={setPort}
+            savePort={savePort}
+            toggleEnabled={toggleEnabled}
+            doAction={doAction}
+          />
+        </TabsContent>
+
+        <TabsContent value="backups" className="mt-4 min-h-0 flex-1 overflow-y-auto">
+          <BackupsTab
+            backups={backups}
+            busyBackup={busyBackup}
+            doBackup={doBackup}
+          />
+        </TabsContent>
+
+        <TabsContent value="terminal" className="mt-4 min-h-0 flex-1 overflow-hidden">
+          <TerminalTab cfg={cfg} status={status} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+/* --------------------------------- Daemons --------------------------------- */
+
+function DaemonsTab({
+  cfg,
+  status,
+  ports,
+  busyKey,
+  setPort,
+  savePort,
+  toggleEnabled,
+  doAction,
+}: {
+  cfg: ConfigPayload
+  status: ReturnType<typeof useLive>["status"]
+  ports: Record<string, number | "">
+  busyKey: string | null
+  setPort: (key: string, v: number | "") => void
+  savePort: (key: "mariadb" | "postgresql") => void
+  toggleEnabled: (key: "mariadb" | "postgresql", enabled: boolean) => void
+  doAction: (key: "mariadb" | "postgresql", a: DbAction) => void
+}) {
+  return (
+    <>
       {/* One card per database engine — all can run simultaneously. */}
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
         {daemonCards(cfg).map((d) => {
@@ -269,50 +340,173 @@ export default function DatabasePage() {
         </Card>
       </div>
 
-      <p className="text-muted-foreground text-xs -mt-2 px-1">
+      <p className="text-muted-foreground mt-4 px-1 text-xs">
         Semua database bisa hidup bersamaan — situs kamu bebas memakai koneksi mana pun
         (env <code>SABDOPALON_MARIADB_*</code> dan <code>SABDOPALON_PG_*</code> tersedia untuk semua situs).
       </p>
+    </>
+  )
+}
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle>Backups</CardTitle>
-            <CardDescription>Backup lama dipangkas otomatis (simpan 5).</CardDescription>
-          </div>
-          <Button onClick={doBackup} disabled={busyBackup}>
-            <HardDriveDownload /> Backup Sekarang
-          </Button>
-        </CardHeader>
-        <div className="px-4 pb-4 lg:px-6">
-          {backups.length === 0 ? (
-            <p className="text-muted-foreground border-dashed rounded-xl border p-8 text-center text-sm">
-              Belum ada backup — klik “Backup Sekarang”.
-            </p>
-          ) : (
-            <div className="bg-card overflow-hidden rounded-xl border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Nama</TableHead>
-                    <TableHead>Ukuran</TableHead>
-                    <TableHead>Waktu</TableHead>
+/* --------------------------------- Backups --------------------------------- */
+
+function BackupsTab({
+  backups,
+  busyBackup,
+  doBackup,
+}: {
+  backups: Backup[]
+  busyBackup: boolean
+  doBackup: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div className="flex flex-col gap-1.5">
+          <CardTitle>Backups</CardTitle>
+          <CardDescription>Backup lama dipangkas otomatis (simpan 5).</CardDescription>
+        </div>
+        <Button onClick={doBackup} disabled={busyBackup}>
+          <HardDriveDownload /> Backup Sekarang
+        </Button>
+      </CardHeader>
+      <div className="px-4 pb-4 lg:px-6">
+        {backups.length === 0 ? (
+          <p className="text-muted-foreground border-dashed rounded-xl border p-8 text-center text-sm">
+            Belum ada backup — klik “Backup Sekarang”.
+          </p>
+        ) : (
+          <div className="bg-card overflow-hidden rounded-xl border">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Ukuran</TableHead>
+                  <TableHead>Waktu</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {backups.map((b) => (
+                  <TableRow key={b.name}>
+                    <TableCell className="font-mono text-xs">{b.name}</TableCell>
+                    <TableCell>{(b.size / 1024).toFixed(0)} KB</TableCell>
+                    <TableCell className="text-muted-foreground">{b.time}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {backups.map((b) => (
-                    <TableRow key={b.name}>
-                      <TableCell className="font-mono text-xs">{b.name}</TableCell>
-                      <TableCell>{(b.size / 1024).toFixed(0)} KB</TableCell>
-                      <TableCell className="text-muted-foreground">{b.time}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+/* --------------------------------- Terminal -------------------------------- */
+
+function TerminalTab({
+  cfg,
+  status,
+}: {
+  cfg: ConfigPayload
+  status: ReturnType<typeof useLive>["status"]
+}) {
+  const cards = daemonCards(cfg)
+  // Default to the first running engine, else the first installed one.
+  const firstRunning = cards.find((d) => status?.db_states?.[d.key])?.key
+  const firstInstalled = cards.find((d) => d.installed)?.key
+  const [engine, setEngine] = useState<Engine>(firstRunning ?? firstInstalled ?? "mariadb")
+  const [termStatus, setTermStatus] = useState<TermStatus>("connecting")
+  const panelRef = useRef<{ clear: () => void; restart: () => void }>(null)
+
+  const card = cards.find((d) => d.key === engine)!
+  const running = status?.db_states?.[engine] ?? cfg.db_states?.[engine] ?? false
+  const installed = card.installed
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      {/* Engine selector + connection status */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+          {cards.map((d) => {
+            const dRunning = status?.db_states?.[d.key] ?? cfg.db_states?.[d.key] ?? false
+            const active = d.key === engine
+            return (
+              <button
+                key={d.key}
+                type="button"
+                disabled={!d.installed}
+                onClick={() => setEngine(d.key)}
+                title={!d.installed ? "Pasang dulu di halaman Packages" : dRunning ? "berjalan" : "berhenti"}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className={`size-1.5 rounded-full ${dRunning ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"}`} />
+                {d.label}
+              </button>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {running ? (
+            <>
+              <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
+              {termStatus}
+            </>
+          ) : (
+            <span>{card.label} berhenti</span>
           )}
         </div>
-      </Card>
+      </div>
+
+      {/* Terminal or not-running notice */}
+      {!installed ? (
+        <Card>
+          <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
+            <TerminalIcon className="size-4 shrink-0" />
+            {card.label} belum terpasang — pasang dulu di halaman Packages.
+          </CardContent>
+        </Card>
+      ) : !running ? (
+        <Card>
+          <CardContent className="flex flex-col gap-2 py-6 text-sm">
+            <span className="flex items-center gap-2">
+              <TerminalIcon className="size-4 shrink-0 text-muted-foreground" />
+              {card.label} belum berjalan.
+            </span>
+            <span className="text-muted-foreground">
+              Nyalakan daemon-nya di tab <b>Daemons</b> dulu, lalu kembali ke sini.
+            </span>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
+          <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+            <TerminalIcon className="size-4 shrink-0" />
+            <span className="text-sm font-medium">{card.label}</span>
+            <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
+            <span className="text-muted-foreground text-xs">{termStatus}</span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button size="sm" variant="ghost" onClick={() => panelRef.current?.clear()}>
+                Clear
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => panelRef.current?.restart()}>
+                <RotateCw /> Restart
+              </Button>
+            </div>
+          </div>
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <TerminalPanel
+              ref={panelRef}
+              cmd={dbClientCmd(engine)}
+              sessionKey={`database:${engine}`}
+              className="absolute inset-0 h-auto border-0 rounded-none"
+              onStatus={setTermStatus}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }

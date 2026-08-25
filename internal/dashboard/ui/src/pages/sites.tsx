@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import {
+  Box,
   Copy,
   EllipsisVerticalIcon,
   Eraser,
@@ -120,6 +121,7 @@ function StatusDot({ s }: { s: TermStatus }) {
 
 export default function SitesPage() {
   const { status } = useLive()
+  const navigate = useNavigate()
   const [sites, setSites] = useState<Site[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null)
@@ -372,6 +374,9 @@ export default function SitesPage() {
         }
       />
       <DropdownMenuContent align="end">
+        <DropdownMenuItem render={<Link to={`/sites/${s.name}`} />}>
+          <Box /> View details
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => act(s, "restart")} disabled={!s.running}>
           <RotateCw /> Restart
         </DropdownMenuItem>
@@ -422,12 +427,12 @@ export default function SitesPage() {
                 </TableRow>
               )}
               {filtered.map((s) => (
-                <TableRow key={s.name}>
+                <TableRow key={s.name} className="cursor-pointer" onClick={() => navigate(`/sites/${s.name}`)}>
                   <TableCell className="font-medium">{s.name}</TableCell>
-                  <TableCell>{urlCell(s)}</TableCell>
-                  <TableCell>{phpBadge(s)}</TableCell>
-                  <TableCell>{runBadge(s)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell onClick={(e) => e.stopPropagation()}>{urlCell(s)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>{phpBadge(s)}</TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>{runBadge(s)}</TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="inline-flex items-center gap-1">
                       {startStopBtn(s)}
                       {rowMenu(s)}

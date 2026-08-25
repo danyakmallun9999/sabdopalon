@@ -59,7 +59,7 @@ func TestPackageActiveMatchesConfiguredPHP(t *testing.T) {
 	cfg.Root = filepath.Join(root, "sites")
 	cfg.PHP.Binary = bin
 
-	s := New(cfg, nil, nil, nil, nil)
+	s := New(cfg, nil, nil, nil, nil, nil)
 	rec := httptest.NewRecorder()
 	s.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/packages", nil))
 	if rec.Code != http.StatusOK {
@@ -97,7 +97,7 @@ func TestPackageActiveFalseWhenNoPHPConfigured(t *testing.T) {
 	cfg := &config.Engine{RootDir: root, TLD: "localhost"}
 	cfg.Root = filepath.Join(root, "sites")
 
-	s := New(cfg, nil, nil, nil, nil)
+	s := New(cfg, nil, nil, nil, nil, nil)
 	rec := httptest.NewRecorder()
 	s.mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/packages", nil))
 	if rec.Code != http.StatusOK {

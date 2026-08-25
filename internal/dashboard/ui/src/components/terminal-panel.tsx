@@ -22,6 +22,12 @@ type Props = {
    * the legacy ephemeral behaviour.
    */
   sessionKey?: string
+  /**
+   * Optional command override: instead of an interactive shell the server
+   * spawns this program as the session child (e.g. ["mariadb"] to drop
+   * straight into the MariaDB client). Omit for the default shell.
+   */
+  cmd?: string[]
   /** Extra CSS class for the container (default: h-[24rem]). */
   className?: string
   /** Connection state reporter for parent chrome (badges etc.). */
@@ -35,7 +41,7 @@ type Props = {
 // Resize is event-driven: xterm's onResize fires whenever FitAddon changes
 // the cell grid and the frame goes out immediately (no polling lag).
 const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
-  function TerminalPanel({ dir = "", sessionKey, className = "h-[24rem]", onStatus }, ref) {
+  function TerminalPanel({ dir = "", sessionKey, cmd, className = "h-[24rem]", onStatus }, ref) {
     const hostRef = useRef<HTMLDivElement>(null)
     const wsRef = useRef<WebSocket | null>(null)
     const restartRef = useRef<() => void>(() => {})
@@ -43,6 +49,9 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
     // One-shot flag: the next (re)connect replaces the named server session
     // with a brand-new shell instead of reattaching.
     const freshRef = useRef(false)
+    // Stabilize the cmd override: a fresh array literal per render would
+    // otherwise retrigger the effect (and reconnect). Join to a string key.
+    const cmdKey = cmd?.join(" ") ?? ""
 
     useEffect(() => {
       const host = hostRef.current
@@ -110,6 +119,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
         onStatus?.("connecting")
         const qs = new URLSearchParams()
         if (dir) qs.set("dir", dir)
+        if (cmd?.length) cmd.forEach((c) => qs.append("cmd", c))
         if (sessionKey) {
           qs.set("session", sessionKey)
           if (freshRef.current) {
@@ -168,7 +178,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
         if (ws) { ws.onclose = null; ws.close() }
         term.dispose()
       }
-    }, [dir, sessionKey])
+    }, [dir, sessionKey, cmdKey])
 
     useImperativeHandle(ref, () => ({
       clear: () => clearRef.current?.(),

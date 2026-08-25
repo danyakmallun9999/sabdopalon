@@ -59,7 +59,9 @@ func ensurePHPIni(rootDir string) string {
 // per-site extra env vars from .sabdopalon.yml. PHPRC points at
 // config/php.ini so global PHP settings are user-editable, unless
 // phpIniOverride is set (a per-site php.ini path from .sabdopalon.yml).
-func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string) (*managedPHP, error) {
+// vitePort (>0) injects SABDOPALON_VITE_PORT/HOST so Laravel's vite.config.js
+// can wire HMR to the Sabdopalon-managed Vite dev server.
+func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int) (*managedPHP, error) {
 	router := docroot + "/../.sabdopalon-router.php"
 	args := []string{
 		"-S", fmt.Sprintf("127.0.0.1:%d", port),
@@ -87,6 +89,12 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		}
 	} else if ini := ensurePHPIni(rootDir); ini != "" {
 		env = append(env, "PHPRC="+ini)
+	}
+	if vitePort > 0 {
+		env = append(env,
+			fmt.Sprintf("SABDOPALON_VITE_PORT=%d", vitePort),
+			"SABDOPALON_VITE_HOST=127.0.0.1",
+		)
 	}
 	env = append(env, extraEnv...)
 	cmd.Env = env

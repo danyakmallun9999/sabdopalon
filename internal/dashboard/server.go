@@ -26,6 +26,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/backup"
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/database"
+	"github.com/sabdopalon/sabdopalon/internal/devtools"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
 )
@@ -40,18 +41,20 @@ type Server struct {
 	backup  *backup.Manager
 	svc     *services.Manager // nil when no optional service is enabled
 	db      *database.Manager // nil in setup-mode
+	dt      *devtools.Manager // nil in setup-mode
 	mux     *http.ServeMux
 	started time.Time
 }
 
-// New creates a dashboard Server. svc and db may be nil (setup mode).
-func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services.Manager, db *database.Manager) *Server {
+// New creates a dashboard Server. svc, db and dt may be nil (setup mode).
+func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services.Manager, db *database.Manager, dt *devtools.Manager) *Server {
 	s := &Server{
 		cfg:     cfg,
 		proxy:   px,
 		backup:  bk,
 		svc:     svc,
 		db:      db,
+		dt:      dt,
 		mux:     http.NewServeMux(),
 		started: time.Now(),
 	}

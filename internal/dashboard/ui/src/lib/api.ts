@@ -148,6 +148,33 @@ export type LogResponse = {
   error?: string
 }
 
+export type DevToolStatus = {
+  tool: string
+  label: string
+  running: boolean
+  port?: number
+  pid?: number
+  log_file?: string
+  last_error?: string
+}
+
+export type SiteDetail = {
+  name: string
+  url: string
+  https: string
+  dir: string
+  running: boolean
+  port?: number
+  framework: string
+  php: {
+    binary: string
+    version?: string
+  }
+  config: SiteConfigPayload
+  devtools: DevToolStatus[]
+  logs: string[]
+}
+
 export type SetupComponent = {
   key: string
   label: string
@@ -223,6 +250,13 @@ const api = {
       `/api/sites/${encodeURIComponent(name)}/config`,
       { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
     ),
+  getSitePhpIni: (name: string) =>
+    request<{ content: string; exists: boolean }>(`/api/sites/${encodeURIComponent(name)}/phpini`),
+  saveSitePhpIni: (name: string, content: string) =>
+    request<{ ok: boolean; message: string; restarted: boolean; error?: string }>(
+      `/api/sites/${encodeURIComponent(name)}/phpini`,
+      { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) },
+    ),
   deleteSite: (name: string) =>
     request<{ ok: boolean; message?: string; error?: string }>(
       `/api/sites/${encodeURIComponent(name)}`,
@@ -279,6 +313,18 @@ const api = {
   listBackups: () => request<Backup[]>("/api/backups"),
 
   logs: (name: string) => request<LogResponse>(`/api/logs/${encodeURIComponent(name)}`),
+
+  siteDetail: (name: string) =>
+    request<SiteDetail>(`/api/sites/${encodeURIComponent(name)}`),
+  siteLogs: (name: string, source: string) =>
+    request<LogResponse>(`/api/sites/${encodeURIComponent(name)}/logs?log=${encodeURIComponent(source)}`),
+  siteDevTools: (name: string) =>
+    request<{ tools: DevToolStatus[] }>(`/api/sites/${encodeURIComponent(name)}/devtools`),
+  siteDevToolAction: (name: string, tool: string, action: "start" | "stop") =>
+    post<{ ok?: boolean; port?: number; error?: string }>(
+      `/api/sites/${encodeURIComponent(name)}/devtools`,
+      { tool, action },
+    ),
 
   setupStatus: () => request<SetupStatus>("/api/setup/status"),
   runSetup: (payload: Record<string, unknown>) =>

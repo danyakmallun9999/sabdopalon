@@ -48,6 +48,15 @@ type Server struct {
 	// (used to expose running optional services, e.g. Redis/MinIO).
 	EnvProvider func() []string
 
+	// ReservedPorts optionally returns ports the optional services need to
+	// bind (MinIO console, Meilisearch, …). The site port allocator skips
+	// these so a PHP site can never grab a service's port.
+	ReservedPorts func() []int
+
+	// OnStopSite is called (if non-nil) when a site is stopped, so the
+	// dev-tools manager can kill any running Vite/artisan processes for it.
+	OnStopSite func(name string)
+
 	// Actual bound ports after low-port auto-attempt (may differ from config).
 	httpPortActual  int
 	httpsPortActual int
@@ -70,13 +79,15 @@ type minuteStat struct {
 }
 
 type siteServer struct {
-	host    string
-	name    string // site folder name
-	dir     string // document root
-	port    int
-	proxy   *httputil.ReverseProxy
-	php     *managedPHP
-	logFile *os.File
+	host      string
+	name      string // site folder name
+	dir       string // document root
+	port      int
+	proxy     *httputil.ReverseProxy
+	php       *managedPHP
+	logFile   *os.File
+	framework Framework  // detected framework (cached, never re-scanned)
+	viteProxy *ViteProxy // non-nil when Vite is running for this site
 }
 
 // New creates a proxy Server.
@@ -310,6 +321,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("sabdopalon: cannot start PHP for %s: %v", siteName, err), http.StatusBadGateway)
 		return
 	}
+	// If Vite is running for this site, intercept Vite HMR/asset paths before
+	// forwarding to PHP — this is what makes name.localhost work without
+	// `composer run dev` in a separate terminal.
+	if ss.viteProxy != nil && ss.viteProxy.ShouldIntercept(r) {
+		ss.viteProxy.ServeHTTP(w, r)
+		return
+	}
 	ss.proxy.ServeHTTP(w, r)
 }
 
@@ -488,14 +506,18 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	}
 
 	// Ensure the router script exists for this site (handles sites created
-	// while the proxy is already running).
+	// while the proxy is already running). The router content depends on
+	// the detected framework so Laravel (and similar) get the right front
+	// controller wiring.
+	siteDir := filepath.Join(s.cfg.Root, name)
+	framework := DetectFramework(siteDir)
 	routerPath := filepath.Join(s.cfg.Root, name, ".sabdopalon-router.php")
 	if !fileExists(routerPath) {
-		_ = os.WriteFile(routerPath, []byte(defaultRouter), 0o644)
+		_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
 	}
 
 	port := s.portNext
-	for !isPortFree(port) {
+	for !isPortFree(port) || s.isReservedPort(port) {
 		port++
 	}
 	s.portNext = port + 1
@@ -555,7 +577,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		}
 	}
 
-	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride)
+	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(name+"."+s.cfg.TLD))
 	if err != nil {
 		lf.Close()
 		return nil, err
@@ -575,13 +597,14 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	}
 
 	ss := &siteServer{
-		host:    host,
-		name:    name,
-		dir:     docroot,
-		port:    port,
-		proxy:   rp,
-		php:     php,
-		logFile: lf,
+		host:      host,
+		name:      name,
+		dir:       docroot,
+		port:      port,
+		proxy:     rp,
+		php:       php,
+		logFile:   lf,
+		framework: framework,
 	}
 	s.sites[host] = ss
 	if s.Verbose {
@@ -626,6 +649,11 @@ func (s *Server) StopSite(name string) bool {
 	if verbose {
 		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, port)
 	}
+	// Kill any dev-tools (Vite, artisan…) running for this site so they don't
+	// outlive the PHP server and linger as orphans.
+	if s.OnStopSite != nil {
+		s.OnStopSite(name)
+	}
 	return ok
 }
 
@@ -635,6 +663,58 @@ func (s *Server) RestartSite(name string) error {
 	s.StopSite(name)
 	_, err := s.StartSite(name)
 	return err
+}
+
+// RegisterViteProxy attaches a Vite reverse-proxy to a site so Vite HMR/asset
+// paths are served from the Vite dev server instead of PHP. No-op when the
+// site isn't running (the proxy is attached lazily on next ensureSite via
+// the devtools port). Safe to call repeatedly.
+func (s *Server) RegisterViteProxy(name string, port int) {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ss, ok := s.sites[host]; ok {
+		ss.viteProxy = NewViteProxy(port)
+	}
+}
+
+// UnregisterViteProxy removes the Vite reverse-proxy from a site.
+func (s *Server) UnregisterViteProxy(name string) {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ss, ok := s.sites[host]; ok {
+		ss.viteProxy = nil
+	}
+}
+
+// SiteFramework returns the detected framework for a site ("unknown" if not
+// running or not detected).
+func (s *Server) SiteFramework(name string) string {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ss, ok := s.sites[host]; ok {
+		return ss.framework.String()
+	}
+	return FrameworkUnknown.String()
+}
+
+// SiteDevToolsPort is a hook for the dev-tools Manager to inject the Vite
+// port into PHP env. Returns 0 when no Vite proxy is registered.
+func (s *Server) SiteDevToolsPort(name string) int {
+	host := name + "." + s.cfg.TLD
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.vitePortLocked(host)
+}
+
+// vitePortLocked returns the Vite port for a host. Caller must hold s.mu.
+func (s *Server) vitePortLocked(host string) int {
+	if ss, ok := s.sites[host]; ok && ss.viteProxy != nil {
+		return ss.viteProxy.Port()
+	}
+	return 0
 }
 
 // Enable clears the stopped flag for a site without starting PHP (used when
@@ -691,9 +771,10 @@ type SiteInfo struct {
 	Port int
 }
 
-// ensureRouters creates a default PHP router script in each site folder if
-// none exists. The router serves existing static files directly and falls back
-// to index.php (front-controller pattern) for everything else.
+// ensureRouters creates a PHP router script in each site folder if none
+// exists. The router content is chosen by the detected framework so Laravel
+// gets the correct front-controller wiring. Existing custom routers are
+// never overwritten.
 func (s *Server) ensureRouters() {
 	entries, err := os.ReadDir(s.cfg.Root)
 	if err != nil {
@@ -705,7 +786,8 @@ func (s *Server) ensureRouters() {
 		}
 		routerPath := filepath.Join(s.cfg.Root, e.Name(), ".sabdopalon-router.php")
 		if !fileExists(routerPath) {
-			_ = os.WriteFile(routerPath, []byte(defaultRouter), 0o644)
+			framework := DetectFramework(filepath.Join(s.cfg.Root, e.Name()))
+			_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
 		}
 	}
 }
@@ -775,6 +857,20 @@ func isPortFree(port int) bool {
 	}
 	_ = l.Close()
 	return true
+}
+
+// isReservedPort reports whether a port is claimed by an optional service
+// (MinIO console, Meilisearch, …) so the site allocator must skip it.
+func (s *Server) isReservedPort(port int) bool {
+	if s.ReservedPorts == nil {
+		return false
+	}
+	for _, p := range s.ReservedPorts() {
+		if p == port {
+			return true
+		}
+	}
+	return false
 }
 
 // canBind reports whether the process is allowed to bind a privileged

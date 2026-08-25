@@ -1,5 +1,5 @@
-import { useLocation } from "react-router-dom"
-import { ExternalLink, Boxes } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
+import { ExternalLink, Boxes, ChevronRight } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
@@ -10,10 +10,17 @@ import { useLive } from "@/lib/live"
 import { dbEngineRunning } from "@/lib/dbstatus"
 import { NAV_ITEMS } from "@/components/app-sidebar"
 
+// extractSiteName returns the site name from a /sites/:name path, or "".
+function extractSiteName(pathname: string): string {
+  const m = pathname.match(/^\/sites\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : ""
+}
+
 export default function SiteHeader() {
   const { status } = useLive()
   const location = useLocation()
   const current = NAV_ITEMS.find((n) => n.url === location.pathname)
+  const siteName = extractSiteName(location.pathname)
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -24,7 +31,15 @@ export default function SiteHeader() {
           className="mx-1 h-4 data-vertical:self-auto"
         />
         <h1 className="text-base font-medium">
-          {current ? (
+          {siteName ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Link to="/sites" className="text-muted-foreground hover:text-foreground transition-colors">
+                Sites
+              </Link>
+              <ChevronRight className="text-muted-foreground/50 size-3.5" />
+              <span>{siteName}</span>
+            </span>
+          ) : current ? (
             <span className="inline-flex items-center gap-2">
               <current.icon className="size-4" />
               {current.title}

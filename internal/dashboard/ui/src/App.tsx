@@ -20,6 +20,7 @@ const PackagesPage = lazy(() => import("@/pages/packages"))
 const ServicesPage = lazy(() => import("@/pages/services"))
 const SetupPage = lazy(() => import("@/pages/setup"))
 const SitesPage = lazy(() => import("@/pages/sites"))
+const SiteDetailPage = lazy(() => import("@/pages/site-detail"))
 const SslPage = lazy(() => import("@/pages/ssl"))
 const TerminalPage = lazy(() => import("@/pages/terminal"))
 
@@ -45,7 +46,9 @@ export function App() {
   // spans exactly from the header to the bottom of the viewport and scrolls
   // internally — no window-level gap under the fold.
   const location = useLocation()
-  const fullBleed = location.pathname === "/sites" || location.pathname === "/terminal"
+  const fullBleed = location.pathname === "/sites" ||
+    location.pathname.startsWith("/sites/") ||
+    location.pathname === "/terminal"
 
   // One-shot bootstrap check: unbuilt installs redirect to the setup wizard.
   useEffect(() => {
@@ -119,6 +122,7 @@ export function App() {
                       <Route path="/" element={<DashboardPage />} />
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/sites" element={<SitesPage />} />
+                    <Route path="/sites/:name" element={<SiteDetailPage />} />
                       <Route path="/database" element={<DatabasePage />} />
                       <Route path="/packages" element={<PackagesPage />} />
                       <Route path="/services" element={<ServicesPage />} />

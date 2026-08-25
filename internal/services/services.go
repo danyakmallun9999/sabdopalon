@@ -361,6 +361,21 @@ func portFree(port int) bool {
 	return true
 }
 
+// ReservedPorts returns every port used by the registered service specs
+// (both primary ports and console ports). The proxy uses this to skip those
+// ports when assigning per-site PHP servers, so a site can never grab a port
+// an optional service (MinIO console, Meilisearch, …) needs to bind.
+func (m *Manager) ReservedPorts() []int {
+	out := make([]int, 0, len(m.specs)*2)
+	for _, s := range m.specs {
+		out = append(out, s.Ports...)
+		if s.ConsolePort != 0 {
+			out = append(out, s.ConsolePort)
+		}
+	}
+	return out
+}
+
 // AnyRunning reports whether at least one optional service is running.
 func (m *Manager) AnyRunning() bool {
 	m.mu.Lock()
