@@ -43,7 +43,14 @@ func EnsureCoreExtracted(binDir string) error {
 	if err := extractTarGz(src, binDir); err != nil {
 		return fmt.Errorf("core extract %s: %w", src, err)
 	}
-	_ = os.Remove(src) // consumed — frees ~400 MB in the user data dir
+	// Consume the archive ONLY when it lives inside the user data dir
+	// (frees ~400 MB there). Dev runs resolve resources into the build
+	// tree — deleting those would silently strip the bundle out of the
+	// source tree (read-only squashfs mounts fail on their own, which is
+	// fine: the AppImage copy is immutable anyway).
+	if strings.HasPrefix(filepath.Clean(src), filepath.Clean(binDir)+string(os.PathSeparator)) {
+		_ = os.Remove(src)
+	}
 	return nil
 }
 

@@ -4,6 +4,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Child;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -11,6 +12,10 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 // The sidecar process (owned here so it is killed on quit).
 static SIDECAR: Mutex<Option<Child>> = Mutex::new(None);
+// Set while an INTENTIONAL stop is in progress (tray Quit/Restart, setup
+// watcher) — the self-heal monitor must not "revive" the sidecar then.
+static STOPPING: AtomicBool = AtomicBool::new(false);
+static AUTO_RESTARTS: AtomicU32 = AtomicU32::new(0);
 
 /// The install root where the sidecar keeps engine.toml, sites/, data/…
 ///
@@ -304,6 +309,46 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         let mut guard = SIDECAR.lock().unwrap();
         *guard = Some(child);
     }
+    STOPPING.store(false, Ordering::SeqCst);
+
+    // Self-heal: reap the child when it exits and bring the sidecar back if
+    // it died unexpectedly (crash, external kill, bind race) — the native
+    // window would otherwise sit on a stale page forever while nothing
+    // serves :9900. Intentional stops set STOPPING first, so tray
+    // Quit/Restart and the setup watcher never fight this monitor.
+    {
+        let app = app.clone();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(Duration::from_millis(700));
+            let exited = {
+                let mut guard = SIDECAR.lock().unwrap();
+                match guard.as_mut() {
+                    None => return, // intentionally stopped
+                    Some(c) => c.try_wait().ok().flatten(),
+                }
+            };
+            if let Some(status) = exited {
+                if STOPPING.load(Ordering::SeqCst) {
+                    return;
+                }
+                let n = AUTO_RESTARTS.fetch_add(1, Ordering::SeqCst);
+                if n >= 10 {
+                    eprintln!(
+                        "[sidecar] exited ({status}) — auto-restart limit reached, giving up"
+                    );
+                    return;
+                }
+                eprintln!(
+                    "[sidecar] exited unexpectedly ({status}) — restarting ({}/{})",
+                    n + 1,
+                    10
+                );
+                std::thread::sleep(Duration::from_millis(700));
+                let _ = start(&app);
+                return;
+            }
+        });
+    }
 
     // Setup-mode watcher: the wizard's install job writes config/engine.toml
     // EARLY (before it deploys phpMyAdmin, creates the sample site and marks
@@ -483,6 +528,7 @@ fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
 /// the last resort. Windows has no signals — taskkill /T takes the whole
 /// process tree down instead.
 pub fn stop() {
+    STOPPING.store(true, Ordering::SeqCst);
     let mut guard = SIDECAR.lock().unwrap();
     if let Some(mut child) = guard.take() {
         #[cfg(unix)]
