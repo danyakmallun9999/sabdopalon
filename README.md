@@ -56,18 +56,18 @@ operating system. Just run `sabdopalon` and:
 
 ## Features
 
-| | What you get |
+| Feature | What you get |
 |---|---|
-| 🖥️ **Web dashboard** | Manage everything from the browser — no config editing |
-| 🌐 **Multiple sites** | Every folder in `sites/` automatically becomes a site |
-| 🐘 **Multi-PHP** | PHP 8.1 – 8.5; pick a different version per site |
-| 🗄️ **Databases** | SQLite (zero setup), MariaDB, or PostgreSQL — all managed for you |
-| 🔒 **Local HTTPS** | Your own local certificates, in a few clicks |
-| 📧 **Mail catcher** | Mailpit catches outgoing email locally so nothing leaks |
-| 📦 **Extra tools** | Redis, MinIO, Meilisearch, Adminer — optional, one click |
-| 💾 **Backups** | One click, with automatic history |
-| 🪟 **Desktop app** | A native window with a tray icon and a setup wizard |
-| ⌨️ **Built-in terminal** | Run `composer`, `artisan`, `php` right from the dashboard |
+| **Web dashboard** | Manage everything from the browser — no config editing |
+| **Multiple sites** | Every folder in `sites/` automatically becomes a site |
+| **Multi-PHP** | PHP 8.1 – 8.5; pick a different version per site |
+| **Databases** | SQLite (zero setup), MariaDB, or PostgreSQL — all managed for you |
+| **Local HTTPS** | Your own local certificates, in a few clicks |
+| **Mail catcher** | Mailpit catches outgoing email locally so nothing leaks |
+| **Extra tools** | Redis, MinIO, Meilisearch, Adminer — optional, one click |
+| **Backups** | One click, with automatic history |
+| **Desktop app** | A native window with a tray icon and a setup wizard |
+| **Built-in terminal** | Run `composer`, `artisan`, `php` right from the dashboard |
 
 ## Prerequisites
 
