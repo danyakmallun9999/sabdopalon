@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **Database page reset to the Daemons tab on every reload** — the active tab
+  (`Daemons` / `Backups` / `Terminal`) and the Terminal tab's selected engine
+  (`mariadb` / `postgresql`) lived only in component state, so navigating away
+  or refreshing the page always snapped back to Daemons. Both now persist via
+  `localStorage` (`sabdopalon.database.tab`, `sabdopalon.database.engine`),
+  mirroring the Terminal page's tab persistence, so the page returns to the
+  view the user left it on. A stored engine whose package is no longer
+  installed falls back to the first running/installed engine.
+
 ## [0.9.2] — 2026-08-25
 
 ### Fixed

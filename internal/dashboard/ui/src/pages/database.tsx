@@ -31,6 +31,33 @@ type DbAction = "start" | "stop" | "restart"
 type Tab = "daemons" | "backups" | "terminal"
 type Engine = "mariadb" | "postgresql"
 
+// The selected tab (and the Database Terminal's engine) persist across
+// route changes and reloads via localStorage, mirroring the Terminal page's
+// tab persistence. Coming back to the page restores the same view instead
+// of snapping to "Daemons".
+const TAB_KEY = "sabdopalon.database.tab"
+const ENGINE_KEY = "sabdopalon.database.engine"
+
+function loadTab(): Tab {
+  try {
+    const v = localStorage.getItem(TAB_KEY)
+    if (v === "daemons" || v === "backups" || v === "terminal") return v
+  } catch {
+    /* fresh */
+  }
+  return "daemons"
+}
+
+function loadEngine(): Engine {
+  try {
+    const v = localStorage.getItem(ENGINE_KEY)
+    if (v === "mariadb" || v === "postgresql") return v
+  } catch {
+    /* fresh */
+  }
+  return "mariadb"
+}
+
 type DaemonCfg = {
   key: Engine
   label: string
@@ -80,7 +107,15 @@ export default function DatabasePage() {
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [busyBackup, setBusyBackup] = useState(false)
   const [ports, setPorts] = useState<Record<string, number | "">>({})
-  const [tab, setTab] = useState<Tab>("daemons")
+  const [tab, setTab] = useState<Tab>(loadTab)
+  // Persist the active tab so a reload/route change returns to the same view.
+  useEffect(() => {
+    try {
+      localStorage.setItem(TAB_KEY, tab)
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [tab])
   // Port drafts sync once per load; polling never clobbers edits.
   const syncedRef = useRef(false)
 
@@ -415,7 +450,21 @@ function TerminalTab({
   // Default to the first running engine, else the first installed one.
   const firstRunning = cards.find((d) => status?.db_states?.[d.key])?.key
   const firstInstalled = cards.find((d) => d.installed)?.key
-  const [engine, setEngine] = useState<Engine>(firstRunning ?? firstInstalled ?? "mariadb")
+  // Restore the engine the user last picked; fall back to a sane default.
+  // A stored engine whose package isn't installed can't host a terminal,
+  // so prefer a running/installed one in that case.
+  const stored = loadEngine()
+  const storedStillInstalled = cards.find((d) => d.key === stored)?.installed
+  const initialEngine =
+    (storedStillInstalled ? stored : undefined) ?? firstRunning ?? firstInstalled ?? "mariadb"
+  const [engine, setEngine] = useState<Engine>(initialEngine)
+  useEffect(() => {
+    try {
+      localStorage.setItem(ENGINE_KEY, engine)
+    } catch {
+      /* storage unavailable — non-fatal */
+    }
+  }, [engine])
   const [termStatus, setTermStatus] = useState<TermStatus>("connecting")
   const panelRef = useRef<{ clear: () => void; restart: () => void }>(null)
 
