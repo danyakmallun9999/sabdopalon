@@ -1,155 +1,118 @@
 <div align="center">
-  <img src="images/logo-text.png" alt="Sabdopalon" width="340">
-  <p><strong>A ready-to-go local development environment — PHP, databases, and tools in one app.</strong></p>
-  <p>Free forever (MIT) · Windows, macOS, Linux</p>
+  <img src="images/logo-text.png" alt="Sabdopalon" width="360">
+  <p><strong>A ready-to-go local PHP development environment.</strong></p>
+  <p>PHP, databases, and dev tools — managed for you, in one folder.</p>
+  <p>
+    <img alt="Windows" src="https://img.shields.io/badge/Windows-✓-0078D4?logo=windows&logoColor=white">
+    <img alt="macOS" src="https://img.shields.io/badge/macOS-✓-000000?logo=apple&logoColor=white">
+    <img alt="Linux" src="https://img.shields.io/badge/Linux-✓-FCC624?logo=linux&logoColor=black">
+    <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
+  </p>
 </div>
 
 ---
 
 Sabdopalon lets you build PHP websites and apps on your own machine without
-the usual setup headache. Everything you need (PHP, database, mail catcher,
-and friends) gets installed and managed for you inside a single folder.
-No manual installs, no config files to wrestle with.
+the usual setup headache. PHP, a database, and the tools you reach for every
+day get installed and managed for you — inside a single folder.
 
-Just run `sabdopalon` and:
+No Apache or Nginx to configure. No manual installs. Nothing touches your
+operating system. Just run `sabdopalon` and:
 
-- **Dashboard in your browser** — create new sites, start/stop them, install
-  PHP or MariaDB, enable HTTPS, back up your database. All point-and-click.
-- **Sites just work** — drop a project folder into `sites/` and it's instantly
-  available at `http://yoursite.localhost`. No Apache or Nginx needed.
-- **Safe and clean** — everything lives inside the Sabdopalon folder. Your
-  operating system stays untouched.
+- **Manage it all from your browser** — create sites, start/stop them,
+  install PHP or a database, turn on HTTPS, back up your database. Point and
+  click, no config files.
+- **Sites just work** — drop a folder into `sites/` and it's instantly live at
+  `http://yoursite.localhost`. No web server to set up.
+- **Safe and clean** — everything lives inside the Sabdopalon folder. Remove
+  the folder, remove the app. Your OS stays untouched.
 
-## Main features
+## A peek inside
 
-| Feature | What it does |
+<p align="center">
+  <img src="images/ui/dashboard.png" alt="Dashboard — server, services, and traffic at a glance" width="860">
+  <br>
+  <em>The dashboard: server status, running services, and traffic — all on one screen.</em>
+</p>
+
+<p align="center"><strong>Every page is point-and-click. Here's the rest of it.</strong></p>
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="images/ui/sites.png"><img src="images/ui/sites.png" alt="Sites page" width="280"></a><br><sub><b>Sites</b><br>Create, start, stop</sub></td>
+    <td align="center" width="33%"><a href="images/ui/database.png"><img src="images/ui/database.png" alt="Database page" width="280"></a><br><sub><b>Database</b><br>MariaDB, PostgreSQL, SQLite</sub></td>
+    <td align="center" width="33%"><a href="images/ui/packages.png"><img src="images/ui/packages.png" alt="Packages page" width="280"></a><br><sub><b>Packages</b><br>Install PHP, tools</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="images/ui/services.png"><img src="images/ui/services.png" alt="Services page" width="280"></a><br><sub><b>Services</b><br>Mailpit, Redis, MinIO…</sub></td>
+    <td align="center"><a href="images/ui/ssl.png"><img src="images/ui/ssl.png" alt="SSL page" width="280"></a><br><sub><b>SSL / HTTPS</b><br>Local certificates</sub></td>
+    <td align="center"><a href="images/ui/terminal.png"><img src="images/ui/terminal.png" alt="Terminal page" width="280"></a><br><sub><b>Terminal</b><br>Run composer, artisan</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="images/ui/settings.png"><img src="images/ui/settings.png" alt="Settings page" width="280"></a><br><sub><b>Settings</b><br>Ports, TLD, profiles</sub></td>
+    <td align="center"><a href="images/ui/logs.png"><img src="images/ui/logs.png" alt="Logs page" width="280"></a><br><sub><b>Logs</b><br>Per-site, database, mail</sub></td>
+  </tr>
+</table>
+
+## Features
+
+| | What you get |
 |---|---|
-| 🖥️ Web dashboard | Manage everything from the browser — no config editing |
-| 🌐 Multiple sites | Every folder in `sites/` automatically becomes a site |
-| 🐘 Multi-PHP | PHP 8.1 – 8.5, different versions per site if you want |
-| 🗄️ Database | SQLite (zero setup) or MariaDB (managed for you) |
-| 🔒 Local HTTPS | Local certificates for your sites in a few clicks |
-| 📧 Mailpit | Catch outgoing email locally so nothing leaks out |
-| 📦 Extra tools | PostgreSQL, Redis, MinIO, Meilisearch — optional, one click |
-| 💾 Database backup | One click, keeps a history automatically |
-| 🪟 Desktop app | Native build with tray icon, autostart, and an install wizard |
-| ⌨️ Built-in terminal | Run composer/artisan right from the dashboard |
-
-## Status
-
-`v0.7.2` — proper terminal + revamped site pages. The first run kicks off
-an interactive setup wizard (in the terminal or in the desktop app) that
-prepares everything you need. There's also a one-command installer
-(`install.sh` / `install.ps1`), a native desktop app (tray icon +
-autostart + GUI wizard), and a built-in terminal in the dashboard.
+| 🖥️ **Web dashboard** | Manage everything from the browser — no config editing |
+| 🌐 **Multiple sites** | Every folder in `sites/` automatically becomes a site |
+| 🐘 **Multi-PHP** | PHP 8.1 – 8.5; pick a different version per site |
+| 🗄️ **Databases** | SQLite (zero setup), MariaDB, or PostgreSQL — all managed for you |
+| 🔒 **Local HTTPS** | Your own local certificates, in a few clicks |
+| 📧 **Mail catcher** | Mailpit catches outgoing email locally so nothing leaks |
+| 📦 **Extra tools** | Redis, MinIO, Meilisearch, Adminer — optional, one click |
+| 💾 **Backups** | One click, with automatic history |
+| 🪟 **Desktop app** | A native window with a tray icon and a setup wizard |
+| ⌨️ **Built-in terminal** | Run `composer`, `artisan`, `php` right from the dashboard |
 
 ## Prerequisites
 
-**None.** Sabdopalon is self-contained — you don't need to install Go,
-PHP, or MariaDB by hand. Download and run:
+**None.** Sabdopalon is self-contained. You don't need to install PHP, a
+database, or Go by hand — the setup wizard handles PHP and the database on
+first run. (Go is only needed if you want to build from source.)
 
-- **PHP** — installed automatically by the setup wizard (8.4, ~8MB, 30+ extensions)
-- **MariaDB** — installed automatically by the wizard (default choice)
-- **PostgreSQL** — optional, one click from the wizard
-- **Go** — only needed if you want to build from source yourself
-
-> If your machine already has PHP, Sabdopalon will use it. Downloads only
-> happen when PHP can't be found.
+> Already have PHP on your machine? Sabdopalon will just use it. Downloads
+> only happen when it can't find what it needs.
 
 ## Installation
 
-### Option A: Desktop app (no terminal — recommended on Windows)
+### Option A — Desktop app (no terminal)
 
-Grab the desktop installer from the
+Grab the installer from the
 [Releases](https://github.com/danyakmallun9999/sabdopalon/releases) page:
 
 | Platform | File |
 |---|---|
-| Windows x86_64 | `Sabdopalon_0.8.3_x64-setup.exe` (NSIS) |
+| Windows | `Sabdopalon_<version>_x64-setup.exe` |
 | macOS (Apple Silicon) | `Sabdopalon.app.tar.gz` / `.dmg` |
 | Linux | `.deb` / `.AppImage` |
 
-Double-click → standard GUI setup wizard → done. **You never have to touch
-a terminal during installation or everyday use** — first-time setup runs as
-a wizard inside the app window, PHP/MariaDB/phpMyAdmin come bundled in the
-installer, and no console window pops up while things run in the background.
+Double-click → a standard setup wizard → done. You never touch a terminal
+during install or everyday use. PHP, MariaDB, and phpMyAdmin come bundled in
+the installer.
 
-### Option B: One-command installer (via terminal)
+### Option B — One-command installer (terminal)
 
 ```bash
 # Linux / macOS:
 curl -sSL https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.sh | bash
 
-# Windows (PowerShell) — optional, for terminal folks:
+# Windows (PowerShell):
 irm https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/install.ps1 | iex
 ```
 
-The installer downloads the package for your system, extracts it to
-`~/sabdopalon` (`%USERPROFILE%\sabdopalon` on Windows), adds it to PATH,
-then runs the **setup wizard**. You just answer a few questions
-(PHP + MariaDB by default, PostgreSQL optional, ports, sample site).
+The installer downloads the binary, adds it to your PATH, then runs the
+setup wizard. You answer a few questions (PHP + database by default) and
+you're ready.
 
-### Option C: Direct binary download (via terminal)
+### Option C — Build from source
 
-Download the latest release for your OS from the
-[Releases](https://github.com/danyakmallun9999/sabdopalon/releases) page.
-
-| Platform | File |
-|---|---|
-| Linux x86_64 (Intel/AMD) | `sabdopalon-linux-x86_64.tar.gz` |
-| Linux aarch64 (ARM64) | `sabdopalon-linux-aarch64.tar.gz` |
-| macOS x86_64 (Intel) | `sabdopalon-macos-x86_64.tar.gz` |
-| macOS aarch64 (Apple Silicon) | `sabdopalon-macos-aarch64.tar.gz` |
-| Windows x86_64 | `sabdopalon-windows-x86_64.zip` |
-
-Every archive ships the **full package**: binary + default config + package
-list + data folder + installer. Extract anywhere and run `./sabdopalon` —
-the setup wizard appears automatically on first run.
-
-```bash
-# Example (Linux x86_64):
-curl -L https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/sabdopalon-linux-x86_64.tar.gz | tar xz
-chmod +x sabdopalon
-./sabdopalon version
-
-# macOS (Apple Silicon):
-curl -L https://github.com/danyakmallun9999/sabdopalon/releases/latest/download/sabdopalon-macos-aarch64.tar.gz | tar xz
-chmod +x sabdopalon
-./sabdopalon version
-
-# Windows (PowerShell):
-# Download sabdopalon-windows-x86_64.zip, extract, then:
-.\sabdopalon.exe version
-```
-
-### Option D: Build from source (needs Go 1.22+)
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/danyakmallun9999/sabdopalon.git
-cd sabdopalon
-
-# 2. Build the binary
-#    Linux / macOS:
-go build -o sabdopalon ./cmd/sabdopalon
-
-#    Windows (PowerShell / CMD):
-go build -o sabdopalon.exe .\cmd\sabdopalon
-
-# 3. Verify
-./sabdopalon version    # Linux/macOS
-.\sabdopalon.exe version # Windows
-```
-
-### Making it available everywhere (optional)
-
-```bash
-# Linux / macOS: symlink into /usr/local/bin
-sudo ln -s "$(pwd)/sabdopalon" /usr/local/bin/sabdopalon
-# Now 'sabdopalon' works from any folder
-
-# Windows: add the folder to PATH, or copy sabdopalon.exe somewhere on PATH
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for building from source, the repo
+layout, and how to contribute.
 
 ## Quick start
 
@@ -157,261 +120,80 @@ After installing, the **setup wizard starts automatically** on first run.
 You can also run it any time:
 
 ```bash
-./sabdopalon setup        # interactive wizard (PHP + MariaDB by default)
-./sabdopalon              # normal start — dashboard + database + sites
-./sabdopalon doctor       # health check: PHP, ports, database, SSL
+sabdopalon              # start everything — dashboard + database + sites
+sabdopalon setup        # re-run the setup wizard
+sabdopalon doctor       # health check: PHP, ports, database, SSL
 ```
 
-## Running a site
+### Run a site
 
 ```bash
 # Start Sabdopalon (Ctrl+C to stop)
-./sabdopalon
+sabdopalon
 
 # Then open in your browser:
-#   http://localhost:9900/              ← interactive dashboard
-#   http://example-app.localhost:8080/  ← your site (HTTP)
-#   https://example-app.localhost:8443/ ← your site (HTTPS, once certs exist)
+#   http://localhost:9900/              ← dashboard
+#   http://example-app.localhost/       ← your site (HTTP)
+#   https://example-app.localhost/      ← your site (HTTPS, once set up)
 ```
 
-### Adding a new site
+### Add a new site
 
 ```bash
-# Way 1: from a template
-./sabdopalon new blank myblog
-# → creates sites/myblog/public/index.php
-# → open http://myblog.localhost:8080/
+# From a template:
+sabdopalon new laravel myblog
+# → open http://myblog.localhost/
 
-# Way 2: manually — just make a folder
+# Or just make a folder — it's a site instantly:
 mkdir -p sites/myapp/public
 echo '<?php echo "Hello!";' > sites/myapp/public/index.php
-# → open http://myapp.localhost:8080/ (no restart needed)
+# → open http://myapp.localhost/ (no restart needed)
 ```
 
-You can also do this from the dashboard: hit **New Site** on the Sites page.
+You can also do all of this from the dashboard — hit **New Site** on the
+Sites page.
 
-### What gets downloaded automatically
+## How it works (in plain terms)
 
-| Component | When | Size |
-|---|---|---|
-| **PHP 8.4** | First run, if PHP isn't found | ~8 MB |
-| **MariaDB 11.4** | Via `sabdopalon add mariadb` or the wizard | ~250 MB |
+Sabdopalon is one small program (written in Go) that does three jobs at once:
 
-All files are checksummed (SHA-256) and kept inside the `bin/` folder. No
-system-wide installs, nothing polluting your OS, fully portable.
-
-## Extra services (optional)
-
-Local services can be toggled from the **Services** page in the dashboard
-(changes apply immediately and are saved), or through the config file:
-
-```toml
-[services]
-mailpit = false      # local email catcher — SMTP :1025, web UI :8025
-redis = false        # cache & queues — :6379
-minio = false        # S3-compatible storage — API :9000, console :9001
-meilisearch = false  # instant search engine — :7700
-```
-
-| Service | Install | Port | What PHP gets |
-|---|---|---|---|
-| **Mailpit** | `add mailpit` | SMTP 1025 · UI 8025 | `SABDOPALON_MAIL_SMTP`, `SABDOPALON_MAIL_UI` |
-| **Redis** | `add redis` (Windows) or system `redis-server` (Linux/macOS) | 6379 | `SABDOPALON_REDIS_HOST`, `SABDOPALON_REDIS_PORT` |
-| **MinIO** | `add minio` | API 9000 · Console 9001 | `SABDOPALON_S3_ENDPOINT/KEY/SECRET/BUCKET` |
-| **Meilisearch** | `add meilisearch` | 7700 | `SABDOPALON_MEILI_HOST` |
-
-Ready-to-paste Laravel `.env` snippets for each running service show up on
-the Services page (Redis cache/queue, MinIO S3 filesystem, Meilisearch
-Scout), complete with copy buttons.
-
-### Database engines
-
-- **SQLite** (default) — zero setup, stored at `data/sabdopalon.db`.
-- **MariaDB** — run `sabdopalon add mariadb`, then set `engine = "mariadb"`
-  in `config/engine.toml`. Starts automatically on `:3306`.
-- **PostgreSQL** — `sabdopalon add postgresql` (Linux/macOS; Windows needs a
-  system install), then set `engine = "postgresql"`. Runs automatically on
-  `:5432`, user `sabdopalon` with local access.
-
-Root credentials follow the usual local conventions (think XAMPP): **root
-user with no password**, reachable only from your own machine (`127.0.0.1`)
-— which plays nicely with phpMyAdmin or the bundled Adminer page
-(`add adminer` → `http://adminer.localhost`).
-
-### Platform notes
-
-| | Linux | macOS | Windows |
-|---|---|---|---|
-| `*.localhost` works out of the box | ✅ automatic | ✅ automatic | ✅ automatic (Win 10+) |
-| Need to edit `/etc/hosts` | No | No | No |
-| Binary name | `sabdopalon` | `sabdopalon` | `sabdopalon.exe` |
-
-> **`.localhost` works on every platform**: modern Linux, macOS, and
-> Windows 10+ all resolve `*.localhost` to `127.0.0.1` — no hosts file
-> edits, no admin rights needed.
-
-## How it works
+1. **Serves your sites.** When a browser asks for `myapp.localhost`, it finds
+   the matching folder in `sites/` and hands the request to PHP. No Apache or
+   Nginx needed — PHP's own built-in server is enough, and the program routes
+   requests to it by hostname.
+2. **Runs your databases.** MariaDB, PostgreSQL, and SQLite are started and
+   stopped for you, bound to `127.0.0.1` so only your machine can reach them.
+3. **Gives you a dashboard.** A React app at `http://localhost:9900` lets you
+   control all of the above from the browser. It's embedded inside the binary,
+   so there's nothing extra to install.
 
 ```mermaid
 flowchart TB
     browser(["🌐 Browser"])
-
-    subgraph app["sabdopalon (Go program)"]
-        direction LR
-        proxy["HTTP proxy :8080<br>+ HTTPS :8443<br>routed by hostname"]
-        dash["Dashboard :9900<br>UI + API"]
+    subgraph app["sabdopalon (one program)"]
+        proxy["Routes requests<br>by hostname"]
+        dash["Dashboard :9900<br>browser UI + API"]
     end
-
-    php["php -S :9001<br>-t sites/example-app/public"]
-    db[("MariaDB 11.4 · managed automatically<br>:3306 · auto-backup · socket in data/")]
-
-    browser -->|"http://example-app.localhost:8080"| proxy
-    browser -->|"http://localhost:9900"| dash
-    proxy -->|"Host: example-app.localhost<br>(spun up on demand)"| php
+    php["PHP serves your site<br>from sites/your-site/"]
+    db[("Database<br>managed for you")]
+    browser -->|"myapp.localhost"| proxy
+    browser -->|"localhost:9900"| dash
+    proxy --> php
     app --- db
 ```
 
-## Commands
+## For developers
 
-Everything below can also be done from the dashboard — the CLI is optional.
+The README above is meant for **users**. If you want to build Sabdopalon,
+understand its architecture, or contribute:
 
-| Command | What it does |
-|---|---|
-| `sabdopalon` (or `serve`) | Starts everything and opens the dashboard |
-| `sabdopalon doctor` | Health check: PHP, ports, database, SSL |
-| `sabdopalon sites` | List sites + their URLs |
-| `sabdopalon new <template> <name>` | Create a project (blank, laravel, wordpress, codeigniter) |
-| `sabdopalon add <package>` | Install packages: `mariadb`, `mailpit`, `php@8.2` … |
-| `sabdopalon pkg:list` | List available packages + status |
-| `sabdopalon php:list` | Installed PHP versions (8.1–8.5) |
-| `sabdopalon ssl:ca` / `ssl:wildcard` / `ssl:issue <host>` / `ssl:trust` | Local HTTPS in four steps |
-| `sabdopalon enable-ports` | Allow clean URLs on :80/:443 |
-| `sabdopalon backup` / `backup:list` | Database backups |
-| `sabdopalon profile:create/list/delete` | Environment profiles |
-| `sabdopalon setup` | Re-run the setup wizard |
-| `sabdopalon version` / `help` | Version info / help |
-
-### Per-site settings (`.sabdopalon.yml`)
-
-Drop this file into a site's folder for per-project tweaks:
-
-```yaml
-php: "8.3"          # PHP version from `add php@8.3`
-docroot: public     # site's entry folder (relative to the site folder)
-aliases:            # extra domains pointed at this site
-  - www.myapp.test
-env:
-  APP_ENV: local
-```
-
-## Dashboard
-
-The dashboard is built with React (modern dark theme) and is embedded in
-the binary — Node.js isn't needed to use it. It's only reachable from your
-own machine (`127.0.0.1`).
-
-| Page | What's there |
-|---|---|
-| 🌐 Sites | Create sites from templates, open, start/stop/restart, delete |
-| 🗄️ Database | Engine status, one-click backup + automatic history |
-| 🧩 Services | Toggle Mailpit/Redis/MinIO/Meilisearch, .env snippets |
-| 📦 Packages | Install MariaDB, PostgreSQL, Mailpit, PHP 8.1–8.5 with progress |
-| 🔒 SSL | CA → wildcard → trust wizard; detects old certificates |
-| ⚙️ Settings | TLD, ports, database engine, auto-open; apply profiles |
-| 🖥️ Terminal | Built-in terminal (xterm) — run php, mysql, composer |
-| 📜 Logs | Per-site PHP logs, database, and Mailpit |
-
-> **First run / desktop app:** while there's no configuration yet, the
-> dashboard switches to **setup mode** and shows the wizard at `/setup`
-> (also the landing page of the desktop app).
-
-## Desktop app
-
-Sabdopalon ships a native desktop app — a real OS window (no URL bar),
-tray icon, autostart at login, and a **GUI-style setup wizard** on first
-launch (terminal not required).
-
-**Guaranteed no-console experience on Windows:** the Go sidecar builds as a
-GUI app (`-H windowsgui`) and every child process (PHP, MariaDB,
-certutil, etc.) runs with the `CREATE_NO_WINDOW` flag, so no black console
-windows appear or flicker — Windows users interact through the GUI only.
-
-- **Windows** — NSIS installer (per-user, no admin), Start Menu shortcut.
-- **macOS** — `.dmg`, drag to Applications and you're set.
-- **Linux** — `.deb` + `.AppImage`.
-
-App data lives in the OS-specific data folder (e.g. `%LOCALAPPDATA%\Sabdopalon`
-on Windows, `~/Library/Application Support/Sabdopalon` on macOS,
-`~/.local/share/sabdopalon` on Linux) — the app itself installs read-only.
-
-Building from source:
-
-```bash
-cd desktop
-npm install
-bash scripts/build-sidecar.sh   # builds the Go sidecar for your platform
-npm run dev                     # tauri dev (needs Rust toolchain)
-```
-
-> **Signing note:** unsigned macOS/Windows builds show a warning the first
-> time you open them (right-click → open / "More info"). Code signing
-> requires a paid developer account — out of scope for now.
-
-### Clean URLs (`https://myapp.localhost` — no port)
-
-Sabdopalon tries ports 80/443 first. Without privileges it falls back to
-8080/8443 automatically. To allow low ports permanently:
-
-```bash
-./sabdopalon enable-ports   # Linux: sudo setcap cap_net_bind_service=+ep <binary>
-```
-
-## PHP settings
-
-All PHP processes (for every site) use `config/php.ini`, generated
-automatically on first run:
-
-```ini
-memory_limit = 256M
-upload_max_filesize = 64M
-post_max_size = 64M
-max_execution_time = 120
-date.timezone = UTC
-```
-
-Edit that file and restart Sabdopalon (or just the site) to apply. Site
-specific settings live in `.sabdopalon.yml` (PHP version, docroot,
-environment variables).
-
-## Environment variables (available in PHP)
-
-| Variable | Example |
-|---|---|
-| `SABDOPALON` | `1` |
-| `SABDOPALON_DB_ENGINE` | `sqlite` / `mariadb` / `mysql` / `postgresql` |
-| `SABDOPALON_DB_PATH` | `/path/to/sabdopalon.db` (sqlite only) |
-| `SABDOPALON_PG_HOST` / `PORT` / `USER` / `DB` | `127.0.0.1` / `5432` / `sabdopalon` / `postgres` (engine = postgresql) |
-| `SABDOPALON_MAIL_SMTP` / `SABDOPALON_MAIL_UI` | Mailpit SMTP + UI (when running) |
-| `SABDOPALON_REDIS_HOST` / `SABDOPALON_REDIS_PORT` | Redis (when running) |
-| `SABDOPALON_S3_ENDPOINT` / `KEY` / `SECRET` / `BUCKET` | MinIO S3 (when running) |
-| `SABDOPALON_MEILI_HOST` | Meilisearch (when running) |
-
-## Folder structure
-
-```
-sabdopalon/
-├── sabdopalon                 # the main program
-├── config/engine.toml         # global settings
-├── config/profiles/           # setting profiles
-├── sites/                     # web root: 1 folder = 1 site
-├── bin/mariadb/               # downloaded MariaDB (gitignored)
-├── data/                      # database data folder (gitignored)
-├── logs/                      # per-site PHP logs + database
-├── backups/                   # database backups
-└── certs/                     # SSL certificates
-```
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — building from source, repo layout,
+  commands, environment variables, per-site config, and how to contribute.
+- **[CHANGELOG.md](CHANGELOG.md)** — what changed in each release.
+- **[DESIGN.md](DESIGN.md)** — the design rationale and architectural
+  decisions.
 
 ## License
 
 MIT — see [LICENSE](LICENSE). Sabdopalon manages third-party open-source
-components (PHP, MariaDB) downloaded via its package system.
+components (PHP, MariaDB) downloaded through its package system.
