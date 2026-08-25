@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.9.2] — 2026-08-25
+
+### Fixed
+- **Database terminal hung on "connecting" forever (mariadb/psql not found)** —
+  the Database page's embedded terminal spawns the engine's CLI client
+  (`mariadb`/`psql`) via a PTY so you can drop straight into a DB prompt. But
+  `exec.Command("mariadb", …)` resolves the executable with
+  `exec.LookPath` at construction time against the **server's own PATH**
+  (`os.Environ()`), not against the child PATH `envFor` builds (which leads
+  with `<bin>/<engine>/bin`). Since `mariadb`/`psql` live only in
+  `bin/mariadb/bin` or `bin/postgresql/bin` — directories the server process
+  never has on its PATH — the lookup failed before the child could start.
+  The WebSocket handler returned `500 terminal: exec: "mariadb":
+  executable file not found in $PATH` **before** accepting the upgrade, so
+  the browser socket never left CONNECTING and the UI sat on "connecting"
+  indefinitely (no prompt, no error, just an empty panel). The terminal
+  backend now resolves the child executable against the Sabdopalon PATH
+  (`lookPathInEnv`) and passes the absolute path to `exec.Command`, so the
+  DB client is found in `<bin>/<engine>/bin` and the prompt appears.
+  Regression tests cover `lookPathInEnv` (bin-dir resolution + not-found)
+  and the `envFor` PATH ordering invariant.
+
 ## [0.9.1] — 2026-08-25
 
 ### Fixed

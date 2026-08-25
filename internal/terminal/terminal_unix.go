@@ -22,7 +22,17 @@ func newSession(cfg *config.Engine, dir string, extraEnv []string, cmd []string)
 	}
 	env := envFor(cfg, extraEnv)
 
-	proc := exec.Command(shell[0], shell[1:]...)
+	// Resolve the child executable against the Sabdopalon PATH we just
+	// built (bin dirs first), NOT the server's own PATH. exec.Command runs
+	// exec.LookPath at construction time using os.Environ() (the parent
+	// PATH), so a bare "mariadb"/"psql" that lives only in <bin>/<engine>/bin
+	// would never be found even though we put that dir on the child PATH
+	// below — it fails before Start with "executable file not found in $PATH".
+	exe, err := lookPathInEnv(shell[0], env)
+	if err != nil {
+		return nil, err
+	}
+	proc := exec.Command(exe, shell[1:]...)
 	proc.Dir = dir
 	proc.Env = env
 
@@ -71,3 +81,8 @@ func shellCommand() []string {
 		return []string{"sh"}
 	}
 }
+
+// execSuffix is the executable filename suffix on this platform ("" on
+// Unix, ".exe" on Windows). Used by lookPathInEnv so a bare "mariadb" name
+// resolves to mariadb.exe under the Sabdopalon PATH on Windows.
+func execSuffix() string { return "" }

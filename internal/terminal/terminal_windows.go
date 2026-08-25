@@ -4,7 +4,6 @@ package terminal
 
 import (
 	"errors"
-	"os/exec"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
@@ -19,7 +18,7 @@ func newSession(cfg *config.Engine, dir string, extraEnv []string, cmd []string)
 	}
 	env := envFor(cfg, extraEnv)
 
-	exe, err := exec.LookPath(shell[0])
+	exe, err := lookPathInEnv(shell[0], env)
 	if err != nil {
 		return nil, err
 	}
@@ -57,3 +56,8 @@ func (s *Session) closeImpl() error {
 func shellCommand() []string {
 	return []string{"powershell.exe", "-NoLogo"}
 }
+
+// execSuffix is the executable filename suffix on this platform (".exe" on
+// Windows, "" on Unix). Used by lookPathInEnv so a bare "mariadb" name
+// resolves to mariadb.exe under the Sabdopalon PATH.
+func execSuffix() string { return ".exe" }
