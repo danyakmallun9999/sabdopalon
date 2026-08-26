@@ -38,3 +38,19 @@ func execCommand(name string, args ...string) *exec.Cmd {
 func osRename(src, dst string) error {
 	return os.Rename(src, dst)
 }
+
+// loginShellPath is a no-op on Windows: there is no login shell, and the
+// per-user PATH lives in HKCU\Environment (already merged into the process
+// PATH by the launching explorer). Detection relies on exec.LookPath alone.
+func loginShellPath() string { return "" }
+
+// isExecutable reports whether p exists and is not a directory. On Windows
+// executability is conveyed by the extension (handled by execSuffix), so any
+// non-directory file counts.
+func isExecutable(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && !info.IsDir()
+}
+
+// execSuffix is the executable filename suffix on Windows.
+func execSuffix() string { return ".exe" }

@@ -121,14 +121,57 @@ func Find(name string) *SystemTool {
 	return nil
 }
 
-// IsInstalled reports whether the tool's binary is on PATH.
+// lookPath resolves the tool binary, first on the running process PATH
+// (exec.LookPath) and, if that misses, on a reconstructed login-shell PATH.
+// Tools installed by shell-rc-only managers (nvm, asdf, Homebrew) are invisible
+// to a process launched from a desktop entry/AppImage — whose PATH never ran
+// the rc files — so the second lookup is what detects node/npm/composer in
+// that case. Returns the resolved path (absolute when found on the login PATH).
+func lookPath(name string) (string, bool) {
+	if p, err := exec.LookPath(name); err == nil {
+		return p, true
+	}
+	return lookPathIn(name, loginShellPath())
+}
+
+// lookPathIn searches name across the colon/semicolon-separated dirs in path
+// and returns the first executable match, mirroring exec.LookPath semantics
+// (bare names are searched; a name containing a path separator is used
+// directly). We walk manually because exec.LookPath always consults the
+// process environment and cannot be aimed at an alternate PATH.
+func lookPathIn(name, path string) (string, bool) {
+	if strings.ContainsRune(name, os.PathSeparator) {
+		if filepath.IsAbs(name) && isExecutable(name) {
+			return name, true
+		}
+		return "", false
+	}
+	for _, dir := range filepath.SplitList(path) {
+		if dir == "" {
+			continue
+		}
+		candidate := filepath.Join(dir, name)
+		if isExecutable(candidate) {
+			return candidate, true
+		}
+		if ext := execSuffix(); ext != "" {
+			if isExecutable(candidate + ext) {
+				return candidate + ext, true
+			}
+		}
+	}
+	return "", false
+}
+
+// IsInstalled reports whether the tool's binary is on PATH (the process PATH,
+// or the login-shell PATH when the process PATH misses — e.g. under AppImage).
 func IsInstalled(name string) bool {
 	t := Find(name)
 	if t == nil {
 		return false
 	}
-	_, err := exec.LookPath(t.Bin)
-	return err == nil
+	_, ok := lookPath(t.Bin)
+	return ok
 }
 
 // IsOnPersistentPath reports whether dir is in the persistent user PATH (HKCU
@@ -146,21 +189,13 @@ func Version(name string) string {
 	if t == nil {
 		return ""
 	}
-	p, err := exec.LookPath(t.Bin)
-	if err != nil {
+	p, ok := lookPath(t.Bin)
+	if !ok {
 		return ""
 	}
-	var cmd *exec.Cmd
-	switch t.Bin {
-	case "node":
-		cmd = exec.Command(p, "--version")
-	case "npm":
-		cmd = exec.Command(p, "--version")
-	case "composer":
-		cmd = exec.Command(p, "--version")
-	default:
-		cmd = exec.Command(p, "--version")
-	}
+	// Every registered tool reports its version with `--version`; the per-bin
+	// switch above was always identical, so a single call suffices.
+	cmd := exec.Command(p, "--version")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -185,8 +220,8 @@ func Install(name string, p Progress) (string, error) {
 }
 
 func installTool(t *SystemTool, p Progress) error {
-	// Already on PATH? Skip the download.
-	if _, err := exec.LookPath(t.Bin); err == nil {
+	// Already on PATH (process or login-shell)? Skip the download.
+	if _, ok := lookPath(t.Bin); ok {
 		p.Printf("  ✓  %s already installed (%s)\n", t.Label, Version(t.Name))
 		return nil
 	}
