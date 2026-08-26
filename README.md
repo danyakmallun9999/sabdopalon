@@ -29,11 +29,18 @@ operating system. Just run `sabdopalon` and:
 
 ## A peek inside
 
-<p align="center">
-  <img src="images/ui/dashboard.png" alt="Dashboard — server, services, and traffic at a glance" width="860">
-  <br>
-  <em>The dashboard: server status, running services, and traffic — all on one screen.</em>
-</p>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="images/ui/dashboard.png"><img src="images/ui/dashboard.png" alt="Dashboard — server, services, and traffic at a glance" width="100%"></a>
+      <br><sub><b>Dashboard</b><br>Server status, running services, and traffic — all on one screen.</sub>
+    </td>
+    <td align="center" width="50%">
+      <a href="images/ui/wizard-setup.png"><img src="images/ui/wizard-setup.png" alt="Setup wizard — pick PHP, database, and extra tools" width="100%"></a>
+      <br><sub><b>Setup wizard</b><br>On first run, choose your PHP version, database, and any extra tools.</sub>
+    </td>
+  </tr>
+</table>
 
 <p align="center"><strong>Every page is point-and-click. Here's the rest of it.</strong></p>
 
