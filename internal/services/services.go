@@ -250,8 +250,12 @@ func cmdRunsBin(args string, binNames []string) bool {
 	// basename so /home/.../bin/mailpit/mailpit matches "mailpit".
 	exe := strings.TrimSpace(strings.SplitN(args, " ", 2)[0])
 	base := filepath.Base(exe)
+	// Strip a .exe suffix so "mailpit" matches the Windows candidate
+	// "mailpit.exe" even when the command line omits the extension.
+	base = strings.TrimSuffix(strings.ToLower(base), ".exe")
 	for _, n := range binNames {
-		if strings.EqualFold(base, n) {
+		want := strings.TrimSuffix(strings.ToLower(n), ".exe")
+		if base == want {
 			return true
 		}
 	}
