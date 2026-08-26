@@ -56,6 +56,7 @@ func registry() []*Spec {
 				return []string{"--smtp", "127.0.0.1:1025", "--listen", "127.0.0.1:8025"}
 			},
 			ReadyKind:   "http",
+			ReadyPort:   8025, // Ports[0]=1025 is SMTP; probe the HTTP UI instead
 			ConsolePort: 8025,
 			UIPath:      "/",
 			Label2:      "Web UI",

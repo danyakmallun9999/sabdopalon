@@ -129,7 +129,11 @@ func (m *Manager) Start(name string) error {
 		return fmt.Errorf("start %s: %w", spec.Name, err)
 	}
 
-	if !spec.ready(spec.Ports[0], 12*time.Second) {
+	probePort := spec.ReadyPort
+	if probePort == 0 && len(spec.Ports) > 0 {
+		probePort = spec.Ports[0]
+	}
+	if !spec.ready(probePort, 12*time.Second) {
 		p := &runningProc{cmd: cmd, log: logFile}
 		p.stop()
 		m.mu.Lock()
@@ -216,6 +220,9 @@ type Spec struct {
 	Args      func(cfg *config.Engine, dataDir string) []string
 	ReadyKind string // "tcp" or "http"
 	ReadyPath string // for http probes ("/health" etc.)
+	ReadyPort int    // port to probe for readiness (defaults to Ports[0])
+	// set this when Ports[0] is not an HTTP/TCP-probeable port
+	// (e.g. mailpit: Ports[0]=1025 is SMTP, probe 8025 instead)
 
 	// Presentation / integration
 	ConsolePort int                               // optional second port exposed as UI
