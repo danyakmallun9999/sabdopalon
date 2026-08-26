@@ -35,10 +35,6 @@ operating system. Just run `sabdopalon` and:
       <a href="images/ui/dashboard.png"><img src="images/ui/dashboard.png" alt="Dashboard — server, services, and traffic at a glance" width="100%"></a>
       <br><sub><b>Dashboard</b><br>Server status, running services, and traffic — all on one screen.</sub>
     </td>
-    <td align="center" width="50%">
-      <a href="images/ui/wizard-setup.png"><img src="images/ui/wizard-setup.png" alt="Setup wizard — pick PHP, database, and extra tools" width="100%"></a>
-      <br><sub><b>Setup wizard</b><br>On first run, choose your PHP version, database, and any extra tools.</sub>
-    </td>
   </tr>
 </table>
 
@@ -46,19 +42,19 @@ operating system. Just run `sabdopalon` and:
 
 <table>
   <tr>
+      <td align="center"><a href="images/ui/wizard-setup.png"><img src="images/ui/wizard-setup.png" alt="Logs page" width="280"></a><br><sub><b>Setup wizard</b><br>Bundle Tools</sub></td>
     <td align="center" width="33%"><a href="images/ui/sites.png"><img src="images/ui/sites.png" alt="Sites page" width="280"></a><br><sub><b>Sites</b><br>Create, start, stop</sub></td>
     <td align="center" width="33%"><a href="images/ui/database.png"><img src="images/ui/database.png" alt="Database page" width="280"></a><br><sub><b>Database</b><br>MariaDB, PostgreSQL, SQLite</sub></td>
-    <td align="center" width="33%"><a href="images/ui/packages.png"><img src="images/ui/packages.png" alt="Packages page" width="280"></a><br><sub><b>Packages</b><br>Install PHP, tools</sub></td>
   </tr>
   <tr>
+      <td align="center" width="33%"><a href="images/ui/packages.png"><img src="images/ui/packages.png" alt="Packages page" width="280"></a><br><sub><b>Packages</b><br>Install PHP, tools</sub></td>
     <td align="center"><a href="images/ui/services.png"><img src="images/ui/services.png" alt="Services page" width="280"></a><br><sub><b>Services</b><br>Mailpit, Redis, MinIO…</sub></td>
     <td align="center"><a href="images/ui/ssl.png"><img src="images/ui/ssl.png" alt="SSL page" width="280"></a><br><sub><b>SSL / HTTPS</b><br>Local certificates</sub></td>
-    <td align="center"><a href="images/ui/terminal.png"><img src="images/ui/terminal.png" alt="Terminal page" width="280"></a><br><sub><b>Terminal</b><br>Run composer, artisan</sub></td>
   </tr>
   <tr>
+      <td align="center"><a href="images/ui/terminal.png"><img src="images/ui/terminal.png" alt="Terminal page" width="280"></a><br><sub><b>Terminal</b><br>Run composer, artisan</sub></td>
     <td align="center"><a href="images/ui/settings.png"><img src="images/ui/settings.png" alt="Settings page" width="280"></a><br><sub><b>Settings</b><br>Ports, TLD, profiles</sub></td>
     <td align="center"><a href="images/ui/logs.png"><img src="images/ui/logs.png" alt="Logs page" width="280"></a><br><sub><b>Logs</b><br>Per-site, database, mail</sub></td>
-  </tr>
 </table>
 
 ## Features
