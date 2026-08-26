@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.10.1] — 2026-08-26
+
+### Fixed
+- **System tools (Node.js, npm, Composer, nvm) not detected when launched from
+  AppImage/desktop entry** — processes spawned from a desktop entry or AppImage
+  never run shell rc files, so their PATH omitted directories added by nvm,
+  asdf, Homebrew, volta, etc. `exec.LookPath` then failed to find tools the
+  user clearly had installed. A login-shell PATH fallback now spawns
+  `$SHELL -lic` once (cached via `sync.Once`, 5s timeout) to reconstruct the
+  PATH a real terminal would have, using inline BEGIN/END markers so rc
+  greeting noise is stripped reliably. When `exec.LookPath` misses, the
+  reconstructed PATH is walked manually to find the binary. Also falls back
+  to `/etc/passwd` when `$SHELL` is unset (common under systemd user services
+  and AppImage launchers that scrub the environment).
+
 ## [0.10.0] — 2026-08-25
 
 ### Added
