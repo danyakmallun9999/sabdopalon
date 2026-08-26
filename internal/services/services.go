@@ -200,6 +200,75 @@ func (m *Manager) StopAll() {
 	}
 }
 
+// SweepGhosts finds and kills orphaned service processes from an earlier
+// session whose sidecar died before its cleanup ran (crash, SIGKILL, power
+// loss). Mirrors database.Manager.sweepGhosts: a service orphaned by a
+// killed sidecar keeps holding its ports (PPID=1 on Unix), so the next
+// start reports "port busy" and the service can never come back until a
+// manual kill. Sweeping on startup heals that transparently.
+//
+// A process is considered OUR ghost when its command line runs one of a
+// spec's BinNames AND contains one of the spec's ports as an argument
+// (e.g. "127.0.0.1:1025") — so a user's own mailpit on a different port is
+// never touched.
+func (m *Manager) SweepGhosts() {
+	for _, spec := range m.specs {
+		ports := make([]string, 0, len(spec.Ports))
+		for _, p := range spec.Ports {
+			ports = append(ports, fmt.Sprintf(":%d", p), fmt.Sprintf(" %d ", p), fmt.Sprintf(" %d", p))
+		}
+		var found []int
+		processTable(func(pid int, args string) bool {
+			if !cmdRunsBin(args, spec.BinNames) {
+				return true // keep scanning
+			}
+			if !cmdMentionsPort(args, ports) {
+				return true // same binary, different port — not ours
+			}
+			found = append(found, pid)
+			return true // a ghost may have forked helpers; collect them all
+		})
+		for _, pid := range found {
+			if processAlive(pid) {
+				killProcessTree(pid)
+				if m.Verbose {
+					fmt.Printf("  ◾  %s ghost stopped (orphan pid %d from an earlier session)\n", spec.Name, pid)
+				}
+			}
+		}
+	}
+}
+
+// cmdRunsBin reports whether a command line invokes one of the candidate
+// binary names (basename match, case-insensitive — covers Windows .exe
+// spelling and /path/to/mailpit alike).
+func cmdRunsBin(args string, binNames []string) bool {
+	if len(binNames) == 0 {
+		return false
+	}
+	// The executable is the first whitespace-delimited field. Match by
+	// basename so /home/.../bin/mailpit/mailpit matches "mailpit".
+	exe := strings.TrimSpace(strings.SplitN(args, " ", 2)[0])
+	base := filepath.Base(exe)
+	for _, n := range binNames {
+		if strings.EqualFold(base, n) {
+			return true
+		}
+	}
+	return false
+}
+
+// cmdMentionsPort reports whether any of the port tokens appears in the
+// command line (e.g. "127.0.0.1:1025" or " --port 6379 ").
+func cmdMentionsPort(args string, portTokens []string) bool {
+	for _, tok := range portTokens {
+		if strings.Contains(args, tok) {
+			return true
+		}
+	}
+	return false
+}
+
 // --- Spec: the declarative heart of the framework ---
 
 // Spec describes one optional managed service.
@@ -279,11 +348,12 @@ func (s *Spec) uiURL() string {
 
 // Manager owns all optional services.
 type Manager struct {
-	cfg   *config.Engine
-	specs []*Spec
-	mu    sync.Mutex
-	procs map[string]*runningProc
-	errs  map[string]string // last start error per service (dashboard display)
+	cfg     *config.Engine
+	specs   []*Spec
+	mu      sync.Mutex
+	procs   map[string]*runningProc
+	errs    map[string]string // last start error per service (dashboard display)
+	Verbose bool              // mirror per-event console output (--verbose)
 }
 
 // New creates a Manager with the full service registry.

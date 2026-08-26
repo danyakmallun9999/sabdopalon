@@ -337,6 +337,12 @@ func (a *App) serve() int {
 	var svcMgr *services.Manager
 	if a.Cfg.Services.Mailpit || a.Cfg.Services.Redis || a.Cfg.Services.MinIO || a.Cfg.Services.Meilisearch {
 		svcMgr = services.New(a.Cfg)
+		svcMgr.Verbose = a.Verbose
+		// Kill orphaned service processes from a previous session whose
+		// sidecar was SIGKILLed before its shutdown path reached
+		// svcMgr.StopAll() — otherwise they hold our ports and the start
+		// below fails with "port busy" forever.
+		svcMgr.SweepGhosts()
 		for _, st := range svcMgr.All() {
 			if !st.Enabled {
 				continue
@@ -382,10 +388,16 @@ func (a *App) serve() int {
 		fmt.Println("\n\nStopping Sabdopalon...")
 		n := srv.Stop()
 		dtMgr.StopAll()
-		dbMgr.StopAll()
+		// Stop services BEFORE database daemons: services (mailpit, redis…)
+		// die fast on SIGTERM, while each DB daemon's shutdown can take up
+		// to ~5s. The Rust sidecar waits 30s before SIGKILL; if services are
+		// stopped last, a slow DB shutdown can exhaust that budget and the
+		// SIGKILL lands before svcMgr.StopAll() runs — orphaning mailpit on
+		// its ports. Stopping services first guarantees they are reaped.
 		if svcMgr != nil {
 			svcMgr.StopAll()
 		}
+		dbMgr.StopAll()
 		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
 		os.Exit(0)
 	}()
