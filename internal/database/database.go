@@ -484,10 +484,21 @@ func initialize(binary, dataDir, engine string) error {
 		}
 	}
 	if initScript != "" {
-		cmd := exec.Command(initScript,
-			"--datadir="+dataDir,
-			"--basedir="+rootDir,
-			"--auth-root-authentication-method=normal")
+		// mariadb-install-db.exe (Windows) is a separate binary that does NOT
+		// share command-line parameters with the Unix shell script of the same
+		// name. It rejects --basedir and --auth-root-authentication-method as
+		// "unknown variable" (exit status 7), so only pass the options it
+		// actually supports. The Unix script needs the full set.
+		var cmd *exec.Cmd
+		if runtime.GOOS == "windows" {
+			cmd = exec.Command(initScript,
+				"--datadir="+dataDir)
+		} else {
+			cmd = exec.Command(initScript,
+				"--datadir="+dataDir,
+				"--basedir="+rootDir,
+				"--auth-root-authentication-method=normal")
+		}
 		winproc.Quiet(cmd)
 		out, err := cmd.CombinedOutput()
 		if err != nil {

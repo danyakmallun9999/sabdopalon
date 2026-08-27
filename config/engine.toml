@@ -10,6 +10,8 @@ data = "./data"
 [proxy]
 http_port = 8080
 https_port = 8443
+# false = situs hanya dari komputer ini (127.0.0.1). true = terbuka ke LAN.
+lan = false
 
 [php]
 # empty = auto-detect (bundled → PATH → system)
@@ -19,6 +21,11 @@ binary = "/home/danyakmallun/.config/herd-lite/bin/php"
 engine = "mariadb"
 path = "./data/sabdopalon.db"
 port = 3306
+# Multi-daemon: every database may run at once, each with its own port.
+mariadb_enabled = true
+mariadb_port = 3306
+pg_enabled = true
+pg_port = 5433
 
 [dashboard]
 enabled = true

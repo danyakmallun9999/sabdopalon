@@ -109,32 +109,82 @@ func TestEnvFor_PutsBinDirsFirstOnPath(t *testing.T) {
 	}
 }
 
-// TestEnvFor_SetsMysqlRootUser guards the MariaDB terminal fix: the client
-// must connect as root (empty password, XAMPP/Laragon convention) instead of
-// falling back to the OS username — which made CREATE DATABASE fail with
-// access denied in the dashboard database terminal.
-func TestEnvFor_SetsMysqlRootUser(t *testing.T) {
+// TestEnvFor_NoLongerSetsMysqlUser guards the env-var removal: MariaDB/MySQL
+// clients ignore MYSQL_USER/MARIADB_USER for the username, so setting them
+// was dead code that masked the real fix (a -u flag, handled by dbClientArgs).
+func TestEnvFor_NoLongerSetsMysqlUser(t *testing.T) {
 	root := t.TempDir()
 	cfg := &config.Engine{Root: root, RootDir: root}
 	env := envFor(cfg, nil)
 
-	want := map[string]string{
-		"MYSQL_USER":         "root",
-		"MARIADB_USER":       "root",
-		"MYSQL_PWD":          "",
-		"SABDOPALON_DB_HOST": "127.0.0.1",
-	}
-	got := map[string]string{}
 	for _, kv := range env {
-		for key := range want {
+		for _, key := range []string{"MYSQL_USER", "MARIADB_USER"} {
 			if strings.HasPrefix(kv, key+"=") {
-				got[key] = kv[len(key)+1:]
+				t.Errorf("env still sets %s (%q); username is injected via -u flag in dbClientArgs", key, kv)
 			}
 		}
 	}
-	for key, w := range want {
-		if got[key] != w {
-			t.Errorf("env var %s = %q, want %q", key, got[key], w)
+}
+
+// TestDbClientArgs_InjectsRootUserForMariadb guards the MariaDB terminal fix:
+// a bare "mariadb" override must gain "-u root" so CREATE DATABASE does not
+// fail as the anonymous user. mysql, mysql.exe, and mariadb.exe all apply.
+func TestDbClientArgs_InjectsRootUserForMariadb(t *testing.T) {
+	cases := [][]string{
+		{"mariadb"},
+		{"mysql"},
+		{"/usr/bin/mariadb"},
+	}
+	// Windows paths use backslashes that filepath.Base only splits on Windows.
+	if runtime.GOOS == "windows" {
+		cases = append(cases,
+			[]string{`C:\bin\mariadb.exe`},
+			[]string{`C:\bin\mysql.exe`},
+		)
+	}
+	for _, cmd := range cases {
+		got := dbClientArgs(append([]string(nil), cmd...))
+		if len(got) < 3 || got[len(got)-2] != "-u" || got[len(got)-1] != "root" {
+			t.Errorf("dbClientArgs(%v) = %v, want suffix [-u root]", cmd, got)
+		}
+	}
+}
+
+// TestDbClientArgs_PreservesExplicitUser ensures a caller that already passes
+// -u (or --user) is not doubled up with a second -u.
+func TestDbClientArgs_PreservesExplicitUser(t *testing.T) {
+	cases := [][]string{
+		{"mariadb", "-u", "foo"},
+		{"mysql", "--user=bar"},
+		{"mariadb", "-ufoo"},
+	}
+	for _, cmd := range cases {
+		got := dbClientArgs(append([]string(nil), cmd...))
+		if len(got) != len(cmd) {
+			t.Errorf("dbClientArgs(%v) = %v, want unchanged (user already given)", cmd, got)
+		}
+	}
+}
+
+// TestDbClientArgs_LeavesNonDbCommandsAlone ensures plain shells and psql (which
+// reads PGUSER from env) pass through untouched.
+func TestDbClientArgs_LeavesNonDbCommandsAlone(t *testing.T) {
+	cases := [][]string{
+		{},
+		{"bash"},
+		{"psql"},
+		{"zsh", "-l"},
+		{"powershell.exe", "-NoLogo"},
+	}
+	for _, cmd := range cases {
+		got := dbClientArgs(append([]string(nil), cmd...))
+		if len(got) != len(cmd) {
+			t.Errorf("dbClientArgs(%v) = %v, want unchanged", cmd, got)
+		}
+		for i := range cmd {
+			if got[i] != cmd[i] {
+				t.Errorf("dbClientArgs(%v)[%d] = %q, want %q", cmd, i, got[i], cmd[i])
+			}
 		}
 	}
 }

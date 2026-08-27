@@ -110,11 +110,12 @@ func envFor(cfg *config.Engine, extraEnv []string) []string {
 		"MYSQL_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
 		"MARIADB_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
 		"MYSQL_HOST=127.0.0.1",
-		// MariaDB is provisioned root/no-password (XAMPP/Laragon convention);
-		// without these the client falls back to the OS username and CREATE
-		// DATABASE fails with access denied.
-		"MYSQL_USER="+database.DatabaseRootUser,
-		"MARIADB_USER="+database.DatabaseRootUser,
+		// MariaDB is provisioned root/no-password (XAMPP/Laragon convention).
+		// MYSQL_PWD carries the password, but MariaDB/MySQL clients do NOT
+		// read MYSQL_USER/MARIADB_USER for the username — without an explicit
+		// -u flag the client connects as the anonymous user and CREATE
+		// DATABASE fails with access denied. The username is injected as a
+		// CLI flag in dbClientArgs instead (see terminal_unix.go).
 		"MYSQL_PWD="+database.DatabaseRootPassword,
 		"PGHOST=127.0.0.1",
 		"PGPORT="+strconv.Itoa(database.EffectivePort(cfg, "postgresql")),
@@ -140,4 +141,33 @@ func replaceEnv(env []string, key, value string) []string {
 		out = append(out, kv)
 	}
 	return append(out, prefix+value)
+}
+
+// dbClientArgs normalises a dashboard terminal command override so DB
+// clients connect with the right credentials. envFor seeds MYSQL_PWD for the
+// password and the socket/TCP port vars, but MariaDB/MySQL clients ignore
+// MYSQL_USER/MARIADB_USER for the username — without an explicit -u flag
+// they connect as the anonymous user and CREATE DATABASE fails with
+// "access denied". Inject "-u root" for mariadb/mysql; psql already reads
+// PGUSER from the env. Commands that already pass -u/-U are left untouched.
+// Non-DB commands (e.g. a plain shell) are returned unchanged.
+func dbClientArgs(cmd []string) []string {
+	if len(cmd) == 0 {
+		return cmd
+	}
+	base := strings.ToLower(filepath.Base(cmd[0]))
+	if base == "mariadb.exe" {
+		base = "mariadb"
+	} else if base == "mysql.exe" {
+		base = "mysql"
+	}
+	if base != "mariadb" && base != "mysql" {
+		return cmd
+	}
+	for _, a := range cmd[1:] {
+		if a == "-u" || a == "--user" || strings.HasPrefix(a, "-u") || strings.HasPrefix(a, "--user") {
+			return cmd // caller already specified a user
+		}
+	}
+	return append(cmd, "-u", database.DatabaseRootUser)
 }

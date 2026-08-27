@@ -17,7 +17,7 @@ import (
 func newSession(cfg *config.Engine, dir string, extraEnv []string, cmd []string) (*Session, error) {
 	shell := shellCommand()
 	if len(cmd) > 0 {
-		shell = cmd
+		shell = dbClientArgs(cmd)
 	}
 	env := envFor(cfg, extraEnv)
 

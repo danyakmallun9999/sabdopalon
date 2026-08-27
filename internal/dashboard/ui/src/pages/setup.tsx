@@ -144,47 +144,78 @@ export default function SetupPage() {
         <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
       ) : (
         <>
-          <main className="relative mx-auto w-full max-w-6xl flex-1 px-5 pt-5">
-            {/* Brand — kecil, langsung di atas kartu pertama */}
-            <div className="mb-4 flex items-center gap-2.5">
-              <img
-                src="/logo.png"
-                alt="Sabdopalon"
-                className="size-9 rounded-lg object-contain"
-              />
-              <span className="text-lg font-semibold tracking-tight">Sabdopalon</span>
+          <main className="relative mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6">
+            {/* Header / Brand */}
+            <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-card p-1 shadow-2xs">
+                  <img
+                    src="/logo.png"
+                    alt="Sabdopalon"
+                    className="size-full object-contain"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                      Sabdopalon
+                    </h1>
+                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium tracking-wide uppercase">
+                      Setup
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Konfigurasi server lokal dan pilih komponen untuk memulai lingkungan pengembangan.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-12">
               {/* LEFT — core + settings */}
-              <div className="flex flex-col gap-4">
-                <Card>
-                  <CardHeader className="p-4 pb-2">
-                    <CardTitle className="text-sm">Termasuk dalam paket</CardTitle>
-                    <CardDescription className="text-xs">
-                      Komponen inti selalu dipasang — status dibaca langsung dari folder instalasi.
-                    </CardDescription>
+              <div className="flex flex-col gap-4 lg:col-span-7">
+                {/* Core components */}
+                <Card size="sm" className="border-border/80 shadow-2xs">
+                  <CardHeader className="pb-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <CardTitle className="font-heading text-sm font-semibold">Komponen Inti</CardTitle>
+                        <CardDescription className="text-xs">
+                          Komponen wajib yang selalu dipersiapkan dalam lingkungan lokal.
+                        </CardDescription>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0 text-[11px] font-normal">
+                        3 Komponen
+                      </Badge>
+                    </div>
                   </CardHeader>
-                  <CardContent className="flex flex-col divide-y px-4 pb-3">
+                  <CardContent className="flex flex-col gap-2 pt-0">
                     {(status?.components ?? []).map((c) => (
-                      <div key={c.key} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
-                        <div className="flex items-center gap-2.5">
-                          <div className="bg-muted flex size-8 items-center justify-center rounded-lg">
+                      <div
+                        key={c.key}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <div className="bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60 shadow-2xs">
                             {coreIcon(c.key)}
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">{c.label}</span>
-                            <span className="text-muted-foreground text-xs">
-                              {c.installed ? (c.version ? `v${c.version}` : "terdeteksi") : "akan dipasang oleh wizard"}
+                          <div className="flex min-w-0 flex-col">
+                            <span className="truncate text-xs font-medium text-foreground sm:text-sm">{c.label}</span>
+                            <span className="truncate text-[11px] text-muted-foreground">
+                              {c.installed
+                                ? c.version
+                                  ? `v${c.version}`
+                                  : "terdeteksi"
+                                : "akan dipasang oleh wizard"}
                             </span>
                           </div>
                         </div>
                         {c.installed ? (
-                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" variant="secondary">
-                            <CheckCircle2 className="size-3.5" /> Terpasang
+                          <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-[11px] text-emerald-600 dark:text-emerald-400" variant="secondary">
+                            <CheckCircle2 className="size-3" /> Terpasang
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="text-muted-foreground">
+                          <Badge variant="outline" className="shrink-0 text-[11px] text-muted-foreground">
                             Termasuk paket
                           </Badge>
                         )}
@@ -194,99 +225,154 @@ export default function SetupPage() {
                   </CardContent>
                 </Card>
 
-                <Card className="flex-1">
-                  <CardHeader className="p-4 pb-2">
-                    <CardTitle className="text-sm">Pengaturan</CardTitle>
+                {/* Settings */}
+                <Card size="sm" className="border-border/80 shadow-2xs">
+                  <CardHeader className="pb-2.5">
+                    <div className="flex flex-col gap-0.5">
+                      <CardTitle className="font-heading text-sm font-semibold">Pengaturan</CardTitle>
+                      <CardDescription className="text-xs">
+                        Sesuaikan preferensi konfigurasi awal server lokal.
+                      </CardDescription>
+                    </div>
                   </CardHeader>
-                  <CardContent className="flex flex-col gap-3 px-4 pb-4">
-                    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5">
-                      <span className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium">Buat situs contoh</span>
-                        <span className="text-muted-foreground text-xs">
-                          Situs "myapp" langsung bisa dibuka setelah selesai
+                  <CardContent className="flex flex-col gap-3 pt-0">
+                    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40">
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-xs font-medium text-foreground sm:text-sm">Buat situs contoh</span>
+                        <span className="text-[11px] text-muted-foreground sm:text-xs">
+                          Situs <code className="bg-muted rounded px-1 py-0.5 font-mono text-[11px]">myapp</code> langsung bisa dibuka setelah selesai
                         </span>
                       </span>
-                      <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5" />
+                      <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5 shrink-0" />
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={() => setAdvanced((v) => !v)}
-                      className="text-muted-foreground flex w-fit items-center gap-1 text-xs hover:underline"
-                    >
-                      <ChevronDown className={`size-3.5 transition-transform ${advanced ? "rotate-180" : ""}`} />
-                      Pengaturan lanjutan (domain & port)
-                    </button>
-                    {advanced && (
-                      <div className="grid grid-cols-1 gap-3 @lg/main:grid-cols-3">
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="setup-tld" className="text-xs">
-                            Domain lokal (*.…)
-                          </Label>
-                          <Input id="setup-tld" value={tld} onChange={(e) => setTld(e.target.value)} placeholder="localhost" />
+                    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/10 p-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setAdvanced((v) => !v)}
+                        className="text-foreground/80 hover:text-foreground flex w-full items-center justify-between text-xs font-medium transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <ChevronDown className={`size-3.5 transition-transform duration-200 ${advanced ? "rotate-180" : ""}`} />
+                          Pengaturan lanjutan (domain & port)
+                        </span>
+                        <span className="text-[11px] text-muted-foreground font-normal">
+                          {advanced ? "Sembunyikan" : "Sesuaikan"}
+                        </span>
+                      </button>
+
+                      {advanced && (
+                        <div className="grid grid-cols-1 gap-2.5 border-t border-border/40 pt-2 sm:grid-cols-3">
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="setup-tld" className="text-[11px] font-medium text-muted-foreground">
+                              Domain lokal (*.…)
+                            </Label>
+                            <Input
+                              id="setup-tld"
+                              value={tld}
+                              onChange={(e) => setTld(e.target.value)}
+                              placeholder="localhost"
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="setup-http" className="text-[11px] font-medium text-muted-foreground">
+                              Port HTTP
+                            </Label>
+                            <Input
+                              id="setup-http"
+                              inputMode="numeric"
+                              value={httpPort}
+                              onChange={(e) => setHttpPort(e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <Label htmlFor="setup-https" className="text-[11px] font-medium text-muted-foreground">
+                              Port HTTPS
+                            </Label>
+                            <Input
+                              id="setup-https"
+                              inputMode="numeric"
+                              value={httpsPort}
+                              onChange={(e) => setHttpsPort(e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                          </div>
                         </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="setup-http" className="text-xs">
-                            Port HTTP
-                          </Label>
-                          <Input id="setup-http" inputMode="numeric" value={httpPort} onChange={(e) => setHttpPort(e.target.value)} />
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor="setup-https" className="text-xs">
-                            Port HTTPS
-                          </Label>
-                          <Input id="setup-https" inputMode="numeric" value={httpsPort} onChange={(e) => setHttpsPort(e.target.value)} />
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* RIGHT — optional tools */}
+              <div className="flex flex-col gap-4 lg:col-span-5">
+                <Card size="sm" className="border-border/80 shadow-2xs">
+                  <CardHeader className="pb-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <CardTitle className="font-heading text-sm font-semibold">Tools Tambahan</CardTitle>
+                        <CardDescription className="text-xs">
+                          Centang yang mau dipasang sekarang — sisanya bisa lewat Packages.
+                        </CardDescription>
+                      </div>
+                      {selected.size > 0 && (
+                        <Badge variant="default" className="shrink-0 text-[11px] font-normal">
+                          {selected.size} Dipilih
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-2 pt-0">
+                    {availableTools.length === 0 && status && (
+                      <div className="rounded-lg border border-border/50 bg-muted/20 p-3 text-center">
+                        <p className="text-xs text-muted-foreground">Semua tools sudah terpasang 🎉</p>
+                      </div>
+                    )}
+                    {availableTools.map((tool) => (
+                      <ToolRow key={tool.key} tool={tool} checked={selected.has(tool.key)} onToggle={() => toggleTool(tool.key)} />
+                    ))}
+                    {!status && <SkeletonRows rows={4} />}
+
+                    {activeTools.length > 0 && (
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border/50 pt-2.5">
+                        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Sudah Aktif
+                        </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {activeTools.map((t) => (
+                            <Badge key={t.key} variant="secondary" className="gap-1 bg-emerald-500/15 text-[11px] text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle2 className="size-3" /> {t.label}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     )}
                   </CardContent>
                 </Card>
               </div>
-
-              {/* RIGHT — optional tools */}
-              <Card>
-                <CardHeader className="p-4 pb-2">
-                  <CardTitle className="text-sm">Tools tambahan</CardTitle>
-                  <CardDescription className="text-xs">
-                    Centang yang mau dipasang sekarang — sisanya bisa kapan saja lewat halaman Packages.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-1.5 px-4 pb-4">
-                  {availableTools.length === 0 && status && (
-                    <p className="text-muted-foreground text-sm">Semua tools sudah terpasang 🎉</p>
-                  )}
-                  {availableTools.map((tool) => (
-                    <ToolRow key={tool.key} tool={tool} checked={selected.has(tool.key)} onToggle={() => toggleTool(tool.key)} />
-                  ))}
-                  {!status && <SkeletonRows rows={4} />}
-
-                  {activeTools.length > 0 && (
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      <span className="text-muted-foreground text-xs font-medium uppercase tracking-wide">Sudah aktif</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {activeTools.map((t) => (
-                          <Badge key={t.key} variant="secondary" className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                            <CheckCircle2 className="size-3" /> {t.label}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
             </div>
           </main>
 
           {/* Footer — CTA selalu terlihat tanpa scroll */}
-          <footer className="bg-background/85 border-border/60 relative shrink-0 border-t px-5 py-3 backdrop-blur">
-            <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-              <p className="text-muted-foreground text-xs">
-                {selected.size > 0
-                  ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
-                  : "Hanya 3 komponen inti yang akan dipersiapkan."}
-              </p>
-              <Button className="min-w-56" disabled={!status} onClick={start}>
-                <Rocket /> Selesaikan persiapan <ArrowRight />
+          <footer className="border-border/80 bg-background/95 sticky bottom-0 z-30 mt-auto shrink-0 border-t px-4 py-3 shadow-xs backdrop-blur-md sm:px-6">
+            <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="bg-primary/80 size-2 shrink-0 rounded-full animate-pulse" />
+                <span className="text-[11px] sm:text-xs">
+                  {selected.size > 0
+                    ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
+                    : "Hanya 3 komponen inti yang akan dipersiapkan."}
+                </span>
+              </div>
+              <Button
+                size="default"
+                className="min-w-48 sm:min-w-56 font-medium gap-2 shadow-xs cursor-pointer"
+                disabled={!status}
+                onClick={start}
+              >
+                <Rocket className="size-4" /> Selesaikan persiapan <ArrowRight className="size-4" />
               </Button>
             </div>
           </footer>
@@ -318,36 +404,49 @@ async function reloadWhenReady() {
 
 function coreIcon(key: string) {
   const Icon = CORE_ICONS[key] ?? Server
-  return <Icon className="text-muted-foreground size-4" />
+  return <Icon className="size-4 text-muted-foreground" />
 }
 
 function ToolRow({ tool, checked, onToggle }: { tool: SetupTool; checked: boolean; onToggle: () => void }) {
   const Icon = TOOL_ICONS[tool.key] ?? Boxes
   return (
     <label
-      className={`flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5 transition-colors ${
-        checked ? "border-primary/50 bg-primary/5" : "hover:bg-muted/40"
+      className={`group flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5 transition-all select-none ${
+        checked
+          ? "border-primary/50 bg-primary/5 shadow-2xs"
+          : "border-border/60 bg-card hover:border-border hover:bg-muted/40"
       }`}
     >
       <span className="flex min-w-0 items-start gap-2.5">
-        <div className="bg-muted mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg">
-          <Icon className="text-muted-foreground size-3.5" />
+        <div
+          className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+            checked ? "border-primary/30 bg-primary/10 text-primary" : "border-border/40 bg-muted text-muted-foreground"
+          }`}
+        >
+          <Icon className="size-3.5" />
         </div>
         <span className="flex min-w-0 flex-col">
-          <span className="text-sm font-medium">{tool.label}</span>
-          <span className="text-muted-foreground truncate text-xs">{tool.description}</span>
+          <span className="truncate text-xs font-medium text-foreground sm:text-sm">{tool.label}</span>
+          <span className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+            {tool.description}
+          </span>
         </span>
       </span>
-      <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-1 shrink-0" aria-label={tool.label} />
+      <Checkbox
+        checked={checked}
+        onCheckedChange={onToggle}
+        className="mt-0.5 shrink-0"
+        aria-label={tool.label}
+      />
     </label>
   )
 }
 
 function SkeletonRows({ rows }: { rows: number }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="bg-muted h-11 animate-pulse rounded-lg" />
+        <div key={i} className="bg-muted/60 h-11 animate-pulse rounded-lg border border-border/40" />
       ))}
     </div>
   )
@@ -365,51 +464,87 @@ function InstallPanel({
   logRef: React.RefObject<HTMLPreElement | null>
 }) {
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 px-5 py-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="inline-flex items-center gap-2 text-base font-semibold">
-          {success ? (
-            <span className="inline-flex items-center gap-2 text-emerald-500">
-              <CheckCircle2 /> Sabdopalon siap digunakan!
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3.5 px-4 py-5 sm:px-6">
+      {/* Header Status Card */}
+      <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            {success ? (
+              <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="size-4.5" />
+              </div>
+            ) : (
+              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <LoaderCircle className="size-4.5 animate-spin" />
+              </div>
+            )}
+            <div className="flex flex-col">
+              <h2 className="font-heading text-sm font-semibold text-foreground sm:text-base">
+                {success ? "Sabdopalon Siap Digunakan!" : "Menyiapkan Sabdopalon…"}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {success
+                  ? "Semua komponen inti dan tools pilihan telah berhasil dikonfigurasi."
+                  : "Mengunduh paket dan mengatur direktori instalasi..."}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <Progress value={progress} className="h-2 w-32 sm:w-44" />
+            <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+              {Math.round(progress)}%
             </span>
-          ) : (
-            <span className="inline-flex items-center gap-2">
-              <LoaderCircle className="size-4 animate-spin" /> Menyiapkan Sabdopalon…
-            </span>
-          )}
-        </h2>
-        <div className="flex items-center gap-2">
-          <Progress value={progress} className="w-44" />
-          <span className="text-muted-foreground text-xs tabular-nums">{Math.round(progress)}%</span>
+          </div>
         </div>
       </div>
-      <pre
-        ref={logRef}
-        className="bg-background text-muted-foreground min-h-0 flex-1 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
-      >
-        {job?.output || "Memulai…"}
-      </pre>
+
+      {/* Terminal log panel */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-zinc-950 shadow-sm dark:bg-black/90">
+        <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3.5 py-1.5">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="size-2 rounded-full bg-red-500/80" />
+              <span className="size-2 rounded-full bg-amber-500/80" />
+              <span className="size-2 rounded-full bg-emerald-500/80" />
+            </div>
+            <span className="ml-1.5 font-mono text-[11px] text-zinc-400">setup-process.log</span>
+          </div>
+          <span className="font-mono text-[10px] text-zinc-500">Live Output</span>
+        </div>
+        <pre
+          ref={logRef}
+          className="min-h-[180px] flex-1 overflow-y-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-300 select-text whitespace-pre-wrap"
+        >
+          {job?.output || "Memulai proses instalasi…"}
+        </pre>
+      </div>
+
       {job?.error && (
-        <div className="bg-destructive/10 rounded-lg border border-destructive/30 p-3">
-          <p className="text-destructive text-sm">Setup gagal: {job.error}</p>
+        <div className="bg-destructive/10 rounded-xl border border-destructive/30 p-3.5">
+          <p className="text-destructive font-medium text-xs sm:text-sm">Setup gagal: {job.error}</p>
           <p className="text-muted-foreground mt-1 text-xs">
             Kamu bisa mencoba lagi dari sini, atau lanjutkan manual lewat halaman Packages nanti.
           </p>
           <Button
             size="sm"
             variant="outline"
-            className="mt-2"
+            className="mt-2.5 cursor-pointer"
             onClick={() => window.location.reload()}
           >
             Muat ulang wizard
           </Button>
         </div>
       )}
+
       {success && (
-        <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-emerald-500/30 p-3">
-          <p className="text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
-          <Button size="sm" onClick={() => void reloadWhenReady()}>
-            Masuk ke Dashboard <ArrowRight />
+        <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 p-3.5">
+          <div className="flex flex-col gap-0.5">
+            <p className="font-medium text-xs text-foreground sm:text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
+            <p className="text-xs text-muted-foreground">Server lokal siap digunakan untuk pengembangan aplikasi.</p>
+          </div>
+          <Button size="default" className="cursor-pointer gap-1.5" onClick={() => void reloadWhenReady()}>
+            Masuk ke Dashboard <ArrowRight className="size-4" />
           </Button>
         </div>
       )}
