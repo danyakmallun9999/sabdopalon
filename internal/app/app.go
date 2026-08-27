@@ -33,7 +33,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.10.1"
+var Version = "0.10.2"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -365,7 +365,7 @@ func (a *App) serve() int {
 	// Per-site dev-tools supervisor (Vite, Artisan, npm, composer). Always
 	// created so the dashboard can start/stop tools at runtime; tools are
 	// killed on shutdown and when their site is stopped.
-	dtMgr := devtools.New()
+	dtMgr := devtools.New(a.Cfg)
 
 	srv := proxy.New(a.Cfg)
 	srv.Verbose = a.Verbose

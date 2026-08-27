@@ -18,6 +18,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/sabdopalon/sabdopalon/internal/config"
+	"github.com/sabdopalon/sabdopalon/internal/sysinstall"
 )
 
 // Status is the dashboard-facing state of one dev-tool for one site.
@@ -54,19 +57,27 @@ func (p *runningProc) stop() {
 
 // Manager owns all per-site dev-tool processes.
 type Manager struct {
-	mu    sync.Mutex
-	procs map[string]map[string]*runningProc // site → tool → proc
-	ports map[string]int                     // site → next candidate port
-	errs  map[string]map[string]string       // site → tool → last error
+	binRoot   string // bundle root (cfg.BinDir) for bundled-binary lookup
+	phpBinary string // resolved global PHP binary ("" when none)
+	mu        sync.Mutex
+	procs     map[string]map[string]*runningProc // site → tool → proc
+	ports     map[string]int                     // site → next candidate port
+	errs      map[string]map[string]string       // site → tool → last error
 }
 
-// New creates a dev-tools Manager.
-func New() *Manager {
-	return &Manager{
+// New creates a dev-tools Manager. cfg may be nil (tests) — resolution then
+// falls back to PATH + login-shell PATH only.
+func New(cfg *config.Engine) *Manager {
+	m := &Manager{
 		procs: map[string]map[string]*runningProc{},
 		ports: map[string]int{},
 		errs:  map[string]map[string]string{},
 	}
+	if cfg != nil {
+		m.binRoot = cfg.BinDir()
+		m.phpBinary = cfg.PHP.Binary
+	}
+	return m
 }
 
 // Start launches a dev-tool for a site. Returns the port the tool is listening
@@ -93,9 +104,9 @@ func (m *Manager) Start(siteName, siteDir, toolName string) (int, error) {
 	}
 	m.mu.Unlock()
 
-	bin := spec.binaryPath()
+	bin := m.resolveBin(spec.BinName)
 	if bin == "" {
-		err := fmt.Errorf("%s not found in PATH — install %s", spec.Label, spec.BinName)
+		err := fmt.Errorf("%s not found — install %s or set [php] binary in config/engine.toml", spec.Label, spec.BinName)
 		m.setErr(siteName, toolName, err.Error())
 		return 0, err
 	}
@@ -114,7 +125,7 @@ func (m *Manager) Start(siteName, siteDir, toolName string) (int, error) {
 	_ = os.MkdirAll(filepath.Dir(logPath(siteDir, siteName, toolName)), 0o755)
 	logFile, err := os.OpenFile(
 		filepath.Join(filepath.Dir(logPath(siteDir, siteName, toolName)), filepath.Base(logPath(siteDir, siteName, toolName))),
-		os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return 0, fmt.Errorf("open log for %s: %w", toolName, err)
 	}
@@ -124,7 +135,7 @@ func (m *Manager) Start(siteName, siteDir, toolName string) (int, error) {
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 	cmd.Dir = siteDir
-	cmd.Env = append(os.Environ(), spec.Env(siteDir)...)
+	cmd.Env = m.childEnv(spec.Env(siteDir, port))
 	attr := &syscall.SysProcAttr{}
 	setProcessGroup(attr)
 	cmd.SysProcAttr = attr
@@ -290,6 +301,105 @@ func (m *Manager) RunningTools(siteName string) []string {
 }
 
 // --- internal helpers ---
+
+// resolveBin finds a tool binary the same way every other spawner in this
+// codebase does (the old bare exec.LookPath is exactly what broke Artisan
+// Serve under AppImage/dashboard launches):
+//  1. "php" → the resolved global PHP binary from config ([php] binary —
+//     already covers bundled, system, and auto-downloaded PHP)
+//  2. other names → bundle root (bin/<name>, bin/php/<X.Y>/<name>)
+//  3. process PATH, then login-shell PATH (recovers nvm/asdf/Homebrew tools
+//     invisible to a desktop-entry/AppImage launch)
+func (m *Manager) resolveBin(name string) string {
+	if name == "php" && m.phpBinary != "" {
+		if fileExists(m.phpBinary) {
+			return m.phpBinary
+		}
+	}
+	if p := lookPathInDir(m.binRoot, name); p != "" {
+		return p
+	}
+	if p, ok := sysinstall.LookPath(name); ok {
+		return p
+	}
+	return ""
+}
+
+// lookPathInDir probes the bundle root for a binary: directly at <binRoot>/<name>
+// and inside versioned PHP dirs (<binRoot>/php/<X.Y>/<name>).
+func lookPathInDir(binRoot, name string) string {
+	if binRoot == "" {
+		return ""
+	}
+	candidates := []string{filepath.Join(binRoot, name)}
+	phpDirs, _ := filepath.Glob(filepath.Join(binRoot, "php", "*"))
+	for _, d := range phpDirs {
+		candidates = append(candidates, filepath.Join(d, name))
+	}
+	for _, c := range candidates {
+		if info, err := os.Stat(c); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+			return c
+		}
+	}
+	return ""
+}
+
+// childEnv builds the environment for a spawned tool: the parent environ with
+// the Sabdopalon bundle dirs prepended to PATH so nested invocations (artisan
+// shelling out to php, composer needing php, npx needing node/php) resolve,
+// plus the login-shell PATH appended as a safety net for AppImage launches.
+func (m *Manager) childEnv(extra []string) []string {
+	env := os.Environ()
+	path := os.Getenv("PATH")
+	if m.binRoot != "" {
+		path = m.binRoot + string(os.PathListSeparator) + path
+	}
+	if m.phpBinary != "" {
+		if phpDir := filepath.Dir(m.phpBinary); phpDir != "" && phpDir != "." {
+			path = phpDir + string(os.PathListSeparator) + path
+		}
+	}
+	if loginPath := sysinstall.LoginShellPath(); loginPath != "" {
+		for _, dir := range filepath.SplitList(loginPath) {
+			if dir == "" {
+				continue
+			}
+			found := false
+			for _, have := range filepath.SplitList(path) {
+				if have == dir {
+					found = true
+					break
+				}
+			}
+			if !found {
+				path += string(os.PathListSeparator) + dir
+			}
+		}
+	}
+	env = replaceEnv(env, "PATH", path)
+	return append(env, extra...)
+}
+
+// replaceEnv sets key=value in env, replacing any existing occurrence.
+func replaceEnv(env []string, key, val string) []string {
+	prefix := key + "="
+	out := make([]string, 0, len(env)+1)
+	replaced := false
+	for _, e := range env {
+		if strings.HasPrefix(e, prefix) {
+			if !replaced {
+				out = append(out, prefix+val)
+				replaced = true
+			}
+			continue
+		}
+		out = append(out, e)
+	}
+	if !replaced {
+		out = append(out, prefix+val)
+	}
+	return out
+}
 
 func (m *Manager) setErr(site, tool, msg string) {
 	m.mu.Lock()

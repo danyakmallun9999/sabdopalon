@@ -32,7 +32,9 @@
       "Shell(curl -s -X POST http://localhost:9900/api/services/mailpit/toggle -H Content-Type: application/json -d {\"enabled\":true})",
       "Shell(curl -s http://localhost:9900/services)",
       "Shell(curl -s -o /dev/null -w %{http_code} http://localhost:9900/assets/index-DD-3tHMr.js)",
-      "Shell(kill 503178 2>/dev/null; sleep 1; ps aux | grep 'sd-smoke' | grep -v grep || echo \"smoke processes cleaned\")"
+      "Shell(kill 503178 2>/dev/null; sleep 1; ps aux | grep 'sd-smoke' | grep -v grep || echo \"smoke processes cleaned\")",
+      "Shell(gofmt:*)",
+      "Shell([:*)"
     ],
     "deny": [],
     "defaultMode": "default"

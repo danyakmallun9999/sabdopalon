@@ -7,6 +7,7 @@ package services
 import (
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 )
@@ -144,12 +145,15 @@ func registry() []*Spec {
 					"--env", "development", // no master key required on loopback
 				}
 			},
-			ReadyKind:   "http",
-			ReadyPath:   "/health",
-			ConsolePort: 7700,
-			UIPath:      "/",
-			Label2:      "Mini-dashboard",
-			Hint:        "install via 'sabdopalon add meilisearch'",
+			ReadyKind: "http",
+			ReadyPath: "/health",
+			// First boot builds the LMDB map and post-import boots reopen
+			// indexes — both can outlast the default 12s TCP budget.
+			ReadyTimeout: 30 * time.Second,
+			ConsolePort:  7700,
+			UIPath:       "/",
+			Label2:       "Mini-dashboard",
+			Hint:         "install via 'sabdopalon add meilisearch'",
 			PHPEnv: func(_ *config.Engine) []string {
 				return []string{
 					"SABDOPALON_MEILI_HOST=http://127.0.0.1:7700",

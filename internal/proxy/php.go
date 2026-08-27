@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 )
 
@@ -81,6 +82,11 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		"SABDOPALON=1",
 		fmt.Sprintf("SABDOPALON_DB_ENGINE=%s", dbEngine),
 		fmt.Sprintf("SABDOPALON_DB_PATH=%s", dbPath),
+		// php -S is single-threaded by default: one slow/DB-bound request
+		// blocks every other request (framework session file locks make this
+		// visible as pages that "freeze" until another route is hit). Workers
+		// (PHP 7.4+) let the app answer concurrently.
+		fmt.Sprintf("PHP_CLI_SERVER_WORKERS=%d", phpCliServerWorkers()),
 	)
 	// Per-site php.ini override takes priority; otherwise use the global one.
 	if phpIniOverride != "" {
@@ -106,6 +112,16 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		return nil, fmt.Errorf("exec php: %w", err)
 	}
 	return &managedPHP{cmd: cmd}, nil
+}
+
+// phpCliServerWorkers returns the worker count for `php -S`. Capped at 4:
+// enough to unblock XHR-during-page-load and session-lock contention on a
+// dev machine without spawning a process tree per core.
+func phpCliServerWorkers() int {
+	if n := runtime.NumCPU(); n < 4 {
+		return n
+	}
+	return 4
 }
 
 // stop terminates the PHP process group.

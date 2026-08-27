@@ -79,15 +79,18 @@ type minuteStat struct {
 }
 
 type siteServer struct {
-	host      string
-	name      string // site folder name
-	dir       string // document root
-	port      int
-	proxy     *httputil.ReverseProxy
-	php       *managedPHP
-	logFile   *os.File
-	framework Framework  // detected framework (cached, never re-scanned)
-	viteProxy *ViteProxy // non-nil when Vite is running for this site
+	host string
+	name string // site folder name
+	dir  string // document root
+	port int    // 0 for static-only sites (no PHP process)
+	// handler is non-nil for static-only sites: Go serves the files itself,
+	// no php -S child, no router script, no reverse proxy.
+	handler   http.Handler
+	proxy     *httputil.ReverseProxy // nil for static-only sites
+	php       *managedPHP            // nil for static-only sites
+	logFile   *os.File               // nil for static-only sites
+	framework Framework              // detected framework (cached, never re-scanned)
+	viteProxy *ViteProxy             // non-nil when Vite is running for this site
 }
 
 // New creates a proxy Server.
@@ -120,10 +123,14 @@ func (s *Server) Start() error {
 	errCh := make(chan error, 4)
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", s.bindHost(), httpPort),
-		Handler:      s,
-		ReadTimeout:  60 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		Addr:        fmt.Sprintf("%s:%d", s.bindHost(), httpPort),
+		Handler:     s,
+		ReadTimeout: 60 * time.Second,
+		// No WriteTimeout: it used to be 60s, which cut off long DB-backed
+		// responses mid-flight on a local dev box — the browser kept showing
+		// the last rendered DOM ("frozen page"). Slow requests should finish
+		// (or fail in the app) rather than be severed by the proxy.
+		WriteTimeout: 0,
 	}
 
 	if s.Verbose {
@@ -210,7 +217,7 @@ func (s *Server) listenHTTPS(errCh chan<- error, certPath, keyPath string) bool 
 		Addr:         httpsAddr,
 		Handler:      s,
 		ReadTimeout:  60 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout: 0, // same rationale as the HTTP listener
 		ErrorLog:     quietLog,
 	}
 	s.httpsSrv = httpsSrv
@@ -318,7 +325,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ss, err := s.ensureSite(siteName)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("sabdopalon: cannot start PHP for %s: %v", siteName, err), http.StatusBadGateway)
+		http.Error(w, fmt.Sprintf("sabdopalon: cannot start %s: %v", siteName, err), http.StatusBadGateway)
+		return
+	}
+	// Static-only sites are served by Go itself — no Vite intercept, no PHP.
+	if ss.handler != nil {
+		ss.handler.ServeHTTP(w, r)
 		return
 	}
 	// If Vite is running for this site, intercept Vite HMR/asset paths before
@@ -508,12 +520,29 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	// Ensure the router script exists for this site (handles sites created
 	// while the proxy is already running). The router content depends on
 	// the detected framework so Laravel (and similar) get the right front
-	// controller wiring.
+	// controller wiring. Pure-static sites skip PHP entirely: no router file
+	// and no php -S child — Go serves their files directly.
 	siteDir := filepath.Join(s.cfg.Root, name)
+	staticOnly := IsStaticOnly(siteDir)
 	framework := DetectFramework(siteDir)
 	routerPath := filepath.Join(s.cfg.Root, name, ".sabdopalon-router.php")
-	if !fileExists(routerPath) {
+	if !staticOnly && !fileExists(routerPath) {
 		_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
+	}
+	if staticOnly {
+		if s.Verbose {
+			fmt.Printf("  ▶  %s → static (built-in file server)\n", host)
+		}
+		ss := &siteServer{
+			host:      host,
+			name:      name,
+			dir:       docroot,
+			port:      0,
+			handler:   http.FileServer(http.Dir(docroot)),
+			framework: framework,
+		}
+		s.sites[host] = ss
+		return ss, nil
 	}
 
 	port := s.portNext
@@ -590,6 +619,10 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 
 	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}
 	rp := httputil.NewSingleHostReverseProxy(target)
+	// Flush immediately: streaming responses (SSE, chunked uploads/downloads,
+	// XHR partials) must reach the browser as they are produced instead of
+	// waiting for the internal buffer — part of the "page feels frozen" fix.
+	rp.FlushInterval = -1
 	rp.Director = func(r *http.Request) {
 		r.URL.Scheme = target.Scheme
 		r.URL.Host = target.Host
@@ -626,14 +659,17 @@ func (s *Server) StartSite(name string) (*SiteInfo, error) {
 	return &SiteInfo{Host: ss.host, Dir: ss.dir, Port: ss.port}, nil
 }
 
-// StopSite stops one site's PHP server and keeps it down (requests receive a
-// friendly 503 instead of lazily restarting PHP). Returns true if it was running.
+// StopSite stops one site's server (PHP process or static handler) and keeps
+// it down (requests receive a friendly 503 instead of lazily restarting).
+// Returns true if it was running.
 func (s *Server) StopSite(name string) bool {
 	host := name + "." + s.cfg.TLD
 	s.mu.Lock()
 	ss, ok := s.sites[host]
 	if ok {
-		_ = ss.php.stop()
+		if ss.php != nil {
+			_ = ss.php.stop()
+		}
 		if ss.logFile != nil {
 			_ = ss.logFile.Close()
 		}
@@ -641,13 +677,9 @@ func (s *Server) StopSite(name string) bool {
 	}
 	s.disabled[name] = true
 	verbose := s.Verbose
-	port := 0
-	if ok {
-		port = ss.port
-	}
 	s.mu.Unlock()
 	if verbose {
-		fmt.Printf("  ◾  stopped %s (php :%d)\n", host, port)
+		fmt.Printf("  ◾  stopped %s\n", host)
 	}
 	// Kill any dev-tools (Vite, artisan…) running for this site so they don't
 	// outlive the PHP server and linger as orphans.
@@ -734,18 +766,21 @@ func (s *Server) IsRunning(name string) bool {
 	return ok
 }
 
-// StopAll terminates all per-site PHP servers.
+// StopAll terminates all per-site servers (PHP processes and static
+// handlers alike).
 func (s *Server) StopAll() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := 0
 	for host, ss := range s.sites {
-		_ = ss.php.stop()
+		if ss.php != nil {
+			_ = ss.php.stop()
+		}
 		if ss.logFile != nil {
 			_ = ss.logFile.Close()
 		}
 		if s.Verbose {
-			fmt.Printf("  ◾  stopped %s (php :%d)\n", host, ss.port)
+			fmt.Printf("  ◾  stopped %s\n", host)
 		}
 		delete(s.sites, host)
 		n++
@@ -774,7 +809,8 @@ type SiteInfo struct {
 // ensureRouters creates a PHP router script in each site folder if none
 // exists. The router content is chosen by the detected framework so Laravel
 // gets the correct front-controller wiring. Existing custom routers are
-// never overwritten.
+// never overwritten. Pure-static sites are skipped — they are served by Go
+// directly and need no router script or PHP process at all.
 func (s *Server) ensureRouters() {
 	entries, err := os.ReadDir(s.cfg.Root)
 	if err != nil {
@@ -784,9 +820,13 @@ func (s *Server) ensureRouters() {
 		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
-		routerPath := filepath.Join(s.cfg.Root, e.Name(), ".sabdopalon-router.php")
+		siteDir := filepath.Join(s.cfg.Root, e.Name())
+		if IsStaticOnly(siteDir) {
+			continue
+		}
+		routerPath := filepath.Join(siteDir, ".sabdopalon-router.php")
 		if !fileExists(routerPath) {
-			framework := DetectFramework(filepath.Join(s.cfg.Root, e.Name()))
+			framework := DetectFramework(siteDir)
 			_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
 		}
 	}

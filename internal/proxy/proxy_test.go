@@ -114,6 +114,11 @@ func TestIsReservedPort(t *testing.T) {
 
 func TestStartStopSiteLifecycle(t *testing.T) {
 	s := testServer(t)
+	// A PHP file forces the php -S path; without one the site is served by
+	// the built-in static file server (see TestStaticSiteServedWithoutPHP).
+	if err := os.WriteFile(filepath.Join(s.cfg.Root, "myapp", "public", "index.php"), []byte("<?php echo 'ok';"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	info, err := s.StartSite("myapp")
 	if err != nil {
 		t.Skipf("PHP not available in this environment: %v", err)
@@ -133,6 +138,49 @@ func TestStartStopSiteLifecycle(t *testing.T) {
 	}
 	if s.IsRunning("myapp") {
 		t.Error("site should be stopped")
+	}
+}
+
+// TestStaticSiteServedWithoutPHP pins the pure-static hosting behavior: a
+// folder with only HTML/assets gets Go's file server directly — no php -S
+// child process, no generated .sabdopalon-router.php.
+func TestStaticSiteServedWithoutPHP(t *testing.T) {
+	s := testServer(t)
+	html := "<!DOCTYPE html><html><body><h1>static hello</h1></body></html>"
+	if err := os.WriteFile(filepath.Join(s.cfg.Root, "myapp", "public", "index.html"), []byte(html), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := s.StartSite("myapp")
+	if err != nil {
+		t.Fatalf("static site should always start (no PHP involved): %v", err)
+	}
+	defer s.StopAll()
+	if info.Port != 0 {
+		t.Errorf("static site should not occupy a backend port, got %d", info.Port)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "http://myapp.localhost/", nil)
+	req.Host = "myapp.localhost"
+	s.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("static index should be 200, got %d", rec.Code)
+	}
+	if !contains(rec.Body.String(), "static hello") {
+		t.Errorf("expected index.html body, got: %s", rec.Body.String())
+	}
+
+	// No router script may be created for a static-only site.
+	routerPath := filepath.Join(s.cfg.Root, "myapp", ".sabdopalon-router.php")
+	if _, err := os.Stat(routerPath); err == nil {
+		t.Errorf(".sabdopalon-router.php must not be generated for static sites")
+	}
+
+	// Startup sweep must skip static sites too.
+	s.ensureRouters()
+	if _, err := os.Stat(routerPath); err == nil {
+		t.Errorf("ensureRouters must not create a router for static sites")
 	}
 }
 

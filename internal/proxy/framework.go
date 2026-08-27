@@ -65,6 +65,47 @@ func DetectFramework(siteDir string) Framework {
 	return FrameworkUnknown
 }
 
+// IsStaticOnly reports whether a site contains no PHP at all — pure HTML,
+// CSS, JS and assets. Such sites are served by Go directly: no `php -S`
+// process and no generated .sabdopalon-router.php. Hidden files are skipped
+// while scanning, so a leftover .sabdopalon-router.php from an older run
+// never re-classifies a static site as PHP. The walk is bounded so a huge
+// asset tree can't stall startup.
+func IsStaticOnly(siteDir string) bool {
+	for _, marker := range []string{"artisan", "wp-config.php", "wp-config-sample.php", "index.php"} {
+		if fileExists(filepath.Join(siteDir, marker)) {
+			return false
+		}
+	}
+	foundPHP := false
+	visits := 0
+	_ = filepath.WalkDir(siteDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // unreadable entries can't prove the site needs PHP
+		}
+		if d.IsDir() {
+			// Never descend into hidden dirs (.git, .cache, …).
+			if strings.HasPrefix(d.Name(), ".") && path != siteDir {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		visits++
+		if visits > 5000 {
+			return filepath.SkipAll // bound the scan; assume static
+		}
+		if strings.HasPrefix(d.Name(), ".") {
+			return nil
+		}
+		if strings.EqualFold(filepath.Ext(d.Name()), ".php") {
+			foundPHP = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return !foundPHP
+}
+
 // composerReq represents the relevant fields of a composer.json file.
 type composerReq struct {
 	Require    map[string]string `json:"require"`

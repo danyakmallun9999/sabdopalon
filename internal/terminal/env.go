@@ -110,6 +110,12 @@ func envFor(cfg *config.Engine, extraEnv []string) []string {
 		"MYSQL_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
 		"MARIADB_TCP_PORT="+strconv.Itoa(database.EffectivePort(cfg, "mariadb")),
 		"MYSQL_HOST=127.0.0.1",
+		// MariaDB is provisioned root/no-password (XAMPP/Laragon convention);
+		// without these the client falls back to the OS username and CREATE
+		// DATABASE fails with access denied.
+		"MYSQL_USER="+database.DatabaseRootUser,
+		"MARIADB_USER="+database.DatabaseRootUser,
+		"MYSQL_PWD="+database.DatabaseRootPassword,
 		"PGHOST=127.0.0.1",
 		"PGPORT="+strconv.Itoa(database.EffectivePort(cfg, "postgresql")),
 		"PGUSER=sabdopalon",

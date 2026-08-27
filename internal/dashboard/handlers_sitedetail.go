@@ -223,7 +223,7 @@ func (s *Server) handleAPISiteDevTools(w http.ResponseWriter, name string, r *ht
 }
 
 // siteLogFiles returns the names of log files that exist for a site
-// (e.g. "php", "vite", "artisan-serve"). The UI uses these to populate the
+// (e.g. "php", "vite", "laravel-dev"). The UI uses these to populate the
 // log-source tabs.
 func (s *Server) siteLogFiles(name string) []string {
 	entries, err := os.ReadDir(s.cfg.Logs)

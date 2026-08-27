@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -70,6 +71,65 @@ func TestPickRouter(t *testing.T) {
 	// WordPress → defaultRouter (WP ships its own index.php).
 	if pickRouter(FrameworkWordPress) != defaultRouter {
 		t.Error("wordpress should get the default router")
+	}
+}
+
+// TestIsStaticOnly_NoPHPFiles: a tree with only HTML/CSS/JS (and hidden
+// files/dirs like .git or a leftover .sabdopalon-router.php) is static-only.
+func TestIsStaticOnly_NoPHPFiles(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h1>hi</h1>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "assets", "css"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "assets", "css", strings.ToLower("APP.css")), []byte("body{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Leftovers from an older run must not re-classify the site as PHP.
+	if err := os.WriteFile(filepath.Join(dir, ".sabdopalon-router.php"), []byte("<?php // stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".git", "hook.php"), []byte("<?php"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !IsStaticOnly(dir) {
+		t.Error("HTML+assets site (hidden files ignored) should be static-only")
+	}
+}
+
+func TestIsStaticOnly_DetectsPHP(t *testing.T) {
+	cases := map[string]string{
+		"root index.php":  "index.php",
+		"nested view.php": filepath.Join("views", "home.php"),
+		"artisan":         "artisan",
+		"wp-config.php":   "wp-config.php",
+	}
+	for name, rel := range cases {
+		dir := t.TempDir()
+		p := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("<?php"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if IsStaticOnly(dir) {
+			t.Errorf("%s: site should NOT be static-only", name)
+		}
+	}
+}
+
+func TestIsStaticOnly_EmptyDir(t *testing.T) {
+	// An empty folder is treated as static — friendliest behavior for a
+	// freshly created project; Go serves a clean 404 until files appear.
+	if !IsStaticOnly(t.TempDir()) {
+		t.Error("empty dir should be considered static-only")
 	}
 }
 

@@ -97,14 +97,14 @@ internal/devtools/
 ```go
 // ToolSpec describes a managed dev-tool process for one site.
 type ToolSpec struct {
-    Name      string   // "vite", "artisan-serve", "npm-dev", "composer"
+    Name      string   // "vite", "laravel-dev", "npm-dev", "composer"
     Label     string   // "Vite Dev Server"
     BinName   string   // "npx", "php", "node", "composer"
     Args      func(siteDir string, port int) []string
     Port      int      // 0 = no port (e.g. composer install)
     ReadyKind string   // "http" | "tcp" | "" (no probe)
     ReadyPath string   // "/@vite/" for Vite HTTP probe
-    Env       func(siteDir string) []string // extra env (APP_ENV=local, dll)
+    Env       func(siteDir string, port int) []string // extra env (APP_ENV=local, APP_PORT, dll)
 }
 ```
 
@@ -113,7 +113,7 @@ type ToolSpec struct {
 | Tool | Bin | Args | Port | Ready | Kapan dipakai |
 |---|---|---|---|---|---|
 | `vite` | `npx` | `["vite", "--port", "<N>"]` | 5173+ | http `localhost:N` | Ada `vite.config.{js,ts}` |
-| `artisan-serve` | `php` | `["artisan", "serve", "--port", "<N>"]` | 8000+ | http | Opsional, untuk debugging tanpa Sabdopalon proxy |
+| `laravel-dev` | `composer` | `["run", "dev"]` | 8000+ | tcp | composer.json punya `scripts.dev` (skeleton Laravel 11+: serve + queue + vite sekaligus) |
 | `npm-dev` | `npm` | `["run", "dev"]` | — | — | Generic fallback (bukan Vite) |
 | `npm-build` | `npm` | `["run", "build"]` | — | — | One-shot build, bukan long-running |
 | `composer-install` | `composer` | `["install"]` | — | — | One-shot |
@@ -588,7 +588,7 @@ Dev Tools
 │ │ ➜  Network: use --host to expose                        │ │
 │ └────────────────────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────────────────────┤
-│ Artisan Serve (optional)                 [▶ Start] [■ Stop] │
+│ Laravel Dev (composer run dev)           [▶ Start] [■ Stop] │
 │ Status: stopped                                             │
 ├─────────────────────────────────────────────────────────────┤
 │ One-shot commands                                           │
@@ -601,8 +601,8 @@ Untuk setiap tool:
 - Tombol Start/Stop
 - Inline log viewer (tail dari log file)
 - Auto-detect: kalau ada `vite.config.*`, tampilkan Vite card. Kalau
-  ada `artisan`, tampilkan Artisan card. Kalau ada `package.json`,
-  tampilkan npm/composer cards.
+  composer.json punya `scripts.dev` (Laravel 11+), tampilkan card
+  Laravel Dev. Kalau ada `package.json`, tampilkan npm/composer cards.
 
 Saat Start Vite diklik:
 1. `POST /api/sites/<name>/devtools {tool: "vite", action: "start"}`

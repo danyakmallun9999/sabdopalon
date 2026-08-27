@@ -108,3 +108,33 @@ func TestEnvFor_PutsBinDirsFirstOnPath(t *testing.T) {
 		}
 	}
 }
+
+// TestEnvFor_SetsMysqlRootUser guards the MariaDB terminal fix: the client
+// must connect as root (empty password, XAMPP/Laragon convention) instead of
+// falling back to the OS username — which made CREATE DATABASE fail with
+// access denied in the dashboard database terminal.
+func TestEnvFor_SetsMysqlRootUser(t *testing.T) {
+	root := t.TempDir()
+	cfg := &config.Engine{Root: root, RootDir: root}
+	env := envFor(cfg, nil)
+
+	want := map[string]string{
+		"MYSQL_USER":         "root",
+		"MARIADB_USER":       "root",
+		"MYSQL_PWD":          "",
+		"SABDOPALON_DB_HOST": "127.0.0.1",
+	}
+	got := map[string]string{}
+	for _, kv := range env {
+		for key := range want {
+			if strings.HasPrefix(kv, key+"=") {
+				got[key] = kv[len(key)+1:]
+			}
+		}
+	}
+	for key, w := range want {
+		if got[key] != w {
+			t.Errorf("env var %s = %q, want %q", key, got[key], w)
+		}
+	}
+}

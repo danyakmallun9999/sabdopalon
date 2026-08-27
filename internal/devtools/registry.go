@@ -5,10 +5,11 @@
 package devtools
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 // ToolSpec describes one managed dev-tool.
 type ToolSpec struct {
-	Name      string // "vite", "artisan-serve", "npm-dev", etc.
+	Name      string // "vite", "laravel-dev", "npm-dev", etc.
 	Label     string // "Vite Dev Server"
 	BinName   string // "npx", "php", "node", "composer"
 	Args      func(siteDir string, port int) []string
@@ -24,19 +25,13 @@ type ToolSpec struct {
 	ReadyKind string // "http" | "tcp" | "" (no probe)
 	ReadyPath string // HTTP probe path (e.g. "/" for Vite)
 
-	// Env returns extra environment for the process.
-	Env func(siteDir string) []string
+	// Env returns extra environment for the process. port is the resolved
+	// listen port (0 for one-shot tools).
+	Env func(siteDir string, port int) []string
 
 	// available reports whether this tool makes sense for the site dir
 	// (e.g. Vite needs a vite.config file).
 	available func(siteDir string) bool
-}
-
-func (s *ToolSpec) binaryPath() string {
-	if p, err := exec.LookPath(s.BinName); err == nil {
-		return p
-	}
-	return ""
 }
 
 // ready waits until the tool responds on its port within the timeout.
@@ -102,6 +97,31 @@ func hasPackageJSON(siteDir string) bool {
 	return hasFile(siteDir, "package.json")
 }
 
+// composerScripts models the "scripts" object of a composer.json file.
+// Values may be strings OR arrays of strings (the Laravel skeleton mixes
+// both), so RawMessage keeps any shape decodable — only key presence matters.
+type composerScripts struct {
+	Scripts map[string]json.RawMessage `json:"scripts"`
+}
+
+// hasComposerScript reports whether composer.json defines the given script
+// (e.g. "dev" in the Laravel 11+ skeleton, which runs serve + queue + vite).
+func hasComposerScript(siteDir, script string) bool {
+	if !hasFile(siteDir, "composer.json") {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(siteDir, "composer.json"))
+	if err != nil {
+		return false
+	}
+	var cs composerScripts
+	if err := json.Unmarshal(data, &cs); err != nil {
+		return false
+	}
+	_, ok := cs.Scripts[script]
+	return ok
+}
+
 var toolRegistry = []*ToolSpec{
 	{
 		Name:    "vite",
@@ -113,24 +133,24 @@ var toolRegistry = []*ToolSpec{
 		Port:      5173,
 		ReadyKind: "http",
 		ReadyPath: "/",
-		Env: func(siteDir string) []string {
+		Env: func(siteDir string, port int) []string {
 			return []string{"APP_ENV=local"}
 		},
 		available: hasViteConfig,
 	},
 	{
-		Name:    "artisan-serve",
-		Label:   "Artisan Serve (php artisan serve)",
-		BinName: "php",
+		Name:    "laravel-dev",
+		Label:   "Laravel Dev (composer run dev)",
+		BinName: "composer",
 		Args: func(siteDir string, port int) []string {
-			return []string{"artisan", "serve", "--port", fmt.Sprintf("%d", port), "--host", "127.0.0.1"}
+			return []string{"run", "dev"}
 		},
 		Port:      8000,
 		ReadyKind: "tcp",
-		Env: func(siteDir string) []string {
-			return []string{"APP_ENV=local"}
+		Env: func(siteDir string, port int) []string {
+			return []string{"APP_ENV=local", fmt.Sprintf("APP_PORT=%d", port)}
 		},
-		available: func(siteDir string) bool { return hasFile(siteDir, "artisan") },
+		available: func(siteDir string) bool { return hasComposerScript(siteDir, "dev") },
 	},
 	{
 		Name:    "npm-dev",
@@ -141,7 +161,7 @@ var toolRegistry = []*ToolSpec{
 		},
 		Port:      0,
 		ReadyKind: "",
-		Env:       func(siteDir string) []string { return nil },
+		Env:       func(siteDir string, port int) []string { return nil },
 		available: func(siteDir string) bool {
 			return hasPackageJSON(siteDir) && !hasViteConfig(siteDir)
 		},
@@ -155,7 +175,7 @@ var toolRegistry = []*ToolSpec{
 		},
 		Port:      0,
 		ReadyKind: "",
-		Env:       func(siteDir string) []string { return nil },
+		Env:       func(siteDir string, port int) []string { return nil },
 		available: hasPackageJSON,
 	},
 	{
@@ -167,7 +187,7 @@ var toolRegistry = []*ToolSpec{
 		},
 		Port:      0,
 		ReadyKind: "",
-		Env:       func(siteDir string) []string { return nil },
+		Env:       func(siteDir string, port int) []string { return nil },
 		available: func(siteDir string) bool { return hasFile(siteDir, "composer.json") },
 	},
 	{
@@ -179,7 +199,7 @@ var toolRegistry = []*ToolSpec{
 		},
 		Port:      0,
 		ReadyKind: "",
-		Env:       func(siteDir string) []string { return nil },
+		Env:       func(siteDir string, port int) []string { return nil },
 		available: func(siteDir string) bool { return hasFile(siteDir, "composer.json") },
 	},
 }

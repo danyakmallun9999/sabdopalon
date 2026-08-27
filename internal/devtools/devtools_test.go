@@ -22,11 +22,12 @@ func TestAvailableTools(t *testing.T) {
 		t.Errorf("with vite.config.js: expected vite tool, got %v", toolNames(tools))
 	}
 
-	// Add artisan → artisan-serve applicable.
+	// Add artisan + composer.json with "dev" script → laravel-dev applicable.
 	_ = os.WriteFile(filepath.Join(dir, "artisan"), []byte("#!/bin/php"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "composer.json"), []byte(`{"scripts":{"dev":"npx concurrently ..."}}`), 0o644)
 	tools = AvailableTools(dir)
-	if !contains(tools, "artisan-serve") {
-		t.Errorf("with artisan: expected artisan-serve tool, got %v", toolNames(tools))
+	if !contains(tools, "laravel-dev") {
+		t.Errorf("with composer dev script: expected laravel-dev tool, got %v", toolNames(tools))
 	}
 
 	// Add package.json → npm-build applicable (and npm-dev if no vite config).
@@ -45,7 +46,7 @@ func TestAvailableTools(t *testing.T) {
 }
 
 func TestManagerStartStopUnknownTool(t *testing.T) {
-	m := New()
+	m := New(nil)
 	_, err := m.Start("site", t.TempDir(), "nonexistent-tool")
 	if err == nil {
 		t.Error("expected error for unknown tool")
@@ -53,26 +54,26 @@ func TestManagerStartStopUnknownTool(t *testing.T) {
 }
 
 func TestManagerStopNonRunning(t *testing.T) {
-	m := New()
+	m := New(nil)
 	if err := m.Stop("site", "vite"); err != nil {
 		t.Errorf("stopping a non-running tool should be a no-op, got: %v", err)
 	}
 }
 
 func TestManagerStopAllForSite(t *testing.T) {
-	m := New()
+	m := New(nil)
 	m.StopAllForSite("site") // no-op, should not panic
 }
 
 func TestVitePortNotRunning(t *testing.T) {
-	m := New()
+	m := New(nil)
 	if port := m.VitePort("site"); port != 0 {
 		t.Errorf("expected 0 for non-running Vite, got %d", port)
 	}
 }
 
 func TestStatusEmpty(t *testing.T) {
-	m := New()
+	m := New(nil)
 	status := m.Status("site")
 	// Status returns all registered tools, all not running.
 	if len(status) == 0 {

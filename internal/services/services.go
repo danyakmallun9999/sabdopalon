@@ -84,11 +84,17 @@ func (m *Manager) isRunning(name string) bool {
 
 // Start launches an installed service by name. Fails loudly when required
 // ports are occupied or the binary is missing.
+//
+// Serialization: startMu prevents double spawns when the dashboard toggle and
+// a manual start race (both would pass the isRunning check before either
+// registered its process).
 func (m *Manager) Start(name string) error {
 	spec := m.findSpec(name)
 	if spec == nil {
 		return fmt.Errorf("unknown service: %s", name)
 	}
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
 	if m.isRunning(name) {
 		return nil
 	}
@@ -111,9 +117,12 @@ func (m *Manager) Start(name string) error {
 	}
 	_ = os.MkdirAll(m.cfg.Logs, 0o755)
 
-	logFile, err := os.OpenFile(
-		filepath.Join(m.cfg.Logs, spec.Name+".log"),
-		os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	logPath := filepath.Join(m.cfg.Logs, spec.Name+".log")
+	rotateLog(logPath, maxLogBytes)
+	// Append (not truncate): a failed boot that is followed by a manual retry
+	// must still leave its evidence readable — O_TRUNC used to erase exactly
+	// the output the "did not become ready" message points users at.
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return err
 	}
@@ -129,17 +138,28 @@ func (m *Manager) Start(name string) error {
 		return fmt.Errorf("start %s: %w", spec.Name, err)
 	}
 
+	// Monitor the child from birth: a binary that dies instantly (corrupt data
+	// dir, bad artifact) would otherwise consume the whole ready budget while
+	// the caller waits on a port nothing will ever answer.
+	exited := make(chan error, 1)
+	go func() { exited <- cmd.Wait() }()
+
 	probePort := spec.ReadyPort
 	if probePort == 0 && len(spec.Ports) > 0 {
 		probePort = spec.Ports[0]
 	}
-	if !spec.ready(probePort, 12*time.Second) {
+	timeout := spec.ReadyTimeout
+	if timeout == 0 {
+		timeout = defaultReadyTimeout
+	}
+	if err := spec.waitReady(probePort, timeout, exited); err != nil {
 		p := &runningProc{cmd: cmd, log: logFile}
 		p.stop()
 		m.mu.Lock()
 		delete(m.procs, spec.Name)
 		m.mu.Unlock()
-		err := fmt.Errorf("%s did not become ready (see logs/%s.log)", spec.Name, spec.Name)
+		err = fmt.Errorf("%s did not become ready (see logs/%s.log): %v — last log: %s",
+			spec.Name, spec.Name, err, logTail(logPath, 4))
 		m.setErr(name, err.Error())
 		return err
 	}
@@ -297,6 +317,11 @@ type Spec struct {
 	// set this when Ports[0] is not an HTTP/TCP-probeable port
 	// (e.g. mailpit: Ports[0]=1025 is SMTP, probe 8025 instead)
 
+	// ReadyTimeout caps the readiness wait. Zero → defaultReadyTimeout.
+	// Cold starts that build state on first boot (Meilisearch's LMDB map,
+	// index reopens after imports) need more than a TCP-connect budget.
+	ReadyTimeout time.Duration
+
 	// Presentation / integration
 	ConsolePort int                               // optional second port exposed as UI
 	UIPath      string                            // path on ConsolePort ("" = no UI)
@@ -319,27 +344,55 @@ func (s *Spec) binaryPath(cfg *config.Engine) string {
 	return ""
 }
 
-func (s *Spec) ready(port int, timeout time.Duration) bool {
+const (
+	// defaultReadyTimeout is the readiness budget for services that don't
+	// override ReadyTimeout.
+	defaultReadyTimeout = 12 * time.Second
+	// maxLogBytes is where a service log rotates to <name>.log.old. Keeps
+	// append-mode logs bounded while preserving the previous chapter — same
+	// scheme as internal/database.
+	maxLogBytes int64 = 5 << 20 // 5 MiB
+)
+
+// waitReady polls the probe port until it responds, the child process exits,
+// or the timeout elapses. The exit channel is what keeps a crashed binary
+// from silently burning the whole budget: when cmd.Wait reports first, the
+// wait aborts immediately with the wait error, and Start appends the log tail
+// so the real cause is visible in the UI error.
+func (s *Spec) waitReady(port int, timeout time.Duration, exited <-chan error) error {
 	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		switch s.ReadyKind {
-		case "http":
-			resp, err := http.Get("http://" + addr + s.ReadyPath)
-			if err == nil {
-				resp.Body.Close()
-				return true
-			}
-		default:
-			c, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
-			if err == nil {
-				c.Close()
-				return true
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	for {
+		select {
+		case err := <-exited:
+			return fmt.Errorf("process exited before becoming ready: %v", err)
+		case <-timer.C:
+			return fmt.Errorf("timeout after %s", timeout)
+		case <-ticker.C:
+			switch s.ReadyKind {
+			case "http":
+				resp, err := http.Get("http://" + addr + s.ReadyPath)
+				if err == nil {
+					resp.Body.Close()
+					// Any HTTP response is not enough: a 4xx/5xx (or an
+					// unrelated responder that raced past portFree) must not
+					// count as ready. Health endpoints answer 2xx.
+					if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+						return nil
+					}
+				}
+			default:
+				c, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
+				if err == nil {
+					c.Close()
+					return nil
+				}
 			}
 		}
-		time.Sleep(250 * time.Millisecond)
 	}
-	return false
 }
 
 // uiURL returns the user-facing web interface for a running service.
@@ -354,6 +407,7 @@ func (s *Spec) uiURL() string {
 type Manager struct {
 	cfg     *config.Engine
 	specs   []*Spec
+	startMu sync.Mutex // serializes Start: dashboard toggle vs manual start
 	mu      sync.Mutex
 	procs   map[string]*runningProc
 	errs    map[string]string // last start error per service (dashboard display)
@@ -440,6 +494,43 @@ func portFree(port int) bool {
 	}
 	_ = l.Close()
 	return true
+}
+
+// logTail returns the last non-empty lines of a log file as a compact
+// one-line summary for error messages (bounded length).
+func logTail(path string, lines int) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	all := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	var keep []string
+	for i := len(all) - 1; i >= 0 && len(keep) < lines; i-- {
+		s := strings.TrimSpace(all[i])
+		if s == "" {
+			continue
+		}
+		keep = append(keep, s)
+	}
+	// keep was collected back-to-front; restore chronological order.
+	for i, j := 0, len(keep)-1; i < j; i, j = i+1, j-1 {
+		keep[i], keep[j] = keep[j], keep[i]
+	}
+	out := strings.Join(keep, " | ")
+	if len(out) > 400 {
+		out = "…" + out[len(out)-399:]
+	}
+	return out
+}
+
+// rotateLog renames path to path.old once it exceeds maxBytes, so appending
+// never grows a daemon log without bound while preserving the last chapter.
+func rotateLog(path string, maxBytes int64) {
+	if st, err := os.Stat(path); err == nil && st.Size() > maxBytes {
+		old := path + ".old"
+		_ = os.Remove(old)
+		_ = os.Rename(path, old)
+	}
 }
 
 // ReservedPorts returns every port used by the registered service specs

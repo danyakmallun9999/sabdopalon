@@ -121,6 +121,17 @@ func Find(name string) *SystemTool {
 	return nil
 }
 
+// LookPath resolves an arbitrary binary, first on the running process PATH
+// (exec.LookPath) and, if that misses, on a reconstructed login-shell PATH —
+// see lookPath. Exported so other subsystems that spawn user tooling (e.g.
+// per-site dev-tools under an AppImage launch) get the same AppImage-safe
+// resolution.
+func LookPath(name string) (string, bool) { return lookPath(name) }
+
+// LoginShellPath returns the PATH a login shell would have ("" on Windows or
+// when detection fails). Cached after the first call.
+func LoginShellPath() string { return loginShellPath() }
+
 // lookPath resolves the tool binary, first on the running process PATH
 // (exec.LookPath) and, if that misses, on a reconstructed login-shell PATH.
 // Tools installed by shell-rc-only managers (nvm, asdf, Homebrew) are invisible
