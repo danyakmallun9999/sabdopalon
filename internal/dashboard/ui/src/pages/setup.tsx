@@ -144,9 +144,9 @@ export default function SetupPage() {
         <InstallPanel job={job} progress={progress} success={success} logRef={logRef} />
       ) : (
         <>
-          <main className="relative mx-auto w-full max-w-5xl flex-1 px-4 py-5 sm:px-6">
+          <main className="relative mx-auto w-full max-w-5xl flex-1 px-4 py-4 sm:px-6 sm:py-5">
             {/* Header / Brand */}
-            <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mb-4 flex flex-col gap-1 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-card p-1 shadow-2xs">
                   <img
@@ -464,9 +464,9 @@ function InstallPanel({
   logRef: React.RefObject<HTMLPreElement | null>
 }) {
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3.5 px-4 py-5 sm:px-6">
+    <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4 sm:px-6 sm:py-5">
       {/* Header Status Card */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-3.5 shadow-2xs">
+      <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-3 shadow-2xs sm:p-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             {success ? (
@@ -514,7 +514,7 @@ function InstallPanel({
         </div>
         <pre
           ref={logRef}
-          className="min-h-[180px] flex-1 overflow-y-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-300 select-text whitespace-pre-wrap"
+          className="min-h-[140px] flex-1 overflow-y-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-300 select-text whitespace-pre-wrap sm:min-h-[180px]"
         >
           {job?.output || "Memulai proses instalasi…"}
         </pre>
