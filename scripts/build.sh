@@ -59,7 +59,7 @@ OUT="${OUT:-$DEFAULT_OUT}"
 
 # --- resolve version (for ldflags) -----------------------------------------
 if [ -z "$VERSION" ]; then
-  # Read the default from internal/app/app.go: var Version = "0.10.2"
+  # Read the default from internal/app/app.go: var Version = "0.11.0"
   VERSION="$(sed -n 's/^[[:space:]]*var Version = "\([^"]*\)".*/\1/p' internal/app/app.go | head -n1)"
   [ -n "$VERSION" ] || die "could not read Version from internal/app/app.go"
 fi

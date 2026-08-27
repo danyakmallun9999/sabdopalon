@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-08-27
+
+### Fixed
+- **Bundled PHP/Composer/other binaries never detected on Windows** — the
+  `lookPathInDir` helper rejected every bundled binary on Windows because Go
+  never sets the Unix execute bit (mode `0o111`) there, so `php.exe`,
+  `composer.exe`, etc. were never found and `resolveBin` fell through to
+  PATH/system tools. On Windows any non-directory file is now accepted
+  (extension implies runnable, matching `exec.LookPath`/`PATHEXT`), and the
+  `.exe` variant is also probed alongside the bare name. The dying-process
+  service test is now skipped on Windows (its stub binary is a `#!/bin/sh`
+  script that cannot run there); the behavior stays covered on Unix.
+
 ## [0.10.2] — 2026-08-27
 
 ### Fixed
