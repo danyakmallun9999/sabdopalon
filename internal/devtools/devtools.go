@@ -327,17 +327,38 @@ func (m *Manager) resolveBin(name string) string {
 
 // lookPathInDir probes the bundle root for a binary: directly at <binRoot>/<name>
 // and inside versioned PHP dirs (<binRoot>/php/<X.Y>/<name>).
+//
+// On Windows there is no Unix execute bit — Go never sets mode 0o111 there, so
+// the old exec-bit check rejected every bundled binary (php.exe, composer.exe,
+// …). We instead accept any non-directory file, and also probe the .exe
+// variant since Windows binaries carry that suffix.
 func lookPathInDir(binRoot, name string) string {
 	if binRoot == "" {
 		return ""
 	}
-	candidates := []string{filepath.Join(binRoot, name)}
+	names := []string{name}
+	if runtime.GOOS == "windows" {
+		names = append(names, name+".exe")
+	}
+	var candidates []string
+	for _, n := range names {
+		candidates = append(candidates, filepath.Join(binRoot, n))
+	}
 	phpDirs, _ := filepath.Glob(filepath.Join(binRoot, "php", "*"))
 	for _, d := range phpDirs {
-		candidates = append(candidates, filepath.Join(d, name))
+		for _, n := range names {
+			candidates = append(candidates, filepath.Join(d, n))
+		}
 	}
 	for _, c := range candidates {
-		if info, err := os.Stat(c); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
+		info, err := os.Stat(c)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			return c // no exec bit on Windows; extension implies runnable
+		}
+		if info.Mode()&0o111 != 0 {
 			return c
 		}
 	}

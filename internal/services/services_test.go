@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -60,6 +61,13 @@ func TestWaitReady_HTTPAcceptsOK(t *testing.T) {
 // burn the full budget reporting an opaque timeout. Uses a real Manager with
 // a stub "binary".
 func TestStart_ReturnsLogTailWhenProcessDies(t *testing.T) {
+	// The stub binary is a #!/bin/sh script — it cannot be executed on Windows
+	// (no shebang support), and binNames adds the .exe suffix the test does
+	// not create, so binaryPath never finds it. The behavior under test
+	// (early-exit detection) is platform-agnostic; cover it on Unix only.
+	if runtime.GOOS == "windows" {
+		t.Skip("stub shell-script binary not runnable on Windows")
+	}
 	root := t.TempDir()
 	binDir := filepath.Join(root, "bin", "meilisearch")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
