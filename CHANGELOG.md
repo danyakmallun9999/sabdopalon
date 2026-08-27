@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.10.2] — 2026-08-27
+
+### Fixed
+- **Setup wizard UI spacing on small screens** — the setup page and install
+  panel used generous vertical padding/margins that pushed content below the
+  fold on short windows (common on laptops with scaled displays). Padding and
+  gaps are now responsive (`py-4`/`gap-3` base, `sm:py-5`/`sm:p-3.5` on larger
+  screens), and the install log area shrinks from 180px to 140px minimum on
+  small screens so the full status card stays visible during installation.
+
 ## [0.10.1] — 2026-08-26
 
 ### Fixed
