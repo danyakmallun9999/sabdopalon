@@ -325,7 +325,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Runtime start/stop (tidak mengubah config enable).
+  // Runtime start/stop (does not change the enable config).
   async function startService(svc: ServiceStatus) {
     setBusy(svc.name)
     try {
@@ -374,7 +374,7 @@ export default function DashboardPage() {
     }
   }
 
-  // Start All / Stop All: hanya service yang terinstall.
+  // Start All / Stop All: only installed services.
   async function startAll() {
     setBusy("all")
     try {
@@ -392,15 +392,15 @@ export default function DashboardPage() {
         }
       }
       if (attempted === 0) {
-        toast.info("Tidak ada service untuk dijalankan.")
+        toast.info("No services to start.")
       } else if (failed === 0) {
-        toast.success(`Start All selesai — ${attempted} service dijalankan.`)
+        toast.success(`Start All done — ${attempted} services started.`)
       } else if (failed === attempted) {
-        toast.error(`Start All gagal — ${failed}/${attempted} service tidak bisa dijalankan.`, {
+        toast.error(`Start All failed — ${failed}/${attempted} services could not be started.`, {
           description: failures.join("\n"),
         })
       } else {
-        toast.warning(`Start All: ${attempted - failed} berhasil, ${failed} gagal.`, {
+        toast.warning(`Start All: ${attempted - failed} succeeded, ${failed} failed.`, {
           description: failures.join("\n"),
         })
       }
@@ -427,15 +427,15 @@ export default function DashboardPage() {
         }
       }
       if (attempted === 0) {
-        toast.info("Tidak ada service yang sedang berjalan.")
+        toast.info("No services currently running.")
       } else if (failed === 0) {
-        toast.success(`Stop All selesai — ${attempted} service dihentikan.`)
+        toast.success(`Stop All done — ${attempted} services stopped.`)
       } else if (failed === attempted) {
-        toast.error(`Stop All gagal — ${failed}/${attempted} service tidak bisa dihentikan.`, {
+        toast.error(`Stop All failed — ${failed}/${attempted} services could not be stopped.`, {
           description: failures.join("\n"),
         })
       } else {
-        toast.warning(`Stop All: ${attempted - failed} berhasil, ${failed} gagal.`, {
+        toast.warning(`Stop All: ${attempted - failed} succeeded, ${failed} failed.`, {
           description: failures.join("\n"),
         })
       }
@@ -464,12 +464,12 @@ export default function DashboardPage() {
 
   // Lifecycle controls live on the Database page — this card links there.
 
-  // Hanya tool yang sudah terinstall yang ditampilkan & bisa di-start.
+  // Only installed tools are shown & can be started.
   const installed = services.filter((s) => s.installed)
   const runningCount = installed.filter((s) => s.running).length
   const anyError = Object.values(errors).some(Boolean) || installed.some((s) => s.last_error)
-  // DB engine aktif hanya kalau daemon-nya benar-benar ready (sqlite selalu).
-  // Unknown state (snapshot belum datang) tidak boleh tampil sebagai ✓.
+  // An engine counts as active only when its daemon is actually ready (sqlite always is).
+  // Unknown state (snapshot not yet arrived) must not render as ✓.
   const dbRunning = dbEngineRunning(status)
   const dbEngine = status?.database ?? "—"
 
@@ -477,7 +477,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       <div className="flex items-center justify-between gap-2">
         <p className="text-muted-foreground text-sm">
-          Ringkasan server, layanan, dan lalu lintas — semua dalam satu layar.
+          Server, service, and traffic overview — all on one screen.
         </p>
         <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
           <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
@@ -487,7 +487,7 @@ export default function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         <StatCard icon={Globe} label="Sites" value={String(status?.sites_count ?? 0)} sub={`*.${status?.tld ?? "localhost"}`} />
-        <StatCard icon={Boxes} label="Services" value={`${runningCount}/${installed.length}`} sub={`${installed.length} terinstall`} />
+        <StatCard icon={Boxes} label="Services" value={`${runningCount}/${installed.length}`} sub={`${installed.length} installed`} />
         <StatCard icon={Activity} label="Requests" value={String(trafficTotal)} sub={`HTTP :${status?.http_port ?? "?"} · HTTPS :${status?.https_port ?? "?"}`} />
         <div
           role="button"
@@ -495,7 +495,7 @@ export default function DashboardPage() {
           onClick={() => navigate("/database")}
           onKeyDown={(e) => e.key === "Enter" && navigate("/database")}
           className="cursor-pointer transition-shadow hover:shadow-md rounded-xl"
-          title="Kelola database — start/stop/restart"
+          title="Manage databases — start/stop/restart"
         >
           <StatCard
             icon={Database}
@@ -517,7 +517,7 @@ export default function DashboardPage() {
         <div className="bg-destructive/10 flex items-start gap-3 rounded-xl border border-destructive/30 p-4">
           <CircleAlert className="text-destructive mt-0.5 size-5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Ada layanan yang gagal dijalankan</p>
+            <p className="text-sm font-medium">Some services failed to start</p>
             {Object.entries(errors).map(([name, msg]) => (
               <p key={name} className="text-muted-foreground text-xs">
                 <code className="bg-muted rounded px-1 py-0.5">{name}</code>: {msg}
@@ -543,7 +543,7 @@ export default function DashboardPage() {
                 <LayoutDashboard className="size-4" /> Server
               </CardTitle>
               <CardDescription>
-                {runningCount > 0 ? `${runningCount} service berjalan` : "Tidak ada service berjalan"} · DB{" "}
+                {runningCount > 0 ? `${runningCount} services running` : "No services running"} · DB{" "}
                 {Object.entries(status?.db_states ?? {})
                   .map(([k, v]) => `${k} ${v ? "✓" : "✗"}`)
                   .join(" · ") || `${dbEngine} ${dbRunning ? "✓" : "✗"}`}{" "}
@@ -580,7 +580,7 @@ export default function DashboardPage() {
                     </CardDescription>
                   </div>
                   <Badge variant={running ? "default" : "outline"} className={running ? "" : "text-muted-foreground"}>
-                    {running ? "berjalan" : "berhenti"}
+                    {running ? "running" : "stopped"}
                   </Badge>
                 </div>
                 {err && (
@@ -609,7 +609,7 @@ export default function DashboardPage() {
                     href="/database"
                     className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
                   >
-                    Kelola <ExternalLink className="size-3.5" />
+                    Manage <ExternalLink className="size-3.5" />
                   </a>
                 </div>
               </CardHeader>
@@ -618,7 +618,7 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Service grid — hanya tool yang terinstall */}
+      {/* Service grid — installed tools only */}
       {installed.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
           {installed.map((svc) => (
@@ -636,9 +636,9 @@ export default function DashboardPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Layanan tambahan</CardTitle>
+            <CardTitle className="text-base">Additional services</CardTitle>
             <CardDescription>
-              Belum ada tool tambahan yang terinstall. Pasang lewat halaman{" "}
+              No additional tools installed yet. Install via the{" "}
               <a href="/packages" className="text-primary hover:underline">Packages</a>{" "}
               (Mailpit, Redis, MinIO, Meilisearch, Adminer).
             </CardDescription>
@@ -650,8 +650,8 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Traffic (requests/menit)</CardTitle>
-            <CardDescription>30 menit terakhir — melalui proxy</CardDescription>
+            <CardTitle className="text-base">Traffic (requests/minute)</CardTitle>
+            <CardDescription>Last 30 minutes — via proxy</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[220px] w-full">
@@ -681,7 +681,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Service status</CardTitle>
-            <CardDescription>Running vs enabled (30 sampel terakhir)</CardDescription>
+            <CardDescription>Running vs enabled (last 30 samples)</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
@@ -705,7 +705,7 @@ export default function DashboardPage() {
                   axisLine={false}
                   tickMargin={8}
                   minTickGap={24}
-                  // t = epoch menit → tampilkan jam:menit
+                  // t = epoch minutes → display as hour:minute
                   tickFormatter={(v: number) =>
                     new Date(v * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                   }
@@ -728,8 +728,8 @@ export default function DashboardPage() {
       {/* Service table (compact overview) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Layanan terinstall</CardTitle>
-          <CardDescription>Status ringkas tool yang sudah terpasang.</CardDescription>
+          <CardTitle className="text-base">Installed services</CardTitle>
+          <CardDescription>Brief status of installed tools.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

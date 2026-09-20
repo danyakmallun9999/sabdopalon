@@ -54,7 +54,7 @@ export default function SetupPage() {
     api
       .setupStatus()
       .then(setStatus)
-      .catch(() => toast.error("Gagal memuat status instalasi"))
+      .catch(() => toast.error("Failed to load installation status"))
   }, [])
 
   // Poll the setup job while it runs; progress is derived from the poll
@@ -109,11 +109,11 @@ export default function SetupPage() {
     const hp = parseInt(httpPort, 10)
     const sp = parseInt(httpsPort, 10)
     if (!Number.isInteger(hp) || hp < 1 || hp > 65535 || !Number.isInteger(sp) || sp < 1 || sp > 65535) {
-      toast.error("Port harus berupa angka 1–65535")
+      toast.error("Port must be a number 1–65535")
       return
     }
     if (!/^[a-z0-9.]+$/.test(tld.trim())) {
-      toast.error("TLD hanya boleh berisi huruf kecil, angka, dan titik")
+      toast.error("TLD may only contain lowercase letters, numbers, and dots")
       return
     }
     setProgress(5)
@@ -165,7 +165,7 @@ export default function SetupPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Konfigurasi server lokal dan pilih komponen untuk memulai lingkungan pengembangan.
+                    Configure your local server and pick components to start your development environment.
                   </p>
                 </div>
               </div>
@@ -179,13 +179,13 @@ export default function SetupPage() {
                   <CardHeader className="pb-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-0.5">
-                        <CardTitle className="font-heading text-sm font-semibold">Komponen Inti</CardTitle>
+                        <CardTitle className="font-heading text-sm font-semibold">Core Components</CardTitle>
                         <CardDescription className="text-xs">
-                          Komponen wajib yang selalu dipersiapkan dalam lingkungan lokal.
+                          Required components always provisioned in the local environment.
                         </CardDescription>
                       </div>
                       <Badge variant="secondary" className="shrink-0 text-[11px] font-normal">
-                        3 Komponen
+                        3 Components
                       </Badge>
                     </div>
                   </CardHeader>
@@ -205,18 +205,18 @@ export default function SetupPage() {
                               {c.installed
                                 ? c.version
                                   ? `v${c.version}`
-                                  : "terdeteksi"
-                                : "akan dipasang oleh wizard"}
+                                  : "detected"
+                                : "will be installed by the wizard"}
                             </span>
                           </div>
                         </div>
                         {c.installed ? (
                           <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-[11px] text-emerald-600 dark:text-emerald-400" variant="secondary">
-                            <CheckCircle2 className="size-3" /> Terpasang
+                            <CheckCircle2 className="size-3" /> Installed
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="shrink-0 text-[11px] text-muted-foreground">
-                            Termasuk paket
+                            Included
                           </Badge>
                         )}
                       </div>
@@ -229,18 +229,18 @@ export default function SetupPage() {
                 <Card size="sm" className="border-border/80 shadow-2xs">
                   <CardHeader className="pb-2.5">
                     <div className="flex flex-col gap-0.5">
-                      <CardTitle className="font-heading text-sm font-semibold">Pengaturan</CardTitle>
+                      <CardTitle className="font-heading text-sm font-semibold">Settings</CardTitle>
                       <CardDescription className="text-xs">
-                        Sesuaikan preferensi konfigurasi awal server lokal.
+                        Customize the initial local server configuration.
                       </CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-3 pt-0">
                     <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40">
                       <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-xs font-medium text-foreground sm:text-sm">Buat situs contoh</span>
+                        <span className="text-xs font-medium text-foreground sm:text-sm">Create sample site</span>
                         <span className="text-[11px] text-muted-foreground sm:text-xs">
-                          Situs <code className="bg-muted rounded px-1 py-0.5 font-mono text-[11px]">myapp</code> langsung bisa dibuka setelah selesai
+                          The <code className="bg-muted rounded px-1 py-0.5 font-mono text-[11px]">myapp</code> site will be ready to open once setup finishes
                         </span>
                       </span>
                       <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5 shrink-0" />
@@ -254,10 +254,10 @@ export default function SetupPage() {
                       >
                         <span className="flex items-center gap-1.5">
                           <ChevronDown className={`size-3.5 transition-transform duration-200 ${advanced ? "rotate-180" : ""}`} />
-                          Pengaturan lanjutan (domain & port)
+                          Advanced settings (domain & ports)
                         </span>
                         <span className="text-[11px] text-muted-foreground font-normal">
-                          {advanced ? "Sembunyikan" : "Sesuaikan"}
+                          {advanced ? "Hide" : "Customize"}
                         </span>
                       </button>
 
@@ -312,14 +312,14 @@ export default function SetupPage() {
                   <CardHeader className="pb-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-0.5">
-                        <CardTitle className="font-heading text-sm font-semibold">Tools Tambahan</CardTitle>
+                        <CardTitle className="font-heading text-sm font-semibold">Additional Tools</CardTitle>
                         <CardDescription className="text-xs">
-                          Centang yang mau dipasang sekarang — sisanya bisa lewat Packages.
+                          Check what to install now — the rest can be added later via Packages.
                         </CardDescription>
                       </div>
                       {selected.size > 0 && (
                         <Badge variant="default" className="shrink-0 text-[11px] font-normal">
-                          {selected.size} Dipilih
+                          {selected.size} Selected
                         </Badge>
                       )}
                     </div>
@@ -327,7 +327,7 @@ export default function SetupPage() {
                   <CardContent className="flex flex-col gap-2 pt-0">
                     {availableTools.length === 0 && status && (
                       <div className="rounded-lg border border-border/50 bg-muted/20 p-3 text-center">
-                        <p className="text-xs text-muted-foreground">Semua tools sudah terpasang 🎉</p>
+                        <p className="text-xs text-muted-foreground">All tools already installed 🎉</p>
                       </div>
                     )}
                     {availableTools.map((tool) => (
@@ -338,7 +338,7 @@ export default function SetupPage() {
                     {activeTools.length > 0 && (
                       <div className="mt-2 flex flex-col gap-1.5 border-t border-border/50 pt-2.5">
                         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                          Sudah Aktif
+                          Already Active
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {activeTools.map((t) => (
@@ -355,15 +355,15 @@ export default function SetupPage() {
             </div>
           </main>
 
-          {/* Footer — CTA selalu terlihat tanpa scroll */}
+          {/* Footer — CTA always visible without scrolling */}
           <footer className="border-border/80 bg-background/95 sticky bottom-0 z-30 mt-auto shrink-0 border-t px-4 py-3 shadow-xs backdrop-blur-md sm:px-6">
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="bg-primary/80 size-2 shrink-0 rounded-full animate-pulse" />
                 <span className="text-[11px] sm:text-xs">
                   {selected.size > 0
-                    ? `${selected.size} tools tambahan akan diunduh + 3 komponen inti.`
-                    : "Hanya 3 komponen inti yang akan dipersiapkan."}
+                    ? `${selected.size} additional tools will be downloaded + 3 core components.`
+                    : "Only the 3 core components will be provisioned."}
                 </span>
               </div>
               <Button
@@ -372,7 +372,7 @@ export default function SetupPage() {
                 disabled={!status}
                 onClick={start}
               >
-                <Rocket className="size-4" /> Selesaikan persiapan <ArrowRight className="size-4" />
+                <Rocket className="size-4" /> Finish setup <ArrowRight className="size-4" />
               </Button>
             </div>
           </footer>
@@ -480,12 +480,12 @@ function InstallPanel({
             )}
             <div className="flex flex-col">
               <h2 className="font-heading text-sm font-semibold text-foreground sm:text-base">
-                {success ? "Sabdopalon Siap Digunakan!" : "Menyiapkan Sabdopalon…"}
+                {success ? "Sabdopalon Is Ready!" : "Setting up Sabdopalon…"}
               </h2>
               <p className="text-xs text-muted-foreground">
                 {success
-                  ? "Semua komponen inti dan tools pilihan telah berhasil dikonfigurasi."
-                  : "Mengunduh paket dan mengatur direktori instalasi..."}
+                  ? "All core components and selected tools were configured successfully."
+                  : "Downloading packages and setting up the install directory..."}
               </p>
             </div>
           </div>
@@ -516,15 +516,15 @@ function InstallPanel({
           ref={logRef}
           className="min-h-[140px] flex-1 overflow-y-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-300 select-text whitespace-pre-wrap sm:min-h-[180px]"
         >
-          {job?.output || "Memulai proses instalasi…"}
+          {job?.output || "Starting installation…"}
         </pre>
       </div>
 
       {job?.error && (
         <div className="bg-destructive/10 rounded-xl border border-destructive/30 p-3.5">
-          <p className="text-destructive font-medium text-xs sm:text-sm">Setup gagal: {job.error}</p>
+          <p className="text-destructive font-medium text-xs sm:text-sm">Setup failed: {job.error}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Kamu bisa mencoba lagi dari sini, atau lanjutkan manual lewat halaman Packages nanti.
+            You can try again from here, or continue manually via the Packages page later.
           </p>
           <Button
             size="sm"
@@ -532,7 +532,7 @@ function InstallPanel({
             className="mt-2.5 cursor-pointer"
             onClick={() => window.location.reload()}
           >
-            Muat ulang wizard
+            Reload wizard
           </Button>
         </div>
       )}
@@ -540,11 +540,11 @@ function InstallPanel({
       {success && (
         <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 p-3.5">
           <div className="flex flex-col gap-0.5">
-            <p className="font-medium text-xs text-foreground sm:text-sm">Semuanya sudah terpasang dan terkonfigurasi.</p>
-            <p className="text-xs text-muted-foreground">Server lokal siap digunakan untuk pengembangan aplikasi.</p>
+            <p className="font-medium text-xs text-foreground sm:text-sm">Everything is installed and configured.</p>
+            <p className="text-xs text-muted-foreground">Your local server is ready for app development.</p>
           </div>
           <Button size="default" className="cursor-pointer gap-1.5" onClick={() => void reloadWhenReady()}>
-            Masuk ke Dashboard <ArrowRight className="size-4" />
+            Go to Dashboard <ArrowRight className="size-4" />
           </Button>
         </div>
       )}

@@ -330,7 +330,7 @@ Sabdopalon tries ports 80/443 first. Without privileges it falls back to
   succeed without them.
 - **Security defaults:** sites bind `127.0.0.1` unless LAN exposure is
   explicitly requested; do not loosen this.
-- **Dashboard UI copy is Indonesian**; keep tone and terminology consistent
+- **Dashboard UI copy is English**; keep tone and terminology consistent
   with existing pages.
 
 ## Further reading

@@ -57,7 +57,7 @@ func (m *Manager) Backup(engine string) (string, error) {
 	case "mariadb", "mysql", "postgresql":
 		ext = ".sql.gz"
 	default:
-		return "", fmt.Errorf("backup tidak didukung untuk engine: %s", engine)
+		return "", fmt.Errorf("backup not supported for engine: %s", engine)
 	}
 
 	backupPath := filepath.Join(m.backupDir, fmt.Sprintf("%s-%s%s", engine, timestamp, ext))
@@ -70,14 +70,14 @@ func (m *Manager) Backup(engine string) (string, error) {
 	case "postgresql":
 		return backupPath, m.backupPostgreSQL(backupPath)
 	}
-	return "", fmt.Errorf("engine tidak dikenal: %s", engine)
+	return "", fmt.Errorf("unknown engine: %s", engine)
 }
 
 // backupSQLite copies the database file.
 func (m *Manager) backupSQLite(dest string) error {
 	src := m.cfg.Database.Path
 	if !fileExists(src) {
-		return fmt.Errorf("file database tidak ditemukan: %s", src)
+		return fmt.Errorf("database file not found: %s", src)
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {
@@ -90,11 +90,11 @@ func (m *Manager) backupSQLite(dest string) error {
 func (m *Manager) backupMariaDB(dest, engine string) error {
 	socket := filepath.Join(m.cfg.Data, engine+"-sock", "mysqld.sock")
 	if !fileExists(socket) {
-		return fmt.Errorf("database tidak berjalan — nyalakan dulu di halaman Database (socket: %s)", socket)
+		return fmt.Errorf("database not running — start it first on the Database page (socket: %s)", socket)
 	}
 	dumpBin := m.findDumpBinary(engine)
 	if dumpBin == "" {
-		return fmt.Errorf("binary dump tidak ditemukan (mariadb-dump / mysqldump)")
+		return fmt.Errorf("dump binary not found (mariadb-dump / mysqldump)")
 	}
 
 	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", database.DatabaseRootUser, "--all-databases")
@@ -129,7 +129,7 @@ func (m *Manager) backupPostgreSQL(dest string) error {
 		if p, err := exec.LookPath("pg_dump"); err == nil {
 			pgDump = p
 		} else {
-			return fmt.Errorf("pg_dump tidak ditemukan (bundel PostgreSQL belum terpasang)")
+			return fmt.Errorf("pg_dump not found (PostgreSQL bundle not installed yet)")
 		}
 	}
 

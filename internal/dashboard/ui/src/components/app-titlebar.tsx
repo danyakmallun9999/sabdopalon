@@ -104,13 +104,13 @@ export function AppTitlebar() {
           <div className="w-[4.5rem]" />
         ) : (
           <>
-            <ControlButton onClick={() => winAction("minimize")} label="Minimalkan">
+            <ControlButton onClick={() => winAction("minimize")} label="Minimize">
               <Minus className="size-4" />
             </ControlButton>
-            <ControlButton onClick={() => winAction("toggleMaximize")} label={maximized ? "Pulihkan" : "Maksimalkan"}>
+            <ControlButton onClick={() => winAction("toggleMaximize")} label={maximized ? "Restore" : "Maximize"}>
               {maximized ? <Copy className="size-3.5" /> : <Square className="size-3.5" />}
             </ControlButton>
-            <ControlButton onClick={() => winAction("close")} danger label="Tutup">
+            <ControlButton onClick={() => winAction("close")} danger label="Close">
               <X className="size-4" />
             </ControlButton>
           </>

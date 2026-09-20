@@ -141,14 +141,14 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" /> Konfigurasi PHP (php.ini)
+            <FileText className="h-5 w-5" /> PHP configuration (php.ini)
           </CardTitle>
           <CardDescription>
-            File ini berlaku untuk semua situs (diteruskan via PHPRC).{" "}
+            This file applies to all sites (passed via PHPRC).{" "}
             {ini?.version && (
-              <>PHP aktif: <code>{ini.version}</code>. </>
+              <>Active PHP: <code>{ini.version}</code>. </>
             )}
-            Disimpan di <code>{ini?.path ?? "config/php.ini"}</code>.
+            Stored at <code>{ini?.path ?? "config/php.ini"}</code>.
           </CardDescription>
           <textarea
             className="border-input bg-background focus-visible:ring-ring mt-2 min-h-[280px] w-full rounded-md border p-3 font-mono text-xs focus-visible:ring-1 focus-visible:outline-none"
@@ -159,28 +159,28 @@ export default function SettingsPage() {
           />
           <div className="mt-2 flex items-center gap-2">
             <Button className="w-fit" onClick={savePhpIni} disabled={savingIni}>
-              <Save /> Simpan php.ini
+              <Save /> Save php.ini
             </Button>
             <span className="text-muted-foreground text-xs">
-              Menyimpan akan me-restart situs yang sedang berjalan.
+              Saving will restart running sites.
             </span>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Keamanan: situs PHP mengeksekusi kode — akses LAN harus opt-in */}
+      {/* Security: PHP sites execute code — LAN access must be opt-in */}
       <Card>
         <CardHeader>
-          <CardTitle>Akses jaringan (LAN)</CardTitle>
+          <CardTitle>Network access (LAN)</CardTitle>
           <div className="mt-2 flex flex-row items-center justify-between gap-4 rounded-lg border p-3">
             <div className="flex flex-col gap-1">
               <Label htmlFor="lan" className="font-normal">
-                Izinkan perangkat lain di jaringan membuka situs kamu
+                Allow other devices on the network to open your sites
               </Label>
               <p className="text-muted-foreground text-xs">
-                Nonaktif (default): situs hanya bisa dibuka dari komputer ini
-                (127.0.0.1). Mengaktifkan ini membuka port 8080/8443 ke
-                jaringan — pastikan Wi-Fi kamu terpercaya. Berlaku setelah
+                Disabled (default): sites can only be opened from this computer
+                (127.0.0.1). Enabling this exposes ports 8080/8443 to the
+                network — make sure your Wi-Fi is trusted. Applies after
                 restart.
               </p>
             </div>

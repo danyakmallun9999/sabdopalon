@@ -43,7 +43,7 @@ function SystemPHPCard() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-1.5">
-            <CardTitle className="text-base">PHP sistem (mesin kamu)</CardTitle>
+            <CardTitle className="text-base">System PHP (your machine)</CardTitle>
             <CardDescription>
               Detected outside Sabdopalon's bin/. Default priority is system-first — pin a version
               per site via .sabdopalon.yml (php: "8.5").
@@ -105,7 +105,7 @@ function SystemToolsCard() {
   useEffect(() => {
     if (job?.done && !job?.running) {
       if (job.error) toast.error(job.error)
-      else toast.success(`${job.name} terpasang ✓`)
+      else toast.success(`${job.name} installed ✓`)
       load()
     }
   }, [job?.done, job?.running])
@@ -123,15 +123,15 @@ function SystemToolsCard() {
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-1.5">
-          <CardTitle className="text-base">Alat sistem (Node.js &amp; Composer)</CardTitle>
+          <CardTitle className="text-base">System tools (Node.js &amp; Composer)</CardTitle>
           <CardDescription>
-            Dipasang ke sistem kamu (bukan <code className="bg-muted rounded px-1 py-0.5">bin/</code>) — tersedia
-            untuk <code>composer create-project</code>, <code>npm install</code>, dan <code>vite</code>. Dipasang
-            per-user (tanpa sudo).
+            Installed onto your system (not <code className="bg-muted rounded px-1 py-0.5">bin/</code>) — available
+            for <code>composer create-project</code>, <code>npm install</code>, and <code>vite</code>. Installed
+            per-user (no sudo).
           </CardDescription>
         </div>
         {tools.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Memuat…</p>
+          <p className="text-muted-foreground text-sm">Loading…</p>
         ) : (
           <div className="mt-2 flex flex-col gap-3">
             {tools.map((t) => (
@@ -141,17 +141,17 @@ function SystemToolsCard() {
                   {t.installed ? (
                     <span className="text-muted-foreground text-xs font-mono">{t.version}</span>
                   ) : (
-                    <span className="text-muted-foreground text-xs">belum terpasang</span>
+                    <span className="text-muted-foreground text-xs">not installed yet</span>
                   )}
                 </div>
                 {t.installed ? (
                   <Badge variant="default" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
-                    terpasang
+                    installed
                   </Badge>
                 ) : (
                   <Button size="sm" disabled={!!job?.running} onClick={() => install(t.name)}>
                     <Download className="size-4" />
-                    Pasang
+                    Install
                   </Button>
                 )}
               </div>
@@ -170,13 +170,13 @@ function SystemToolsCard() {
               )}
               <span>
                 {job.running
-                  ? `Memasang ${job.name}…`
+                  ? `Installing ${job.name}…`
                   : job.error
-                    ? `Gagal memasang ${job.name}`
-                    : `${job.name} terpasang`}
+                    ? `Failed to install ${job.name}`
+                    : `${job.name} installed`}
               </span>
               {!job.running && (
-                <Button variant="ghost" size="icon" className="size-7" onClick={() => setJob(null)} aria-label="Tutup">
+                <Button variant="ghost" size="icon" className="size-7" onClick={() => setJob(null)} aria-label="Close">
                   <X />
                 </Button>
               )}
@@ -271,7 +271,7 @@ export default function PackagesPage() {
   useEffect(() => {
     if (job?.done && !job?.running) {
       if (job.error) toast.error(job.error)
-      else toast.success(`Terpasang ✓`)
+      else toast.success(`Installed ✓`)
       load()
     }
   }, [job?.done, job?.running])
@@ -300,10 +300,10 @@ export default function PackagesPage() {
       {loadError && (
         <Card className="border-destructive/40">
           <CardHeader>
-            <CardTitle className="text-base text-destructive">Package registry gagal dimuat</CardTitle>
+            <CardTitle className="text-base text-destructive">Package registry failed to load</CardTitle>
             <CardDescription className="break-all">
-              {loadError} — cek log aplikasi atau jalankan ulang setup. Registry default akan di-seed otomatis saat
-              file <code>packages/packages.toml</code> tidak ditemukan.
+              {loadError} — check the app log or re-run setup. The default registry is seeded automatically when
+              file <code>packages/packages.toml</code> is missing.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -336,7 +336,7 @@ export default function PackagesPage() {
                     variant={status === "available" ? "outline" : "default"}
                     className={status === "active" ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400" : ""}
                   >
-                    {status === "active" ? "aktif" : status === "installed" ? "installed" : "not installed"}
+                    {status === "active" ? "active" : status === "installed" ? "installed" : "not installed"}
                   </Badge>
                 </div>
                 <Button
@@ -346,7 +346,7 @@ export default function PackagesPage() {
                   onClick={() => install(p.name)}
                 >
                   {status === "available" ? <Download /> : <CheckCircle2 />}
-                  {status === "available" ? "Install" : status === "active" ? "Aktif" : "Installed"}
+                  {status === "available" ? "Install" : status === "active" ? "Active" : "Installed"}
                 </Button>
               </CardHeader>
             </Card>
@@ -368,10 +368,10 @@ export default function PackagesPage() {
                 )}
                 <CardTitle className="text-base">
                   {job.running
-                    ? `Memasang ${job.name}…`
+                    ? `Installing ${job.name}…`
                     : job.error
-                      ? `Gagal memasang ${job.name}`
-                      : `${job.name} terpasang`}
+                      ? `Failed to install ${job.name}`
+                      : `${job.name} installed`}
                 </CardTitle>
               </div>
               {!job.running && (
@@ -380,7 +380,7 @@ export default function PackagesPage() {
                   size="icon"
                   className="size-7"
                   onClick={() => setJob(null)}
-                  aria-label="Tutup"
+                  aria-label="Close"
                 >
                   <X />
                 </Button>

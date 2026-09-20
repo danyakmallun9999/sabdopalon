@@ -99,8 +99,8 @@ function loadDock(): DockState {
   } catch {
     /* fresh */
   }
-  // Terminal tertutup secara default di semua ukuran layar — dibuka lewat
-  // tombol Terminal di header. Pilihan user diingat via localStorage.
+  // Terminal is closed by default on all screen sizes — opened via
+  // the Terminal button in the header. The user's choice is remembered via localStorage.
   return { open: false, width: 480 }
 }
 

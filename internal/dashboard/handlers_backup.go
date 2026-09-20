@@ -32,7 +32,7 @@ func (s *Server) handleAPIBackup(w http.ResponseWriter, r *http.Request) {
 	s.json(w, map[string]any{
 		"backup":  filepath.Base(path),
 		"pruned":  pruned,
-		"message": "Backup dibuat: " + filepath.Base(path),
+		"message": "Backup created: " + filepath.Base(path),
 	})
 }
 

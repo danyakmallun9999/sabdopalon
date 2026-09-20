@@ -100,7 +100,7 @@ export default function ServicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Runtime start/stop (tidak menyentuh config auto-start).
+  // Runtime start/stop (does not touch the auto-start config).
   async function start(svc: ServiceStatus) {
     setBusy(svc.name)
     try {
@@ -125,13 +125,13 @@ export default function ServicesPage() {
     }
   }
 
-  // Auto-start toggle (persist ke config — service ikut nyala saat app dibuka).
+  // Auto-start toggle (persists to config — service starts with the app).
   async function toggleAutoStart(svc: ServiceStatus, enabled: boolean) {
     setBusy(svc.name)
     try {
       const r = await api.toggleService(svc.name, enabled)
       if (r.error) toast.error(r.error)
-      else toast.success(r.message ?? `Auto-start ${enabled ? "ON" : "OFF"} untuk ${svc.name}`)
+      else toast.success(r.message ?? `Auto-start ${enabled ? "ON" : "OFF"} for ${svc.name}`)
       load()
     } finally {
       setBusy(null)
@@ -143,20 +143,20 @@ export default function ServicesPage() {
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       <p className="text-muted-foreground text-sm">
-        Layanan tambahan — <strong>Start/Stop</strong> menjalankan/menghentikan tool saat itu
-        juga; <strong>Auto-start</strong> menentukan apakah tool ikut nyala saat Sabdopalon
-        dibuka.
+        Additional services — <strong>Start/Stop</strong> starts/stops the tool right away;
+        <strong>Auto-start</strong> controls whether the tool starts when Sabdopalon
+        opens.
       </p>
 
       {installed.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Belum ada layanan terinstall</CardTitle>
+            <CardTitle className="text-base">No services installed yet</CardTitle>
             <CardDescription>
-              Pasang tool lewat halaman{" "}
+              Install tools via the{" "}
               <a href="/packages" className="text-primary hover:underline">Packages</a>{" "}
-              (Mailpit, Redis, MinIO, Meilisearch) — begitu terinstall, tool otomatis ikut
-              nyala saat Sabdopalon dibuka.
+              (Mailpit, Redis, MinIO, Meilisearch) — once installed, tools automatically
+              start when Sabdopalon opens.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -205,7 +205,7 @@ export default function ServicesPage() {
 
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <Label htmlFor={`svc-${svc.name}`} className="font-normal">
-                      Auto-start saat aplikasi dibuka
+                      Auto-start when the app opens
                     </Label>
                     <Switch
                       id={`svc-${svc.name}`}

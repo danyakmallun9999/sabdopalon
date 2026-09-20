@@ -42,7 +42,7 @@ func (a *App) setup() int {
 	// 1. Core stack: PHP + MariaDB + phpMyAdmin — already bundled in the app
 	// (full-bundle installs). The wizard only asks about extras.
 	if bundled {
-		fmt.Println("  ✓ Core stack terpasang (bundled):")
+		fmt.Println("  ✓ Core stack installed (bundled):")
 		fmt.Println("    • PHP 8.5        — language runtime")
 		fmt.Println("    • MariaDB        — MySQL-compatible database")
 		fmt.Println("    • phpMyAdmin     — web database GUI at phpmyadmin.localhost")
@@ -95,8 +95,8 @@ func (a *App) setup() int {
 	}
 	fmt.Printf("\n  ✓  Configuration written to %s\n", filepath.Join(rootDir, "config", "engine.toml"))
 
-	// 5. Download stack. Core (PHP+MariaDB+phpMyAdmin) sudah bundled pada
-	// full-bundle install; hanya PostgreSQL (opsional) yang diunduh.
+	// 5. Download stack. Core (PHP+MariaDB+phpMyAdmin) already bundled on
+	// full-bundle installs; only PostgreSQL (optional) is downloaded.
 	stack := []string{}
 	if !bundled {
 		stack = []string{"php", "mariadb", "phpmyadmin"}
@@ -125,10 +125,10 @@ func (a *App) setup() int {
 			}
 		}
 	} else {
-		fmt.Println("\n  ✓ Core stack sudah tersedia — tidak perlu unduh.")
+		fmt.Println("\n  ✓ Core stack already available — no download needed.")
 	}
 
-	// Deploy phpMyAdmin as a site + pre-wired config (bundle atau baru diunduh).
+	// Deploy phpMyAdmin as a site + pre-wired config (bundle or freshly downloaded).
 	if dbEngine == "mariadb" && a.installPHPMyAdmin() != 0 {
 		if !bundled {
 			fmt.Fprintln(os.Stderr, "  ⚠ phpMyAdmin install failed — run 'sabdopalon add phpmyadmin' later.")
@@ -191,7 +191,7 @@ func (a *App) serveSetupMode() int {
 		var held *lock.HeldError
 		if errors.As(err, &held) {
 			fmt.Fprintln(os.Stderr, "✗ "+held.Error())
-			fmt.Fprintln(os.Stderr, "  Sabdopalon sudah berjalan. Buka dashboard-nya, atau quit dulu lalu jalankan ulang.")
+			fmt.Fprintln(os.Stderr, "  Sabdopalon is already running. Open its dashboard, or quit first then run again.")
 			return 1
 		}
 		fmt.Fprintf(os.Stderr, "✗ lock: %v\n", err)

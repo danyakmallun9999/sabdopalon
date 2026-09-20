@@ -21,7 +21,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
-          <h1 className="text-lg font-semibold">Terjadi kesalahan pada antarmuka</h1>
+          <h1 className="text-lg font-semibold">Something went wrong</h1>
           <pre className="max-w-xl overflow-auto rounded-lg border bg-muted/40 p-4 text-left font-mono text-xs whitespace-pre-wrap">
             {this.state.error.message}
           </pre>
@@ -30,13 +30,13 @@ export default class ErrorBoundary extends Component<Props, State> {
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
               onClick={() => this.setState({ error: null })}
             >
-              Coba lagi
+              Try again
             </button>
             <button
               className="rounded-md border px-4 py-2 text-sm font-medium"
               onClick={() => location.reload()}
             >
-              Muat ulang
+              Reload
             </button>
           </div>
         </div>

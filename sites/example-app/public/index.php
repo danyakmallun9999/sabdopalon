@@ -17,7 +17,7 @@ try {
     $db['ok']  = true;
     $db['ver'] = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
 } catch (Throwable $e) {
-    $db['label'] = 'Database tidak aktif';
+    $db['label'] = 'Database offline';
 }
 
 // --- phpMyAdmin link derived from the host we were reached on -------------
@@ -28,7 +28,7 @@ $tld      = str_contains($hostname, '.') ? substr($hostname, (int) strpos($hostn
 $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 ?>
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -498,14 +498,14 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 
     <header class="navbar">
       <div class="nav-left">
-        <a class="brand" href="http://localhost:9900" title="Dashboard Sabdopalon">
+        <a class="brand" href="http://localhost:9900" title="Sabdopalon Dashboard">
           <span>&#128042;</span>
           <span>sabdopalon</span>
           <span class="brand-tag">local</span>
         </a>
         <a class="announcement-pill" href="http://localhost:9900">
           <span class="sparkle">&#10022;</span>
-          <span>Environment Aktif &middot; <?= htmlspecialchars($site) ?>.localhost &rsaquo;</span>
+          <span>Active Environment &middot; <?= htmlspecialchars($site) ?>.localhost &rsaquo;</span>
         </a>
       </div>
 
@@ -515,7 +515,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
           <a href="<?= htmlspecialchars($pmaUrl) ?>">phpMyAdmin</a>
           <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">GitHub</a>
         </div>
-        <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &nearr;</a>
+        <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Open phpMyAdmin &nearr;</a>
       </nav>
     </header>
 
@@ -524,12 +524,12 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
     <main class="hero-container">
       <div class="hero-left">
         <div class="eyebrow">LOCAL DEVELOPMENT ENVIRONMENT &middot; SABDOPALON</div>
-        <h1 class="hero-title">Situs <?= htmlspecialchars($site) ?>, siap dikembangkan.</h1>
+        <h1 class="hero-title">Site <?= htmlspecialchars($site) ?>, ready for development.</h1>
 
         <div class="tech-bar">
           <div class="tech-item">
             <span>&#128024; PHP <?= htmlspecialchars($phpVer) ?></span>
-            <span class="tech-status status-ok">Aktif</span>
+            <span class="tech-status status-ok">Active</span>
           </div>
           <div class="tech-item">
             <span>&#128452;&#65039; <?= htmlspecialchars($db['label']) ?></span>
@@ -545,13 +545,13 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
         </div>
 
         <p class="hero-desc">
-          Lingkungan lokal Sabdopalon menyajikan situs ini langsung melalui reverse proxy mandiri.
-          Mulai membangun aplikasi dengan mengedit berkas di <code>sites/<?= htmlspecialchars($site) ?>/public/index.php</code>.
+          Sabdopalon's local environment serves this site directly through its built-in reverse proxy.
+          Start building your app by editing the file at <code>sites/<?= htmlspecialchars($site) ?>/public/index.php</code>.
         </p>
 
         <div class="hero-actions">
-          <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Buka phpMyAdmin &nearr;</a>
-          <a class="btn-secondary" href="http://localhost:9900">Dashboard Sabdopalon</a>
+          <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Open phpMyAdmin &nearr;</a>
+          <a class="btn-secondary" href="http://localhost:9900">Sabdopalon Dashboard</a>
         </div>
       </div>
 
@@ -562,7 +562,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
               <span class="mock-title">&#128024; PHP Runtime</span>
               <span class="mock-pill status-ok">● <?= htmlspecialchars($phpVer) ?></span>
             </div>
-            <p class="mock-sub">Interpreter aktif melayani HTTP request pada folder root.</p>
+            <p class="mock-sub">Active interpreter serving HTTP requests from the document root.</p>
             <div class="mock-code">docroot: sites/<?= htmlspecialchars($site) ?>/public</div>
           </div>
 
@@ -572,10 +572,10 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
               <?php if ($db['ok']): ?>
                 <span class="mock-pill status-ok">● 127.0.0.1:3306</span>
               <?php else: ?>
-                <span class="mock-pill status-warn">○ Tidak Terhubung</span>
+                <span class="mock-pill status-warn">○ Not Connected</span>
               <?php endif; ?>
             </div>
-            <p class="mock-sub">Koneksi basis data MySQL/MariaDB dengan pengguna <code>root</code>.</p>
+            <p class="mock-sub">MySQL/MariaDB database connection as user <code>root</code>.</p>
             <div class="mock-code"><?= $db['ok'] ? 'server: ' . htmlspecialchars($db['ver']) : 'status: offline' ?></div>
           </div>
 
@@ -584,7 +584,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
               <span class="mock-title">&#9881;&#65039; phpMyAdmin</span>
               <span class="mock-pill status-ok">GUI SQL</span>
             </div>
-            <p class="mock-sub">Kelola tabel, skema, impor, dan ekspor SQL dengan mudah.</p>
+            <p class="mock-sub">Manage tables, schemas, and SQL imports/exports with ease.</p>
             <div class="mock-code">url: <?= htmlspecialchars($pmaUrl) ?></div>
           </div>
 
@@ -593,7 +593,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
               <span class="mock-title">&#127760; Virtual Host</span>
               <span class="mock-pill status-ok">Port 80/443</span>
             </div>
-            <p class="mock-sub">Alamat lokal terdaftar otomatis tanpa edit hosts manual.</p>
+            <p class="mock-sub">Local address registered automatically with no manual hosts-file edits.</p>
             <div class="mock-code">host: http://<?= htmlspecialchars($site) ?>.localhost</div>
           </div>
         </div>
@@ -605,11 +605,11 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
     <footer class="footer">
       <div class="footer-links">
         <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">&#9733; GitHub</a>
-        <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">&#8595; Unduh Rilis</a>
+        <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">&#8595; Download Releases</a>
         <a href="http://localhost:9900" target="_blank" rel="noopener">&#9776; Dashboard (:9900)</a>
       </div>
       <div class="footer-author">
-        Dibuat oleh <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a> &middot; Sabdopalon
+        Created by <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a> &middot; Sabdopalon
       </div>
     </footer>
 

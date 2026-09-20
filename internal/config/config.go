@@ -35,7 +35,7 @@ type Engine struct {
 		Port   int    // legacy single port → mariadb port
 
 		// Multi-daemon: every database can run at once, each with its own
-		// port. Defaults to ALL enabled ("default aktif semua").
+		// port. Defaults to ALL enabled ("all enabled by default").
 		MariaDBEnabled bool
 		MariaDBPort    int
 		PGEnabled      bool
@@ -145,7 +145,7 @@ data = "%s"
 [proxy]
 http_port = %d
 https_port = %d
-# false = situs hanya dari komputer ini (127.0.0.1). true = terbuka ke LAN.
+# false = site only from this machine (127.0.0.1). true = open to the LAN.
 lan = %t
 
 [php]

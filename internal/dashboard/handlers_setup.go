@@ -91,14 +91,14 @@ func buildSetupStatus(cfg *config.Engine) map[string]any {
 		}
 		tools = append(tools, setupTool{Key: key, Label: label, Description: desc, Installed: isInstalled(key)})
 	}
-	add("postgresql", "PostgreSQL", "Database alternatif untuk project Laravel/Node")
+	add("postgresql", "PostgreSQL", "Alternative database for Laravel/Node projects")
 	if runtime.GOOS == "windows" {
 		// Redis has no official Linux/macOS bundle here — PATH fallback only.
-		add("redis", "Redis", "Cache & queue (bundled port untuk Windows)")
+		add("redis", "Redis", "Cache & queue (bundled port for Windows)")
 	}
-	add("mailpit", "Mailpit", "Menangkap email lokal — tidak ada yang bocor")
-	add("minio", "MinIO", "Object storage kompatibel S3")
-	add("meilisearch", "Meilisearch", "Search engine instan")
+	add("mailpit", "Mailpit", "Catches local email — nothing leaks out")
+	add("minio", "MinIO", "S3-compatible object storage")
+	add("meilisearch", "Meilisearch", "Instant search engine")
 
 	dbEngine := cfg.Database.Engine
 	if dbEngine == "" {
@@ -234,11 +234,11 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	// NOW (during the install the user asked for), not at app launch: the
 	// dashboard must bind within ~1s of double-click. No-op when nothing is
 	// bundled or it is already extracted.
-	write("📦 memeriksa core bundle…\n")
+	write("📦 checking core bundle…\n")
 	if err := bootstrap.EnsureCoreExtracted(filepath.Join(rootDir, "bin")); err != nil {
 		write("⚠ core archive: %v\n", err)
 	} else if bootstrap.Bundled(rootDir) {
-		write("✓ core bundle siap (PHP/MariaDB/phpMyAdmin) — tidak perlu unduhan\n")
+		write("✓ core bundle ready (PHP/MariaDB/phpMyAdmin) — no download needed\n")
 	}
 
 	// Defaults
@@ -271,7 +271,7 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	cfg.Database.Port = 3306
 	// Per-engine port written explicitly: leaving it 0 forces every reader
 	// through the EffectivePort fallback chain and used to surface as
-	// "Port aktif di: 0" on the Database page.
+	// "Active port: 0" on the Database page.
 	cfg.Database.MariaDBPort = 3306
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
@@ -305,7 +305,7 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	}
 	stack = append(stack, normalizeTools(req)...)
 	if len(stack) == 0 {
-		write("✓ Core stack sudah terpasang (bundled) — tidak perlu unduh.\n")
+		write("✓ Core stack already installed (bundled) — no download needed.\n")
 	}
 	for _, name := range stack {
 		write("\nInstalling %s...\n", name)

@@ -10,12 +10,12 @@ data = "./data"
 [proxy]
 http_port = 8080
 https_port = 8443
-# false = situs hanya dari komputer ini (127.0.0.1). true = terbuka ke LAN.
+# false = site only from this machine (127.0.0.1). true = open to the LAN.
 lan = false
 
 [php]
 # empty = auto-detect (bundled → PATH → system)
-binary = "/home/danyakmallun/.config/herd-lite/bin/php"
+binary = ""
 
 [database]
 engine = "mariadb"

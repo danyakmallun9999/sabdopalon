@@ -7,31 +7,31 @@ composer) + framework-aware serving (Laravel/Vite proxy).
 
 ---
 
-## Daftar Isu yang Diselesaikan
+## Resolved Issues
 
-| # | Masalah user | Akar masalah | Solusi di desain ini |
+| # | User problem | Root cause | Solution in this design |
 |---|---|---|---|
-| 1 | "Harus `composer run dev` dulu baru URL Sabdopalon jalan" | Vite dev server (`localhost:5173`) tidak di-proxy; aset `@vite` gagal load di `*.localhost` | DevTools supervisor + Vite reverse-proxy |
-| 2 | Laravel route 404 / asset not found | defaultRouter generik tidak tahu Laravel front controller | Framework detection + Laravel router khusus |
-| 3 | "Di mana aku setting php.ini?" | Tidak ada per-site UI; harus cari file manual | Tab "PHP Config" di detail page |
-| 4 | Tidak ada pusat kendali per-site | Config di dialog, logs di page lain, terminal dock terpisah | Site Detail Page (tabbed, satu pintu) |
-| 5 | Tidak tahu framework apa di site | Tidak ada deteksi framework | Framework detector di overview |
-| 6 | `npm run dev` mati saat tutup terminal | Tidak ada supervisor; user jalankan manual | DevTools supervisor (mirror pola `services.Manager`) |
+| 1 | "Must run `composer run dev` first before the Sabdopalon URL works" | Vite dev server (`localhost:5173`) not proxied; `@vite` assets fail to load on `*.localhost` | DevTools supervisor + Vite reverse-proxy |
+| 2 | Laravel route 404 / asset not found | Generic defaultRouter doesn't know the Laravel front controller | Framework detection + dedicated Laravel router |
+| 3 | "Where do I set php.ini?" | No per-site UI; must find the file manually | "PHP Config" tab on the detail page |
+| 4 | No per-site control center | Config in a dialog, logs on another page, separate terminal dock | Site Detail Page (tabbed, single entry point) |
+| 5 | Don't know which framework a site uses | No framework detection | Framework detector in the overview |
+| 6 | `npm run dev` dies when the terminal closes | No supervisor; user runs it manually | DevTools supervisor (mirroring the `services.Manager` pattern) |
 
 ---
 
-## Arsitektur Lapisan
+## Layer Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  React SPA  (internal/dashboard/ui/src)                 │
-│  /sites              → list page (yang sekarang)         │
-│  /sites/:name        → SiteDetailPage (BARU)             │
+│  /sites              → list page (the current one)         │
+│  /sites/:name        → SiteDetailPage (NEW)             │
 │    ├─ Overview tab   (framework, status, env)            │
 │    ├─ Config tab     (php, docroot, aliases, env, ini)   │
 │    ├─ Logs tab       (php.log + vite.log + artisan.log)  │
 │    ├─ DevTools tab   (start/stop Vite, artisan, npm)     │
-│    └─ Terminal tab   (inline PTY, auto-cd ke site dir)   │
+│    └─ Terminal tab   (inline PTY, auto-cd into the site dir)   │
 └──────────────────────┬───────────────────────────────────┘
                        │ REST + SSE
 ┌──────────────────────┴───────────────────────────────────┐
@@ -44,7 +44,7 @@ composer) + framework-aware serving (Laravel/Vite proxy).
 └──────────────────────┬───────────────────────────────────┘
                        │
 ┌──────────────────────┴───────────────────────────────────┐
-│  devtools package (BARU — mirror internal/services)      │
+│  devtools package (NEW — mirrors internal/services)      │
 │  Manager                                                 │
 │    ├─ Start(site, tool)   → spawn + log + supervise      │
 │    ├─ Stop(site, tool)    → kill process group           │
@@ -59,7 +59,7 @@ composer) + framework-aware serving (Laravel/Vite proxy).
 │    ├─ Detect framework (Laravel/WordPress/blank)         │
 │    ├─ Pick router script (LaravelRouter vs defaultRouter)│
 │    └─ If Vite running → register reverse-proxy handler   │
-│  ViteProxy (BARU)                                        │
+│  ViteProxy (NEW)                                        │
 │    ├─ Intercept /@vite/, /node_modules/.vite/            │
 │    └─ httput.ReverseProxy → localhost:5173               │
 └──────────────────────────────────────────────────────────┘
@@ -67,23 +67,23 @@ composer) + framework-aware serving (Laravel/Vite proxy).
 
 ---
 
-## Bagian 1: Dev-Tools Supervisor (`internal/devtools`)
+## Part 1: Dev-Tools Supervisor (`internal/devtools`)
 
-### 1.1 Mengapa paket baru, bukan pakai `internal/services`
+### 1.1 Why a new package instead of reusing `internal/services`
 
-`internal/services` (services.go:274) mengelola service **global** — satu
-Mailpit untuk semua site, satu Redis untuk semua site. Dev-tools bersifat
-**per-site**: site A jalan Vite di port 5173, site B jalan Vite di port 5174.
-Manager-nya juga harus tahu site mana pemilik proses, supaya saat site
-di-stop, dev-tools-nya juga mati.
+`internal/services` (services.go:274) manages **global** services — one
+Mailpit for all sites, one Redis for all sites. Dev tools are
+**per-site**: site A runs Vite on port 5173, site B runs Vite on port 5174.
+The manager must also know which site owns each process, so that when a site
+is stopped, its dev tools die too.
 
-Pola yang dipakai ulang dari `services.go`:
-- `runningProc` struct (cmd + log file) → sama persis
-- `setProcessGroup` + `killProcessGroup` → sama persis
-- `ready()` probe → dipakai untuk Vite (HTTP probe ke `localhost:PORT`)
-- Port allocation → mirror `proxy.go:497` (`isPortFree` loop)
+Patterns reused from `services.go`:
+- `runningProc` struct (cmd + log file) → exactly the same
+- `setProcessGroup` + `killProcessGroup` → exactly the same
+- `ready()` probe → used for Vite (HTTP probe to `localhost:PORT`)
+- Port allocation → mirrors `proxy.go:497` (`isPortFree` loop)
 
-### 1.2 Struktur paket
+### 1.2 Package structure
 
 ```
 internal/devtools/
@@ -104,18 +104,18 @@ type ToolSpec struct {
     Port      int      // 0 = no port (e.g. composer install)
     ReadyKind string   // "http" | "tcp" | "" (no probe)
     ReadyPath string   // "/@vite/" for Vite HTTP probe
-    Env       func(siteDir string, port int) []string // extra env (APP_ENV=local, APP_PORT, dll)
+    Env       func(siteDir string, port int) []string // extra env (APP_ENV=local, APP_PORT, etc.)
 }
 ```
 
-### 1.4 Registry — tool yang didukung
+### 1.4 Registry — supported tools
 
-| Tool | Bin | Args | Port | Ready | Kapan dipakai |
+| Tool | Bin | Args | Port | Ready | When used |
 |---|---|---|---|---|---|
-| `vite` | `npx` | `["vite", "--port", "<N>"]` | 5173+ | http `localhost:N` | Ada `vite.config.{js,ts}` |
-| `laravel-dev` | `composer` | `["run", "dev"]` | 8000+ | tcp | composer.json punya `scripts.dev` (skeleton Laravel 11+: serve + queue + vite sekaligus) |
-| `npm-dev` | `npm` | `["run", "dev"]` | — | — | Generic fallback (bukan Vite) |
-| `npm-build` | `npm` | `["run", "build"]` | — | — | One-shot build, bukan long-running |
+| `vite` | `npx` | `["vite", "--port", "<N>"]` | 5173+ | http `localhost:N` | Has `vite.config.{js,ts}` |
+| `laravel-dev` | `composer` | `["run", "dev"]` | 8000+ | tcp | composer.json has `scripts.dev` (Laravel 11+ skeleton: serve + queue + vite all at once) |
+| `npm-dev` | `npm` | `["run", "dev"]` | — | — | Generic fallback (not Vite) |
+| `npm-build` | `npm` | `["run", "build"]` | — | — | One-shot build, not long-running |
 | `composer-install` | `composer` | `["install"]` | — | — | One-shot |
 | `composer-update` | `composer` | `["update"]` | — | — | One-shot |
 
@@ -148,12 +148,12 @@ func (m *Manager) StopAll()
 
 ### 1.6 Lifecycle integration
 
-| Event | Yang terjadi |
+| Event | What happens |
 |---|---|
 | `proxy.StopSite(name)` | `devtools.StopAllForSite(name)` |
-| `proxy.RestartSite(name)` | stop tools → restart site → auto-restart tools yang sebelumnya running |
-| Sabdopalon shutdown | `devtools.StopAll()` (mirror `services.Manager.StopAll`) |
-| Site di-delete | `devtools.StopAllForSite(name)` sebelum folder dipindah ke `.trash/` |
+| `proxy.RestartSite(name)` | stop tools → restart site → auto-restart tools that were previously running |
+| Sabdopalon shutdown | `devtools.StopAll()` (mirrors `services.Manager.StopAll`) |
+| Site deleted | `devtools.StopAllForSite(name)` before the folder is moved to `.trash/` |
 
 ### 1.7 Port allocation
 
@@ -165,23 +165,23 @@ for each site that starts Vite:
   record site→port mapping
 ```
 
-Disimpan in-memory (tidak persist). Saat restart, port bisa beda — itu OK,
-karena Vite proxy baca port dari mapping live, bukan hardcode.
+Stored in-memory (not persisted). On restart the port may differ — that's OK,
+because the Vite proxy reads the port from the live mapping, not a hardcode.
 
 ### 1.8 Logging
 
-Setiap tool → `logs/<site>.<tool>.log`
+Each tool → `logs/<site>.<tool>.log`
 - `logs/myapp.vite.log`
 - `logs/myapp.artisan.log`
 
-Format sama dengan `services.go:114` (`os.O_CREATE|O_WRONLY|O_TRUNC`).
-Tail via endpoint yang sudah ada (`/api/logs/`) — tinggal tambah nama log baru.
+Same format as `services.go:114` (`os.O_CREATE|O_WRONLY|O_TRUNC`).
+Tail via the existing endpoint (`/api/logs/`) — just add the new log name.
 
 ---
 
-## Bagian 2: Framework Detection & Laravel Router
+## Part 2: Framework Detection & Laravel Router
 
-### 2.1 Detektor (`internal/proxy/framework.go` — BARU)
+### 2.1 Detector (`internal/proxy/framework.go` — NEW)
 
 ```go
 // DetectFramework inspects a site directory and returns the framework
@@ -210,13 +210,13 @@ func DetectFramework(siteDir string) Framework {
 }
 ```
 
-Cache hasil deteksi di `siteServer` struct (sekali per session, tidak
-re-scan tiap request).
+Cache the detection result in the `siteServer` struct (once per session, no
+re-scan on every request).
 
-### 2.2 Laravel Router (`internal/proxy/routers.go` — BARU)
+### 2.2 Laravel Router (`internal/proxy/routers.go` — NEW)
 
-Router khusus Laravel, ditulis ke `.sabdopalon-router.php` saat framework
-Laravel terdeteksi (menggantikan `defaultRouter` generik):
+Dedicated Laravel router, written to `.sabdopalon-router.php` when the Laravel
+framework is detected (replacing the generic `defaultRouter`):
 
 ```php
 <?php
@@ -249,15 +249,15 @@ require $docroot . '/index.php';
 return true;
 ```
 
-Mengapa ini menyelesaikan masalah routing Laravel:
-- `SCRIPT_NAME` dan `SCRIPT_FILENAME` di-set benar — Laravel's
-  `Request::capture()` butuh ini untuk URI parsing
-- `PATH_INFO` benar — supaya `Route::get('/users/{id}')` match
-- Tidak perlu `.htaccess` (Apache) — ini PHP built-in server
+Why this fixes Laravel routing:
+- `SCRIPT_NAME` and `SCRIPT_FILENAME` are set correctly — Laravel's
+  `Request::capture()` needs these for URI parsing
+- `PATH_INFO` is correct — so `Route::get('/users/{id}')` matches
+- No `.htaccess` (Apache) needed — this is PHP's built-in server
 
-### 2.3 Vite Reverse-Proxy (`internal/proxy/viteproxy.go` — BARU)
+### 2.3 Vite Reverse-Proxy (`internal/proxy/viteproxy.go` — NEW)
 
-Ini adalah inti solusi "tidak perlu composer run dev manual":
+This is the core of the "no manual `composer run dev` needed" solution:
 
 ```go
 // ViteProxy intercepts Vite-specific paths and reverses them to the
@@ -287,23 +287,23 @@ func (vp *ViteProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### 2.4 Integrasi ke `ensureSite` (proxy.go:457)
+### 2.4 Integration into `ensureSite` (proxy.go:457)
 
-Alur baru saat request masuk ke site:
+New flow when a request comes into a site:
 
 ```
 ensureSite(name):
   1. Load siteconfig (.sabdopalon.yml)
-  2. Detect framework (cached)           ← BARU
+  2. Detect framework (cached)           ← NEW
   3. Pick router script:
-       Laravel → laravelRouter           ← BARU
+       Laravel → laravelRouter           ← NEW
        else    → defaultRouter
   4. Start php -S with chosen router
   5. If framework == Laravel && Vite running:
-       register ViteProxy for this site  ← BARU
+       register ViteProxy for this site  ← NEW
 ```
 
-Di handler proxy utama (sebelum forward ke PHP):
+In the main proxy handler (before forwarding to PHP):
 
 ```
 handleRequest(host, r):
@@ -315,9 +315,9 @@ handleRequest(host, r):
   site.forward(w, r)
 ```
 
-### 2.5 Vite port injection ke PHP env
+### 2.5 Vite port injection into the PHP env
 
-Saat `startPHP` (php.go:62), tambah env:
+In `startPHP` (php.go:62), add env:
 
 ```go
 if vp := s.getViteProxy(name); vp != nil {
@@ -328,13 +328,13 @@ if vp := s.getViteProxy(name); vp != nil {
 }
 ```
 
-Laravel's `vite.config.js` bisa baca `process.env.SABDOPALON_VITE_PORT`
-untuk set `server.hmr.host` dan `server.origin`, supaya HMR websocket
-connect ke host yang benar.
+Laravel's `vite.config.js` can read `process.env.SABDOPALON_VITE_PORT`
+to set `server.hmr.host` and `server.origin`, so the HMR websocket
+connects to the correct host.
 
-Sebagai alternatif yang lebih robust: sediakan template
-`vite.config.sabdopalon.js` yang user bisa copy ke project mereka — ini
-pre-configured untuk Sabdopalon:
+As a more robust alternative: provide a
+`vite.config.sabdopalon.js` template that users can copy into their project — it's
+pre-configured for Sabdopalon:
 
 ```js
 // vite.config.js (Sabdopalon-ready)
@@ -354,19 +354,19 @@ export default defineConfig({
 
 ---
 
-## Bagian 3: Site Detail Page — Backend API
+## Part 3: Site Detail Page — Backend API
 
-### 3.1 Endpoint baru
+### 3.1 New endpoints
 
-Semua di bawah `/api/sites/<name>/` (extend `handleAPISiteAction`):
+All under `/api/sites/<name>/` (extends `handleAPISiteAction`):
 
-| Method | Path | Fungsi |
+| Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/sites/<name>` | Detail aggregate: config + status + framework + devtools + port |
-| GET | `/api/sites/<name>/logs` | Multi-log tail (php + vite + artisan), parameter `?log=vite&lines=100` |
+| GET | `/api/sites/<name>/logs` | Multi-log tail (php + vite + artisan), parameters `?log=vite&lines=100` |
 | POST | `/api/sites/<name>/devtools` | Body: `{tool: "vite", action: "start"\|"stop"}` |
-| GET | `/api/sites/<name>/devtools` | Status semua devtools untuk site ini |
-| WS | `/api/sites/<name>/terminal` | Per-site PTY (mirror terminal handler, auto-cd ke site dir) |
+| GET | `/api/sites/<name>/devtools` | Status of all devtools for this site |
+| WS | `/api/sites/<name>/terminal` | Per-site PTY (mirrors the terminal handler, auto-cd into the site dir) |
 
 ### 3.2 Detail aggregate response
 
@@ -410,9 +410,9 @@ Semua di bawah `/api/sites/<name>/` (extend `handleAPISiteAction`):
 }
 ```
 
-### 3.3 Handler implementasi
+### 3.3 Handler implementation
 
-Buat file baru `internal/dashboard/handlers_sitedetail.go`:
+Create a new file `internal/dashboard/handlers_sitedetail.go`:
 
 ```go
 // handleAPISiteDetail returns the full per-site aggregate.
@@ -452,8 +452,8 @@ func (s *Server) handleAPISiteDetail(w http.ResponseWriter, name string) {
 
 ### 3.4 Routing dispatch
 
-Extend `handleAPISiteAction` (handlers_sites.go:94). Saat ini dispatch
-berdasarkan `action` string (start/stop/restart/config). Tambah:
+Extend `handleAPISiteAction` (handlers_sites.go:94). It currently dispatches
+on the `action` string (start/stop/restart/config). Add:
 
 ```go
 case http.MethodGet:
@@ -461,11 +461,11 @@ case http.MethodGet:
     case "config":
         s.getSiteConfig(w, name)
     case "logs":
-        s.getSiteLogs(w, name, r)        // BARU
+        s.getSiteLogs(w, name, r)        // NEW
     case "devtools":
-        s.getSiteDevTools(w, name)       // BARU
+        s.getSiteDevTools(w, name)       // NEW
     case "":
-        s.handleAPISiteDetail(w, name)  // BARU — GET /api/sites/<name>
+        s.handleAPISiteDetail(w, name)  // NEW — GET /api/sites/<name>
     default:
         http.NotFound(w, r)
     }
@@ -473,20 +473,20 @@ case http.MethodGet:
 
 ---
 
-## Bagian 4: Site Detail Page — Frontend
+## Part 4: Site Detail Page — Frontend
 
 ### 4.1 Routing (App.tsx)
 
-Tambah route:
+Add a route:
 
 ```tsx
 const SiteDetailPage = lazy(() => import("@/pages/site-detail"))
 
 <Route path="/sites" element={<SitesPage />} />
-<Route path="/sites/:name" element={<SiteDetailPage />} />  // BARU
+<Route path="/sites/:name" element={<SiteDetailPage />} />  // NEW
 ```
 
-`fullBleed` set juga untuk `/sites/:name`:
+`fullBleed` also set for `/sites/:name`:
 
 ```tsx
 const fullBleed = location.pathname === "/sites" ||
@@ -494,16 +494,16 @@ const fullBleed = location.pathname === "/sites" ||
                   location.pathname === "/terminal"
 ```
 
-### 4.2 Struktur komponen
+### 4.2 Component structure
 
 ```
 ui/src/pages/
-  site-detail.tsx              ← halaman utama (layout + tab switcher)
+  site-detail.tsx              ← main page (layout + tab switcher)
   site-detail/
     overview-tab.tsx           ← framework, status, info cards
-    config-tab.tsx             ← editor .sabdopalon.yml (pindah dari dialog)
+    config-tab.tsx             ← .sabdopalon.yml editor (moved from the dialog)
     logs-tab.tsx               ← multi-log tailer
-    devtools-tab.tsx           ← start/stop Vite, artisan, dll
+    devtools-tab.tsx           ← start/stop Vite, artisan, etc.
     terminal-tab.tsx           ← inline terminal
 ```
 
@@ -527,37 +527,37 @@ Header bar (sticky):
 - Back button → `/sites`
 - Site URL + HTTPS URL (clickable, open in new tab)
 - Framework badge + PHP version badge + status dot
-- Start/Stop/Restart buttons (reuse `act()` dari sites.tsx:235)
+- Start/Stop/Restart buttons (reuse `act()` from sites.tsx:235)
 
 ### 4.4 Tab: Overview
 
-Isi:
-- **Framework card**: logo/nama framework, versi, link ke dokumentasi
-- **PHP card**: versi aktif, path binary, badge "bundled" / "system"
-- **Database card**: engine, status running, connection string (dari env)
-- **URL card**: HTTP + HTTPS + alias, semua clickable
-- **Storage card**: ukuran folder, jumlah file, tanggal dibuat
-- **DevTools summary**: tool yang running, port-nya
+Contents:
+- **Framework card**: framework logo/name, version, link to the docs
+- **PHP card**: active version, binary path, "bundled" / "system" badge
+- **Database card**: engine, running status, connection string (from env)
+- **URL card**: HTTP + HTTPS + aliases, all clickable
+- **Storage card**: folder size, file count, creation date
+- **DevTools summary**: running tools and their ports
 
-Data dari `GET /api/sites/<name>`.
+Data comes from `GET /api/sites/<name>`.
 
 ### 4.5 Tab: Config
 
-Pindahkan isi dialog "Configure…" (sites.tsx:184-226) ke tab ini sebagai
-inline form, bukan modal. Lebih cocok untuk editing yang serius.
+Move the "Configure…" dialog contents (sites.tsx:184-226) into this tab as an
+inline form, not a modal. Better suited for serious editing.
 
 Field:
-- PHP version (select — reuse `phpOptions` logic dari sites.tsx:186)
-- php.ini override (text — path atau relative)
+- PHP version (select — reuse `phpOptions` logic from sites.tsx:186)
+- php.ini override (text — path or relative)
 - Docroot (text)
-- Aliases (chip input — tambah/hapus domain)
-- Env vars (key-value editor — tabel dengan add/remove row)
+- Aliases (chip input — add/remove domains)
+- Env vars (key-value editor — table with add/remove rows)
 
-Save button → `PUT /api/sites/<name>/config` (sudah ada).
+Save button → `PUT /api/sites/<name>/config` (already exists).
 
 ### 4.6 Tab: Logs
 
-Multi-source log viewer. Reuse pattern dari logs.tsx tapi khusus satu site:
+Multi-source log viewer. Reuses the pattern from logs.tsx but scoped to one site:
 
 ```
 [php.log] [vite.log] [artisan.log]    auto-refresh [ON]
@@ -569,13 +569,13 @@ Multi-source log viewer. Reuse pattern dari logs.tsx tapi khusus satu site:
 ```
 
 - Tab per log source (php, vite, artisan, database)
-- Polling `GET /api/sites/<name>/logs?log=<source>&lines=200` tiap 2.5s
-- Auto-scroll to bottom (seperti terminal)
-- Toggle auto-refresh (reuse dari logs.tsx)
+- Polling `GET /api/sites/<name>/logs?log=<source>&lines=200` every 2.5s
+- Auto-scroll to bottom (like the terminal)
+- Toggle auto-refresh (reused from logs.tsx)
 
 ### 4.7 Tab: Dev Tools
 
-Ini adalah inti dari solusi Laravel/Vite:
+This is the core of the Laravel/Vite solution:
 
 ```
 Dev Tools
@@ -596,96 +596,96 @@ Dev Tools
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Untuk setiap tool:
-- Card dengan nama, status (running/stopped), port, PID
-- Tombol Start/Stop
-- Inline log viewer (tail dari log file)
-- Auto-detect: kalau ada `vite.config.*`, tampilkan Vite card. Kalau
-  composer.json punya `scripts.dev` (Laravel 11+), tampilkan card
-  Laravel Dev. Kalau ada `package.json`, tampilkan npm/composer cards.
+For each tool:
+- Card with name, status (running/stopped), port, PID
+- Start/Stop buttons
+- Inline log viewer (tail of the log file)
+- Auto-detect: if `vite.config.*` exists, show the Vite card. If
+  composer.json has `scripts.dev` (Laravel 11+), show the
+  Laravel Dev card. If `package.json` exists, show the npm/composer cards.
 
-Saat Start Vite diklik:
+When Start Vite is clicked:
 1. `POST /api/sites/<name>/devtools {tool: "vite", action: "start"}`
-2. Backend spawn `npx vite --port <auto-picked>`
-3. Tunggu HTTP ready probe di port tersebut
-4. Daftarkan ViteProxy ke site server
-5. Inject `SABDOPALON_VITE_PORT` ke PHP env
-6. Restart PHP process supaya env baru berlaku
-7. Frontend poll status, tampilkan log
+2. Backend spawns `npx vite --port <auto-picked>`
+3. Wait for the HTTP ready probe on that port
+4. Register the ViteProxy on the site server
+5. Inject `SABDOPALON_VITE_PORT` into the PHP env
+6. Restart the PHP process so the new env takes effect
+7. Frontend polls status, shows the log
 
-Saat Stop diklik:
+When Stop is clicked:
 1. `POST /api/sites/<name>/devtools {tool: "vite", action: "stop"}`
-2. Backend kill process group
-3. Hapus ViteProxy dari site server
-4. Restart PHP (atau biarkan — ViteProxy tinggal no-op)
+2. Backend kills the process group
+3. Remove the ViteProxy from the site server
+4. Restart PHP (or leave it — the ViteProxy just becomes a no-op)
 
 ### 4.8 Tab: Terminal
 
-Inline terminal, auto-cd ke site directory. Reuse `TerminalPanel`
-komponen yang sudah ada (sites.tsx:29).
+Inline terminal, auto-cd into the site directory. Reuses the existing
+`TerminalPanel` component (sites.tsx:29).
 
-Perbedaan dari terminal dock sekarang:
-- Terminal session key = `site-<name>` (bukan global)
-- Auto-cd ke `sites/<name>/` saat session dibuat
-- Env vars sama dengan yang di-inject ke PHP process
-  (SABDOPALON_DB_ENGINE, dll)
+Differences from the current terminal dock:
+- Terminal session key = `site-<name>` (not global)
+- Auto-cd into `sites/<name>/` when the session is created
+- Same env vars as injected into the PHP process
+  (SABDOPALON_DB_ENGINE, etc.)
 
 WebSocket endpoint: `WS /api/sites/<name>/terminal`
-(mirror `handlers_terminal.go` tapi auto-cd + scoped env)
+(mirrors `handlers_terminal.go` but with auto-cd + scoped env)
 
 ---
 
-## Bagian 5: Step-by-Step Implementation Plan
+## Part 5: Step-by-Step Implementation Plan
 
-### Fase 1: Foundation (backend, no UI)
+### Phase 1: Foundation (backend, no UI)
 
-**Step 1.1** — Buat paket `internal/devtools`
+**Step 1.1** — Create the `internal/devtools` package
 - `devtools.go`: Manager, runningProc, Start/Stop/Status/StopAll
-- `registry.go`: ToolSpec untuk Vite, Artisan, npm, composer
-- `devtools_test.go`: test Start/Stop/Status dengan mock binary
-- Mirror pola dari `services.go` (runningProc, setProcessGroup, ready probe)
+- `registry.go`: ToolSpec for Vite, Artisan, npm, composer
+- `devtools_test.go`: test Start/Stop/Status with a mock binary
+- Mirrors the pattern from `services.go` (runningProc, setProcessGroup, ready probe)
 
-**Step 1.2** — Buat `internal/proxy/framework.go`
+**Step 1.2** — Create `internal/proxy/framework.go`
 - `DetectFramework(siteDir) Framework`
-- Test dengan fixture folder Laravel/WordPress/blank
+- Test with Laravel/WordPress/blank fixture folders
 
-**Step 1.3** — Buat `internal/proxy/routers.go`
+**Step 1.3** — Create `internal/proxy/routers.go`
 - `laravelRouter` const (PHP string)
-- `defaultRouter` yang sudah ada di proxy.go:713 → pindah ke sini
+- Move the existing `defaultRouter` from proxy.go:713 here
 - `pickRouter(framework) string` — returns router script
 
-**Step 1.4** — Integrasikan framework detection ke `ensureSite`
-- proxy.go:490 — ganti hardcoded `defaultRouter` dengan `pickRouter(framework)`
-- Cache hasil deteksi di `siteServer` struct
+**Step 1.4** — Integrate framework detection into `ensureSite`
+- proxy.go:490 — replace the hardcoded `defaultRouter` with `pickRouter(framework)`
+- Cache the detection result in the `siteServer` struct
 
-**Step 1.5** — Wire devtools.Manager ke app
+**Step 1.5** — Wire devtools.Manager into the app
 - `internal/app/app.go` — instantiate `devtools.New(cfg)`
-- Pass ke dashboard server + proxy
-- Shutdown hook: `devtools.StopAll()` (mirror `services.StopAll`)
+- Pass it to the dashboard server + proxy
+- Shutdown hook: `devtools.StopAll()` (mirrors `services.StopAll`)
 
-**Step 1.6** — Wire devtools ke proxy lifecycle
+**Step 1.6** — Wire devtools into the proxy lifecycle
 - `proxy.StopSite(name)` → `devtools.StopAllForSite(name)`
 - `proxy.RestartSite(name)` → save tool states, restart, restore
 
-### Fase 2: Vite Proxy (backend)
+### Phase 2: Vite Proxy (backend)
 
-**Step 2.1** — Buat `internal/proxy/viteproxy.go`
+**Step 2.1** — Create `internal/proxy/viteproxy.go`
 - `ViteProxy` struct + `ShouldIntercept` + `ServeHTTP`
-- Unit test dengan mock HTTP server
+- Unit test with a mock HTTP server
 
-**Step 2.2** — Integrasi ke proxy handler
-- Saat devtools start Vite → daftarkan ViteProxy ke siteServer
-- Saat devtools stop Vite → hapus ViteProxy
-- Di handler utama: cek ViteProxy sebelum forward ke PHP
+**Step 2.2** — Integrate into the proxy handler
+- When devtools starts Vite → register the ViteProxy on the siteServer
+- When devtools stops Vite → remove the ViteProxy
+- In the main handler: check the ViteProxy before forwarding to PHP
 
 **Step 2.3** — Vite env injection
-- `startPHP`: tambah `SABDOPALON_VITE_PORT` + `SABDOPALON_VITE_HOST` ke env
+- `startPHP`: add `SABDOPALON_VITE_PORT` + `SABDOPALON_VITE_HOST` to the env
 
-**Step 2.4** — Test end-to-end
-- Fixture: site Laravel dummy + mock Vite server
-- Assert: request ke `/@vite/client` di-proxy ke Vite, bukan ke PHP
+**Step 2.4** — End-to-end test
+- Fixture: dummy Laravel site + mock Vite server
+- Assert: requests to `/@vite/client` are proxied to Vite, not to PHP
 
-### Fase 3: API (backend)
+### Phase 3: API (backend)
 
 **Step 3.1** — `handlers_sitedetail.go`
 - `handleAPISiteDetail` — aggregate response
@@ -693,33 +693,33 @@ WebSocket endpoint: `WS /api/sites/<name>/terminal`
 - `getSiteDevTools` — status
 - `postSiteDevTools` — start/stop
 
-**Step 3.2** — Extend routing di `handleAPISiteAction`
-- Tambah case untuk `logs`, `devtools`, dan GET kosong (detail)
+**Step 3.2** — Extend routing in `handleAPISiteAction`
+- Add cases for `logs`, `devtools`, and empty GET (detail)
 
 **Step 3.3** — Per-site terminal WebSocket
-- Extend `handlers_terminal.go` atau buat handler baru
-- Auto-cd ke site dir, scoped env
+- Extend `handlers_terminal.go` or create a new handler
+- Auto-cd into the site dir, scoped env
 
 **Step 3.4** — API tests
-- Test detail endpoint return framework detection benar
-- Test devtools start/stop via API
+- Test that the detail endpoint returns the correct framework detection
+- Test devtools start/stop via the API
 - Test log tail
 
-### Fase 4: Frontend — Detail Page Shell
+### Phase 4: Frontend — Detail Page Shell
 
-**Step 4.1** — Buat `site-detail.tsx`
+**Step 4.1** — Create `site-detail.tsx`
 - Layout: header + tab switcher
-- `useParams()` ambil name
-- Fetch `GET /api/sites/<name>` (api.ts: tambah `siteDetail(name)`)
+- `useParams()` picks up the name
+- Fetch `GET /api/sites/<name>` (api.ts: add `siteDetail(name)`)
 - Back button, Start/Stop/Restart header buttons
 
-**Step 4.2** — Tambah route di App.tsx
+**Step 4.2** — Add the route in App.tsx
 - `/sites/:name` → SiteDetailPage
 - Update `fullBleed` check
 
-**Step 4.3** — Link dari sites list
-- Di `rowMenu` (sites.tsx:364), ganti "Configure…" → link ke `/sites/<name>?tab=config`
-- Klik nama site → navigasi ke detail page
+**Step 4.3** — Link from the sites list
+- In `rowMenu` (sites.tsx:364), change "Configure…" to a link to `/sites/<name>?tab=config`
+- Clicking a site name → navigates to the detail page
 
 **Step 4.4** — API client functions (api.ts)
 - `siteDetail(name): Promise<SiteDetail>`
@@ -727,40 +727,40 @@ WebSocket endpoint: `WS /api/sites/<name>/terminal`
 - `siteDevTools(name): Promise<ToolStatus[]>`
 - `siteDevToolAction(name, tool, action): Promise<...>`
 
-### Fase 5: Frontend — Tabs
+### Phase 5: Frontend — Tabs
 
 **Step 5.1** — Overview tab
-- Cards untuk framework, PHP, database, URL, storage, devtools summary
-- Poll status via `useLive()` atau polling `GET /api/sites/<name>`
+- Cards for framework, PHP, database, URL, storage, devtools summary
+- Poll status via `useLive()` or by polling `GET /api/sites/<name>`
 
 **Step 5.2** — Config tab
-- Pindahkan form dari dialog (sites.tsx:184-226) ke inline
+- Move the form from the dialog (sites.tsx:184-226) to inline
 - PHP select, docroot, aliases chip input, env editor
-- Save → PUT config (sudah ada)
+- Save → PUT config (already exists)
 
 **Step 5.3** — Logs tab
 - Sub-tab per log source
-- Reuse polling pattern dari logs.tsx
+- Reuse the polling pattern from logs.tsx
 - Auto-scroll, auto-refresh toggle
 
 **Step 5.4** — Dev Tools tab
-- Card per tool (auto-show berdasarkan framework + file detection)
+- Card per tool (auto-shown based on framework + file detection)
 - Start/Stop buttons → API call
 - Inline log tail per tool
 - Status indicator (running/stopped/port)
 
 **Step 5.5** — Terminal tab
-- Embed `TerminalPanel` komponen
+- Embed the `TerminalPanel` component
 - Session key = `site-<name>`
-- WebSocket connect ke `/api/sites/<name>/terminal`
+- WebSocket connects to `/api/sites/<name>/terminal`
 
-### Fase 6: Polish & Edge Cases
+### Phase 6: Polish & Edge Cases
 
 **Step 6.1** — Auto-start dev tools
-- Saat site start, cek `.sabdopalon.yml` untuk `devtools: [vite]`
-- Jika ada, auto-start tool yang diminta
+- When a site starts, check `.sabdopalon.yml` for `devtools: [vite]`
+- If present, auto-start the requested tools
 
-**Step 6.2** — Devtools config di .sabdopalon.yml
+**Step 6.2** — Devtools config in .sabdopalon.yml
 ```yaml
 devtools:
   auto_start:
@@ -772,54 +772,54 @@ devtools:
 - Extend YAML parser
 
 **Step 6.3** — Graceful shutdown
-- Saat Sabdopalon quit: kill semua devtools (sudah di StopAll)
-- Saat site stop: kill devtools untuk site itu (sudah di StopAllForSite)
-- Saat restart: preserve tool states, restart tools after site up
+- When Sabdopalon quits: kill all devtools (already in StopAll)
+- When a site stops: kill devtools for that site (already in StopAllForSite)
+- On restart: preserve tool states, restart tools after the site is up
 
 **Step 6.4** — Error handling
-- Tool binary tidak ada (npx/node/npm) → pesan jelas + install hint
-- Port conflict → auto-pick next free port, tampilkan port yang dipakai
-- Vite config error → tail log, tampilkan error di UI
+- Missing tool binary (npx/node/npm) → clear message + install hint
+- Port conflict → auto-pick the next free port, show the port in use
+- Vite config error → tail the log, show the error in the UI
 
 **Step 6.5** — Windows path handling
-- `php artisan` → di Windows tetap `php artisan` (php.exe di PATH atau bundled)
-- `npx vite` → npx dari Node install (user install Node sendiri)
-- Forward slash vs backslash di siteDir → pakai `filepath.Join` (sudah aman)
+- `php artisan` → on Windows still `php artisan` (php.exe on PATH or bundled)
+- `npx vite` → npx from the Node install (user installs Node themselves)
+- Forward slash vs backslash in siteDir → use `filepath.Join` (already safe)
 
 **Step 6.6** — Security
-- Dev tools bind 127.0.0.1 only (sudah default di Sabdopalon)
-- Vite proxy hanya aktif untuk site yang Vite-nya running
-- Terminal per-site tetap scoped (tidak bisa cd keluar dari sites/)
+- Dev tools bind 127.0.0.1 only (already the default in Sabdopalon)
+- The Vite proxy is only active for sites whose Vite is running
+- Per-site terminals stay scoped (can't cd out of sites/)
 
 ---
 
-## Bagian 6: Data Flow — Contoh End-to-End
+## Part 6: Data Flow — End-to-End Examples
 
-### Skenario: User buka Laravel site dengan Vite
+### Scenario: User opens a Laravel site with Vite
 
 ```
-1. User buka http://myapp.localhost di browser
-2. Sabdopalon proxy terima request
+1. User opens http://myapp.localhost in the browser
+2. Sabdopalon proxy receives the request
 3. ensureSite("myapp"):
    a. Load .sabdopalon.yml → php: 8.3
-   b. DetectFramework → Laravel (ada artisan)
-   c. Pick router → laravelRouter (bukan defaultRouter)
+   b. DetectFramework → Laravel (has artisan)
+   c. Pick router → laravelRouter (not defaultRouter)
    d. Resolve PHP → bin/php/8.3/php
    e. Start: php -S 127.0.0.1:8081 -t public .sabdopalon-router.php
-4. Browser request GET /
-5. Proxy forward ke PHP:8081
+4. Browser requests GET /
+5. Proxy forwards to PHP:8081
 6. laravelRouter.php → require public/index.php
-7. Laravel render view, inject <script src="/@vite/client">
-   (karena APP_ENV=local, Vite plugin aktif)
-8. Browser request GET /@vite/client
+7. Laravel renders the view, injects <script src="/@vite/client">
+   (because APP_ENV=local, the Vite plugin is active)
+8. Browser requests GET /@vite/client
 9. Proxy: ViteProxy.ShouldIntercept("/@vite/client") == true
-10. ViteProxy reverse-proxy → http://127.0.0.1:5173/@vite/client
-11. Vite dev server return HMR client JS
-12. Browser connect WebSocket ke Vite untuk HMR
-13. User edit resources/js/app.js → Vite HMR → browser auto-reload
+10. ViteProxy reverse-proxies → http://127.0.0.1:5173/@vite/client
+11. Vite dev server returns the HMR client JS
+12. Browser connects via WebSocket to Vite for HMR
+13. User edits resources/js/app.js → Vite HMR → browser auto-reloads
 ```
 
-### Skenario: User klik "Start Vite" di DevTools tab
+### Scenario: User clicks "Start Vite" in the DevTools tab
 
 ```
 1. Frontend: POST /api/sites/myapp/devtools {tool:"vite", action:"start"}
@@ -832,10 +832,10 @@ devtools:
 8. Backend: restart PHP process with SABDOPALON_VITE_PORT=5173 env
 9. Backend: return {ok: true, port: 5173, pid: 12345}
 10. Frontend: show "running", poll logs/myapp.vite.log
-11. User buka myapp.localhost → Vite assets ter-proxy → HMR aktif
+11. User opens myapp.localhost → Vite assets are proxied → HMR active
 ```
 
-### Skenario: User stop site
+### Scenario: User stops a site
 
 ```
 1. Frontend: POST /api/sites/myapp/stop
@@ -850,11 +850,11 @@ devtools:
 
 ---
 
-## Bagian 7: File Inventory (yang akan dibuat/diubah)
+## Part 7: File Inventory (to be created/modified)
 
-### File baru
+### New files
 
-| File | Fungsi |
+| File | Purpose |
 |---|---|
 | `internal/devtools/devtools.go` | Manager, runningProc, lifecycle |
 | `internal/devtools/registry.go` | Tool specs |
@@ -871,43 +871,43 @@ devtools:
 | `internal/dashboard/ui/src/pages/site-detail/devtools-tab.tsx` | DevTools UI |
 | `internal/dashboard/ui/src/pages/site-detail/terminal-tab.tsx` | Terminal |
 
-### File yang diubah
+### Modified files
 
-| File | Perubahan |
+| File | Changes |
 |---|---|
 | `internal/proxy/proxy.go` | ensureSite: framework detection + router pick + ViteProxy |
 | `internal/proxy/php.go` | startPHP: add Vite env injection |
 | `internal/siteconfig/siteconfig.go` | Add DevTools config fields |
-| `internal/dashboard/handlers_sites.go` | Extend dispatch untuk detail/logs/devtools |
+| `internal/dashboard/handlers_sites.go` | Extend dispatch for detail/logs/devtools |
 | `internal/dashboard/server.go` | Register devtools manager, new routes |
 | `internal/app/app.go` | Instantiate devtools.Manager, wire shutdown |
 | `internal/dashboard/ui/src/App.tsx` | Add /sites/:name route, update fullBleed |
 | `internal/dashboard/ui/src/lib/api.ts` | Add siteDetail, siteLogs, siteDevTools functions |
-| `internal/dashboard/ui/src/pages/sites.tsx` | Link row menu ke detail page |
+| `internal/dashboard/ui/src/pages/sites.tsx` | Link the row menu to the detail page |
 
 ---
 
-## Bagian 8: Yang TIDAK Termasuk Scope Desain Ini
+## Part 8: Out of Scope for This Design
 
-- **File manager UI** — browsing/editing file site lewat dashboard. Besar,
-  butuh ACE editor atau Monaco. Backlog terpisah.
-- **Database per-site** — satu DB per site (bukan shared). Backlog terpisah.
-- **Git integration** — status, commit, diff di dashboard. Backlog terpisah.
-- **Deploy/Push** — deploy site ke remote server. Backlog terpisah.
-- **Multi-PHP per request** — run multiple PHP version dalam satu site.
-  Tidak feasible dengan `php -S` (one binary per process).
+- **File manager UI** — browsing/editing site files via the dashboard. Large,
+  needs an ACE or Monaco editor. Separate backlog.
+- **Per-site database** — one DB per site (not shared). Separate backlog.
+- **Git integration** — status, commit, diff in the dashboard. Separate backlog.
+- **Deploy/Push** — deploying sites to a remote server. Separate backlog.
+- **Multi-PHP per request** — running multiple PHP versions within one site.
+  Not feasible with `php -S` (one binary per process).
 
 ---
 
-## Catatan: Feature Freeze
+## Note: Feature Freeze
 
-Implementasi ini selesai sebagai unit fungsional yang kompak: paket
-`internal/devtools` (backend), framework detection + Vite proxy (proxy),
-site-detail API (dashboard), dan site-detail page (frontend) — semua
-terverifikasi dengan `go build`, `go vet`, `go test`, `npm run build`, dan
-cross-compilation `GOOS=windows/darwin`.
+This was implemented as a compact functional unit: the
+`internal/devtools` package (backend), framework detection + Vite proxy (proxy),
+site-detail API (dashboard), and site-detail page (frontend) — all
+verified with `go build`, `go vet`, `go test`, `npm run build`, and
+`GOOS=windows/darwin` cross-compilation.
 
-Perubahan tidak mengubah API existing atau UI yang sudah ada (semua endpoint
-baru bersifat aditif; test `TestSiteActionMethodsAreStrict` tetap lulus).
-Site detail page diakses dari link baru di row menu dan dari klik nama site
-di tabel — tidak mengganggu flow existing.
+The changes don't alter any existing API or UI (all new endpoints
+are additive; the `TestSiteActionMethodsAreStrict` test still passes).
+The site detail page is reached from a new link in the row menu and by clicking a site
+name in the table — it doesn't disrupt the existing flow.

@@ -443,7 +443,7 @@ fn integrate_desktop_entry(issues: &mut Vec<String>) {
          Type=Application\n\
          Name=Sabdopalon\n\
          GenericName=Local PHP dev server\n\
-         Comment=PHP + MariaDB + phpMyAdmin — portabel dalam satu folder\n\
+         Comment=PHP + MariaDB + phpMyAdmin — portable in a single folder\n\
          Exec=\"{exec}\"\n\
          Icon={APP_ID}\n\
          StartupWMClass={APP_ID}\n\

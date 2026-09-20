@@ -255,7 +255,7 @@ func (a *App) serve() int {
 		var held *lock.HeldError
 		if errors.As(err, &held) {
 			fmt.Fprintln(os.Stderr, "✗ "+held.Error())
-			fmt.Fprintln(os.Stderr, "  Sabdopalon sudah berjalan. Buka dashboard-nya, atau quit dulu lalu jalankan ulang.")
+			fmt.Fprintln(os.Stderr, "  Sabdopalon is already running. Open its dashboard, or quit first then run again.")
 			return 1
 		}
 		fmt.Fprintf(os.Stderr, "✗ lock: %v\n", err)
@@ -328,7 +328,7 @@ func (a *App) serve() int {
 		for eng, err := range errs {
 			fmt.Fprintf(os.Stderr, "⚠ database %s: %v\n", eng, err)
 		}
-		fmt.Fprintf(os.Stderr, "  (lanjut tanpa database bermasalah — cek halaman Database)\n")
+		fmt.Fprintf(os.Stderr, "  (continuing without the problem database — check the Database page)\n")
 	}
 
 	// Optional bundled services (mail catcher, cache, storage, search…).

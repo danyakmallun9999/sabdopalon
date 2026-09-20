@@ -1,6 +1,6 @@
 // Package database manages the lifecycle of database server daemons
 // (MariaDB and PostgreSQL) as supervised child processes — ALL at the same
-// time, each with its own port ("default aktif semua"). SQLite is handled
+// time, each with its own port ("all enabled by default"). SQLite is handled
 // directly by PHP (no daemon needed).
 //
 // Data lives in data/<engine>/ so every daemon stays isolated and portable.

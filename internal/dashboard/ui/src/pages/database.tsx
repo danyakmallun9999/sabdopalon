@@ -67,7 +67,7 @@ type DaemonCfg = {
 }
 
 // Every daemon gets its own card and can run at the same time — each with
-// its own port ("default aktif semua").
+// its own port ("all enabled by default").
 
 // 0 in the config means "unset" (legacy port field wins) — never display or
 // prefill it; show the fallback instead.
@@ -154,11 +154,11 @@ export default function DatabasePage() {
     if (v === "" || !v) return
     try {
       await api.saveConfig({ [field]: Number(v) })
-      toast.success(`Port ${key} disimpan`, {
-        description: "Berlaku setelah restart daemon (Restart di kartu ini) atau restart Sabdopalon.",
+      toast.success(`Port ${key} saved`, {
+        description: "Takes effect after restarting the daemon (Restart on this card) or restarting Sabdopalon.",
       })
     } catch {
-      toast.error("Gagal menyimpan port")
+      toast.error("Failed to save port")
     }
   }
 
@@ -167,15 +167,15 @@ export default function DatabasePage() {
     try {
       await api.saveConfig({ [field]: enabled })
       toast.success(
-        `${key} ${enabled ? "diaktifkan" : "dinonaktifkan"}`,
-        { description: enabled ? "Daemon sedang dinyalakan…" : undefined },
+        `${key} ${enabled ? "enabled" : "disabled"}`,
+        { description: enabled ? "Starting daemon…" : undefined },
       )
       setTimeout(async () => {
         const c = await api.getConfig().catch(() => null)
         if (c) setCfg(c)
         }, 1500)
     } catch {
-      toast.error("Gagal mengubah status")
+      toast.error("Failed to update status")
     }
   }
 
@@ -195,7 +195,7 @@ export default function DatabasePage() {
     try {
       const r = await api.backupNow()
       if (r.error) toast.error(r.error)
-      else toast.success(r.message ?? `Backup dibuat: ${r.backup}`)
+      else toast.success(r.message ?? `Backup created: ${r.backup}`)
       const b = await api.listBackups().catch(() => [])
       setBackups(Array.isArray(b) ? b : [])
     } finally {
@@ -277,27 +277,27 @@ function DaemonsTab({
                   <div className="flex flex-col gap-1">
                     <CardTitle>{d.label}</CardTitle>
                     <CardDescription>
-                      Port {running ? `aktif di :${d.port}` : `: ${d.port}`}
+                      Port {running ? `active on :${d.port}` : `: ${d.port}`}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={running ? "default" : "outline"}>
-                      {running ? "berjalan" : "berhenti"}
+                      {running ? "running" : "stopped"}
                     </Badge>
                     <Switch
                       checked={!!d.enabled}
                       onCheckedChange={(v) => toggleEnabled(d.key, v === true)}
-                      title={d.enabled ? "Nonaktifkan daemon ini" : "Aktifkan daemon ini"}
+                      title={d.enabled ? "Disable this daemon" : "Enable this daemon"}
                     />
                   </div>
                 </div>
 
                 {!d.installed && (
                   <p className="text-destructive mt-2 text-xs">
-                    Belum terpasang — pasang dulu di halaman Packages.
+                    Not installed yet — install it from the Packages page first.
                   </p>
                 )}
-                {err && <p className="text-destructive mt-2 text-xs">Gagal start: {err}</p>}
+                {err && <p className="text-destructive mt-2 text-xs">Start failed: {err}</p>}
 
                 {d.enabled && (
                   <>
@@ -339,7 +339,7 @@ function DaemonsTab({
                     <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-2">
                       <div className="flex flex-col gap-1">
                         <Label htmlFor={"port-" + d.key} className="text-xs">
-                          Port (butuh restart daemon)
+                          Port (requires daemon restart)
                         </Label>
                         <Input
                           id={"port-" + d.key}
@@ -351,7 +351,7 @@ function DaemonsTab({
                         />
                       </div>
                       <Button size="sm" variant="secondary" disabled={!dirty} onClick={() => savePort(d.key)}>
-                        Simpan port
+                        Save port
                       </Button>
                     </div>
                   </>
@@ -366,18 +366,18 @@ function DaemonsTab({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>SQLite</CardTitle>
-              <Badge variant="secondary">selalu aktif</Badge>
+              <Badge variant="secondary">always active</Badge>
             </div>
             <CardDescription>
-              Tanpa daemon — file database di <code>data/sabdopalon.db</code>, langsung dipakai PHP.
+              No daemon — database file at <code>data/sabdopalon.db</code>, used directly by PHP.
             </CardDescription>
           </CardHeader>
         </Card>
       </div>
 
       <p className="text-muted-foreground mt-4 px-1 text-xs">
-        Semua database bisa hidup bersamaan — situs kamu bebas memakai koneksi mana pun
-        (env <code>SABDOPALON_MARIADB_*</code> dan <code>SABDOPALON_PG_*</code> tersedia untuk semua situs).
+        All databases can run at the same time — your sites can freely use any connection
+        (env <code>SABDOPALON_MARIADB_*</code> and <code>SABDOPALON_PG_*</code> are available to all sites).
       </p>
     </>
   )
@@ -399,25 +399,25 @@ function BackupsTab({
       <CardHeader className="flex flex-row items-center justify-between">
         <div className="flex flex-col gap-1.5">
           <CardTitle>Backups</CardTitle>
-          <CardDescription>Backup lama dipangkas otomatis (simpan 5).</CardDescription>
+          <CardDescription>Old backups are pruned automatically (keeps 5).</CardDescription>
         </div>
         <Button onClick={doBackup} disabled={busyBackup}>
-          <HardDriveDownload /> Backup Sekarang
+          <HardDriveDownload /> Back Up Now
         </Button>
       </CardHeader>
       <div className="px-4 pb-4 lg:px-6">
         {backups.length === 0 ? (
           <p className="text-muted-foreground border-dashed rounded-xl border p-8 text-center text-sm">
-            Belum ada backup — klik “Backup Sekarang”.
+            No backups yet — click “Back Up Now”.
           </p>
         ) : (
           <div className="bg-card overflow-hidden rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Nama</TableHead>
-                  <TableHead>Ukuran</TableHead>
-                  <TableHead>Waktu</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Size</TableHead>
+                  <TableHead>Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -471,8 +471,8 @@ function TerminalTab({
   const card = cards.find((d) => d.key === engine)!
   const running = status?.db_states?.[engine] ?? cfg.db_states?.[engine] ?? false
   const installed = card.installed
-  // PostgreSQL terminal belum diimplementasikan: tampilkan pesan alih-alih
-  // mencoba meluncurkan psql (yang saat ini gagal di-resolve / belum didukung).
+  // PostgreSQL terminal not yet implemented: show a message instead of
+  // trying to launch psql (which currently fails to resolve / is unsupported).
   const pgUnsupported = engine === "postgresql"
 
   return (
@@ -489,7 +489,7 @@ function TerminalTab({
                 type="button"
                 disabled={!d.installed}
                 onClick={() => setEngine(d.key)}
-                title={!d.installed ? "Pasang dulu di halaman Packages" : dRunning ? "berjalan" : "berhenti"}
+                title={!d.installed ? "Install from the Packages page first" : dRunning ? "running" : "stopped"}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -502,14 +502,14 @@ function TerminalTab({
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {pgUnsupported ? (
-            <span>{card.label} — fitur terminal belum tersedia</span>
+            <span>{card.label} — terminal feature not available yet</span>
           ) : running ? (
             <>
               <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
               {termStatus}
             </>
           ) : (
-            <span>{card.label} berhenti</span>
+            <span>{card.label} stopped</span>
           )}
         </div>
       </div>
@@ -520,11 +520,11 @@ function TerminalTab({
           <CardContent className="flex flex-col gap-2 py-6 text-sm">
             <span className="flex items-center gap-2">
               <TerminalIcon className="size-4 shrink-0 text-muted-foreground" />
-              Terminal PostgreSQL belum tersedia.
+              PostgreSQL terminal is not available yet.
             </span>
             <span className="text-muted-foreground">
-              Sementara gunakan klien <b>psql</b> bawaan, atau kelola PostgreSQL
-              via phpMyAdmin/port yang tampil di tab <b>Daemons</b>.
+              For now use the built-in <b>psql</b> client, or manage PostgreSQL
+              via phpMyAdmin / the port shown in the <b>Daemons</b> tab.
             </span>
           </CardContent>
         </Card>
@@ -532,7 +532,7 @@ function TerminalTab({
         <Card>
           <CardContent className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
             <TerminalIcon className="size-4 shrink-0" />
-            {card.label} belum terpasang — pasang dulu di halaman Packages.
+            {card.label} is not installed yet — install it from the Packages page first.
           </CardContent>
         </Card>
       ) : !running ? (
@@ -540,10 +540,10 @@ function TerminalTab({
           <CardContent className="flex flex-col gap-2 py-6 text-sm">
             <span className="flex items-center gap-2">
               <TerminalIcon className="size-4 shrink-0 text-muted-foreground" />
-              {card.label} belum berjalan.
+              {card.label} is not running.
             </span>
             <span className="text-muted-foreground">
-              Nyalakan daemon-nya di tab <b>Daemons</b> dulu, lalu kembali ke sini.
+              Start its daemon in the <b>Daemons</b> tab first, then come back here.
             </span>
           </CardContent>
         </Card>

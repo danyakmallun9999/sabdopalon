@@ -72,7 +72,7 @@ export default function SiteHeader() {
           )}
           {status?.services && (
             <Badge variant="secondary" render={<a href="/services" />}>
-              <Boxes /> Services aktif <ExternalLink />
+              <Boxes /> Active services <ExternalLink />
             </Badge>
           )}
           <span
