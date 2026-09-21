@@ -19,9 +19,21 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// _PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE tells CreateProcess to attach the
-// new process to the pseudo console passed via the attribute list.
-const _PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x20016 // nolint:revive
+// UpdateProcThreadAttribute is called directly rather than through
+// x/sys/windows' ProcThreadAttributeListContainer.Update. That wrapper is
+// built for attributes whose lpValue is a pointer to data (a HANDLE list,
+// say), but PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE wants lpValue to BE the
+// HPCON value — Microsoft's EchoCon sample passes hPC itself, and so does
+// go-pty. Feeding it &hpc makes CreateProcess SUCCEED while leaving the
+// child attached to something that is not our pseudo console: the shell
+// runs and exits 0, yet not one byte ever reaches outPipe (a silently dead
+// terminal). Calling the Win32 entry point directly also keeps lpValue a
+// plain uintptr syscall argument, so there is no uintptr→unsafe.Pointer
+// conversion for go vet's unsafeptr check to flag.
+var (
+	modkernel32                   = windows.NewLazySystemDLL("kernel32.dll")
+	procUpdateProcThreadAttribute = modkernel32.NewProc("UpdateProcThreadAttribute")
+)
 
 // conPty is one Windows pseudo console plus its two plumbing pipes:
 // inPipe (we write → console input) and outPipe (console output → we read).
@@ -84,25 +96,35 @@ func (c *conPty) startProcess(exe string, args []string, dir string, env []strin
 	}
 	defer attrs.Delete()
 
-	// Attach the child to our pseudo console: without this Update call
-	// CreateProcess is never told about hpc, so Windows allocates a fresh
-	// console WINDOW for the child (PowerShell pops up externally) and the
-	// inPipe/outPipe stay unwired — i.e. the embedded terminal is dead and a
-	// real console window appears on the desktop. This is the ConPTY step
-	// that aymanbagabas/go-pty does in updateProcThreadAttribute().
+	// Attach the child to our pseudo console: without this CreateProcess is
+	// never told about hpc, so Windows allocates a fresh console WINDOW for
+	// the child (PowerShell pops up externally) and the inPipe/outPipe stay
+	// unwired — i.e. the embedded terminal is dead and a real console window
+	// appears on the desktop.
 	//
-	// Win32 wants a pointer to the HPC value (not the handle cast to a
-	// pointer); pass &hpc with size sizeof(hpc).
-	hpc := c.handle
-	if err := attrs.Update(
-		uintptr(_PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE),
-		unsafe.Pointer(&hpc),
-		unsafe.Sizeof(hpc),
-	); err != nil {
-		return fmt.Errorf("pseudoconsole attribute: %w", err)
+	// lpValue (the 4th argument) must be the HPCON VALUE, not a pointer to
+	// it: pass c.handle straight through as the raw uintptr slot.
+	r1, _, callErr := procUpdateProcThreadAttribute.Call(
+		uintptr(unsafe.Pointer(attrs.List())),
+		0,
+		uintptr(windows.PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE),
+		uintptr(c.handle),
+		unsafe.Sizeof(c.handle),
+		0,
+		0,
+	)
+	if r1 == 0 {
+		return fmt.Errorf("pseudoconsole attribute: %w", callErr)
 	}
 
 	siEx := &windows.StartupInfoEx{}
+	// STARTF_USESTDHANDLES is what makes Windows route the child's std handles
+	// through the pseudo console instead of handing it the parent's console.
+	// Without it CreateProcess still succeeds and the shell runs happily — on
+	// the SERVER's console, printing its prompt into the sidecar's own output
+	// while the dashboard terminal stays empty. (go-pty, whose plumbing this
+	// follows, sets it too.)
+	siEx.Flags = windows.STARTF_USESTDHANDLES
 	siEx.Cb = uint32(unsafe.Sizeof(*siEx))
 	siEx.ProcThreadAttributeList = attrs.List()
 	pi := &windows.ProcessInformation{}
@@ -112,11 +134,16 @@ func (c *conPty) startProcess(exe string, args []string, dir string, env []strin
 	if err != nil {
 		return err
 	}
+	// Inheritable process/thread handles, matching go-pty; the child's own std
+	// handles come from the pseudo console via the attribute list above.
+	var zeroSec windows.SecurityAttributes
+	pSec := &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(zeroSec)), InheritHandle: 1}
+	tSec := &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(zeroSec)), InheritHandle: 1}
 	if err := windows.CreateProcess(
 		pathPtr,
 		cmdline,
-		nil,
-		nil,
+		pSec,
+		tSec,
 		false,
 		flags,
 		&envBlock[0],

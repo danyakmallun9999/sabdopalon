@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,33 +202,80 @@ require __DIR__ . '/adminer.php';
 	return nil
 }
 
-// copyTree recursively copies a directory tree.
+// copyTree recursively copies a directory tree, DEREFERENCING symbolic links.
+//
+// Links are followed, never recreated. Two reasons, both load-bearing:
+//
+//   - The deployed docroot must be a real, self-contained tree. Desktop mode
+//     exposes the bundled stack through links (the Tauri sidecar links
+//     resources/core/* into bin/), so the source here is normally a link.
+//     Recreating it would leave the live site pointing back into the read-only
+//     resource directory — and the copy would then not be self-contained at all.
+//
+//   - Recreating a link fails on Windows. os.Symlink needs either
+//     SeCreateSymbolicLinkPrivilege or Developer Mode, and when the link's
+//     parent directory does not exist Windows reports the misleading
+//     "A required privilege is not held by the client"
+//     (ERROR_PRIVILEGE_NOT_HELD). The walk used to hit that case exactly: the
+//     root is a link, so the dir branch that would MkdirAll the destination
+//     was skipped and sites/<app>/ was never created.
+//
+// Windows ships no symlinks inside the phpMyAdmin tree, so dereferencing cannot
+// turn an internal (possibly broken) link into a copy failure in practice; the
+// depth guard keeps a link cycle from looping forever.
 func copyTree(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
+	return copyTreeDepth(src, dst, 0)
+}
+
+// maxCopyDepth bounds recursion so a symbolic-link cycle cannot loop forever.
+const maxCopyDepth = 64
+
+func copyTreeDepth(src, dst string, depth int) error {
+	if depth > maxCopyDepth {
+		return fmt.Errorf("directory tree too deep at %s (symbolic link cycle?)", src)
+	}
+	// os.Stat, not os.Lstat: resolve a link and copy what it points at.
+	// os.ReadDir then descends into the resolved directory.
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return copyTreeFile(src, dst, info.Mode().Perm())
+	}
+	// Creates the destination and every missing parent — including when dst is
+	// the staging root, which the walk below never visits as a directory.
+	if err := os.MkdirAll(dst, 0o755); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := copyTreeDepth(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), depth+1); err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		if info.IsDir() {
-			return os.MkdirAll(target, 0o755)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			dest, err := os.Readlink(path)
-			if err != nil {
-				return err
-			}
-			return os.Symlink(dest, target)
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(target, data, info.Mode().Perm())
-	})
+	}
+	return nil
+}
+
+// copyTreeFile streams a single file into dst, creating it with perm.
+func copyTreeFile(src, dst string, perm os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, perm)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // randomHex returns n random bytes hex-encoded (crypto-grade).

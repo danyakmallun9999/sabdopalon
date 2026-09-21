@@ -55,6 +55,27 @@ var (
 	termJanitor sync.Once
 )
 
+// terminalAcceptOptions is the WebSocket handshake policy for the terminal.
+//
+// OriginPatterns is deliberately EMPTY. coder/websocket already authorizes the
+// only case the dashboard ever produces — an Origin whose host equals the
+// request Host — and that is inherent here: the page is served from :9900 and
+// connects straight back to :9900, over whichever of 127.0.0.1 / ::1 /
+// localhost the browser used.
+//
+// The value used to be []string{"localhost", "127.0.0.1"}, which reads like a
+// control but could never match anything. Patterns are matched with path.Match
+// against the Origin's host INCLUDING its port, so "localhost" never matched
+// "localhost:9900". Dead code that only ever appeared to do something.
+//
+// Making it live by allowing "localhost:*" would be a security DOWNGRADE, not
+// a fix: any other local dev server on any port could then open a shell in the
+// user's terminal. The list is removed instead, leaving the strict same-origin
+// default; a cross-origin page is refused with 403.
+func terminalAcceptOptions() *websocket.AcceptOptions {
+	return &websocket.AcceptOptions{}
+}
+
 func (t *termSession) setSink(ctx context.Context, c *websocket.Conn) {
 	t.mu.Lock()
 	t.sink, t.sinkCtx = c, ctx
@@ -259,9 +280,7 @@ func (s *Server) handleAPITerminalWS(w http.ResponseWriter, r *http.Request) {
 		defer ts.destroy()
 	}
 
-	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		OriginPatterns: []string{"localhost", "127.0.0.1"},
-	})
+	c, err := websocket.Accept(w, r, terminalAcceptOptions())
 	if err != nil {
 		if created {
 			// The socket never came up; don't leave a brand-new empty

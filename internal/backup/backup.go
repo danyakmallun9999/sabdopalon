@@ -1,7 +1,7 @@
 // Package backup handles database backups for Sabdopalon.
 //
 //	SQLite:            copies the .db file
-//	MariaDB/MySQL:     mariadb-dump/mysqldump → .sql.gz (unix socket)
+//	MariaDB/MySQL:     mariadb-dump/mysqldump → .sql.gz (socket, or TCP on Windows)
 //	PostgreSQL:        pg_dump → .sql.gz (TCP 127.0.0.1)
 //
 // Every daemon engine can be backed up independently — backups/<engine>-… —
@@ -11,11 +11,13 @@ package backup
 import (
 	"compress/gzip"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -86,18 +88,35 @@ func (m *Manager) backupSQLite(dest string) error {
 	return os.WriteFile(dest, data, 0o644)
 }
 
-// backupMariaDB runs mariadb-dump/mysqldump over the daemon's unix socket.
+// backupMariaDB runs mariadb-dump/mysqldump against the daemon.
+//
+// Unix connects over the daemon's socket; Windows has none — database
+// .startArgs deliberately starts mariadbd with --datadir and TCP only — so
+// the old socket-path gate could never pass there and every MariaDB backup
+// failed with "database not running" even while the server was up. Use TCP
+// on Windows, exactly as backupPostgreSQL already does.
 func (m *Manager) backupMariaDB(dest, engine string) error {
-	socket := filepath.Join(m.cfg.Data, engine+"-sock", "mysqld.sock")
-	if !fileExists(socket) {
-		return fmt.Errorf("database not running — start it first on the Database page (socket: %s)", socket)
-	}
 	dumpBin := m.findDumpBinary(engine)
 	if dumpBin == "" {
 		return fmt.Errorf("dump binary not found (mariadb-dump / mysqldump)")
 	}
 
-	dumpCmd := exec.Command(dumpBin, "--socket="+socket, "-u", database.DatabaseRootUser, "--all-databases")
+	var conn []string
+	if runtime.GOOS == "windows" {
+		port := database.EffectivePort(m.cfg, engine)
+		if !daemonPortOpen(port) {
+			return fmt.Errorf("database not running — start it first on the Database page (port %d)", port)
+		}
+		conn = []string{"-h", "127.0.0.1", "-P", strconv.Itoa(port)}
+	} else {
+		socket := filepath.Join(m.cfg.Data, engine+"-sock", "mysqld.sock")
+		if !fileExists(socket) {
+			return fmt.Errorf("database not running — start it first on the Database page (socket: %s)", socket)
+		}
+		conn = []string{"--socket=" + socket}
+	}
+
+	dumpCmd := exec.Command(dumpBin, append(conn, "-u", database.DatabaseRootUser, "--all-databases")...)
 	winproc.Quiet(dumpCmd)
 	dumpOut, err := dumpCmd.StdoutPipe()
 	if err != nil {
@@ -236,9 +255,14 @@ type BackupInfo struct {
 
 func (m *Manager) findDumpBinary(engine string) string {
 	binRoot := m.cfg.BinDir()
+	// extSuffix matters on Windows: the bundled tools are mariadb-dump.exe and
+	// mysqldump.exe, so the extensionless candidates never matched a perfectly
+	// healthy bundle and the caller reported "dump binary not found".
+	// backupPostgreSQL already appends the suffix.
+	suffix := extSuffix()
 	candidates := []string{
-		filepath.Join(binRoot, engine, "bin", "mariadb-dump"),
-		filepath.Join(binRoot, engine, "bin", "mysqldump"),
+		filepath.Join(binRoot, engine, "bin", "mariadb-dump"+suffix),
+		filepath.Join(binRoot, engine, "bin", "mysqldump"+suffix),
 	}
 	for _, c := range candidates {
 		if fileExists(c) {
@@ -252,6 +276,18 @@ func (m *Manager) findDumpBinary(engine string) string {
 		return p
 	}
 	return ""
+}
+
+// daemonPortOpen reports whether something is listening on the loopback port.
+// Windows has no socket file to stat, so this keeps the friendly "start it
+// first" message instead of surfacing a raw client connection error.
+func daemonPortOpen(port int) bool {
+	c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 func copyReader(r interface{ Read([]byte) (int, error) }, w interface{ Write([]byte) (int, error) }) (int64, error) {

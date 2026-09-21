@@ -105,10 +105,18 @@ func (m *Manager) Start(name string) error {
 		return err
 	}
 	for _, port := range spec.Ports {
-		if !portFree(port) {
-			err := fmt.Errorf("port %d busy — is another instance of %s running?", port, spec.Name)
-			m.setErr(name, err.Error())
-			return err
+		if err := bindProbe(port); err != nil {
+			// Distinguish "someone else is listening" from "the OS refused
+			// the bind" — see portconflict_windows.go. Reporting the first
+			// when the second is true sends the user after a phantom process.
+			var e error
+			if hint := foreignPortHint(port, err); hint != "" {
+				e = fmt.Errorf("port %d: %s", port, hint)
+			} else {
+				e = fmt.Errorf("port %d busy — is another instance of %s running?", port, spec.Name)
+			}
+			m.setErr(name, e.Error())
+			return e
 		}
 	}
 	dataDir := filepath.Join(m.cfg.Data, spec.DataSub)
@@ -262,14 +270,19 @@ func (m *Manager) SweepGhosts() {
 // cmdRunsBin reports whether a command line invokes one of the candidate
 // binary names (basename match, case-insensitive — covers Windows .exe
 // spelling and /path/to/mailpit alike).
+//
+// The executable field is extracted quote-aware. Windows quotes the image path
+// whenever it contains a space ("C:\Program Files\...\redis-server.exe"), and
+// splitting on the first space then produced a basename of `redis-server.exe"`
+// — trailing quote intact, so the ".exe" suffix strip missed and nothing
+// matched. A ghost from an earlier session was therefore never recognised,
+// never swept, and kept holding its port, which is exactly what makes the
+// service refuse to start with "port busy" until the user reboots.
 func cmdRunsBin(args string, binNames []string) bool {
 	if len(binNames) == 0 {
 		return false
 	}
-	// The executable is the first whitespace-delimited field. Match by
-	// basename so /home/.../bin/mailpit/mailpit matches "mailpit".
-	exe := strings.TrimSpace(strings.SplitN(args, " ", 2)[0])
-	base := filepath.Base(exe)
+	base := filepath.Base(firstCommandField(args))
 	// Strip a .exe suffix so "mailpit" matches the Windows candidate
 	// "mailpit.exe" even when the command line omits the extension.
 	base = strings.TrimSuffix(strings.ToLower(base), ".exe")
@@ -280,6 +293,29 @@ func cmdRunsBin(args string, binNames []string) bool {
 		}
 	}
 	return false
+}
+
+// firstCommandField returns the executable token of a command line, honouring
+// the quoting Windows uses for image paths containing spaces.
+func firstCommandField(args string) string {
+	s := strings.TrimLeft(args, " \t")
+	if s == "" {
+		return ""
+	}
+	if s[0] == '"' {
+		// The image path runs to the next quote. Unlike CRT argv parsing there
+		// is no \" escape to worry about: a double quote is not a legal
+		// character in a Windows filename, so a plain scan is exact here.
+		if i := strings.IndexByte(s[1:], '"'); i >= 0 {
+			return s[1 : 1+i]
+		}
+		return s[1:] // unterminated quote — best effort
+	}
+	// Unquoted: the image path ends at the first whitespace.
+	if i := strings.IndexAny(s, " \t"); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 // cmdMentionsPort reports whether any of the port tokens appears in the
@@ -488,12 +524,27 @@ func (m *Manager) All() []Status {
 var _ = runtime.GOOS // keep runtime imported for platform helpers below
 
 func portFree(port int) bool {
-	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	if err != nil {
-		return false
+	return bindProbe(port) == nil
+}
+
+// bindProbe reports whether a loopback listener can be opened on port,
+// retrying briefly when the failure is a transient Windows dynamic-range
+// collision (see portconflict_windows.go). Returns the last bind error.
+func bindProbe(port int) error {
+	var err error
+	for attempt := 0; ; attempt++ {
+		var l net.Listener
+		if l, err = net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port)); err == nil {
+			_ = l.Close()
+			return nil
+		}
+		if attempt >= 4 || !portConflictIsTransient(err) {
+			return err
+		}
+		// The port is held by a transient outbound connection, not a server;
+		// give it a moment to be released before declaring it unusable.
+		time.Sleep(400 * time.Millisecond)
 	}
-	_ = l.Close()
-	return true
 }
 
 // logTail returns the last non-empty lines of a log file as a compact

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 
@@ -269,10 +270,19 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	cfg.Database.Engine = dbEngine
 	cfg.Database.Path = filepath.Join(rootDir, "data", "sabdopalon.db")
 	cfg.Database.Port = 3306
-	// Per-engine port written explicitly: leaving it 0 forces every reader
+	// Per-engine ports written explicitly: leaving one 0 forces every reader
 	// through the EffectivePort fallback chain and used to surface as
 	// "Active port: 0" on the Database page.
 	cfg.Database.MariaDBPort = 3306
+	cfg.Database.PGPort = 5433
+	// Enable exactly what the user asked for. These are SAVED as explicit
+	// booleans, and an explicit false in engine.toml beats Load()'s default of
+	// true — so leaving them at the zero value switched off the very daemon the
+	// wizard had just downloaded: the user picked MariaDB, 95 MB arrived, the
+	// config said `mariadb_enabled = false`, and the database never started.
+	setupTools := normalizeTools(req)
+	cfg.Database.MariaDBEnabled = dbEngine == "mariadb" || req.InstallMariaDB
+	cfg.Database.PGEnabled = slices.Contains(setupTools, "postgresql")
 	cfg.Dashboard.Enabled = true
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = false
@@ -303,7 +313,7 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 			stack = append(stack, "mariadb", "phpmyadmin")
 		}
 	}
-	stack = append(stack, normalizeTools(req)...)
+	stack = append(stack, setupTools...)
 	if len(stack) == 0 {
 		write("✓ Core stack already installed (bundled) — no download needed.\n")
 	}

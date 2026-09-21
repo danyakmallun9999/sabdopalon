@@ -23,10 +23,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/database"
+	"github.com/sabdopalon/sabdopalon/internal/netutil"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
 	"github.com/sabdopalon/sabdopalon/internal/ssl"
@@ -82,12 +84,15 @@ type siteServer struct {
 	host string
 	name string // site folder name
 	dir  string // document root
-	port int    // 0 for static-only sites (no PHP process)
+	port int    // 0 for static-only sites (no PHP process); else the first port
+	// ports lists every `php -S` child this site runs — one on Unix, several
+	// on Windows. Empty for static-only sites.
+	ports []int
 	// handler is non-nil for static-only sites: Go serves the files itself,
 	// no php -S child, no router script, no reverse proxy.
 	handler   http.Handler
 	proxy     *httputil.ReverseProxy // nil for static-only sites
-	php       *managedPHP            // nil for static-only sites
+	php       []*managedPHP          // nil/empty for static-only sites
 	logFile   *os.File               // nil for static-only sites
 	framework Framework              // detected framework (cached, never re-scanned)
 	viteProxy *ViteProxy             // non-nil when Vite is running for this site
@@ -122,8 +127,10 @@ func (s *Server) Start() error {
 
 	errCh := make(chan error, 4)
 
+	// No Addr: the listeners are created by netutil so BOTH loopback families
+	// are covered. Windows resolves "*.localhost" to ::1 first, and a single
+	// 127.0.0.1 socket refuses it (see netutil.Listen).
 	srv := &http.Server{
-		Addr:        fmt.Sprintf("%s:%d", s.bindHost(), httpPort),
 		Handler:     s,
 		ReadTimeout: 60 * time.Second,
 		// No WriteTimeout: it used to be 60s, which cut off long DB-backed
@@ -143,7 +150,7 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		errCh <- srv.ListenAndServe()
+		errCh <- netutil.Serve(srv, httpPort, s.cfg.Proxy.LAN)
 	}()
 
 	select {
@@ -211,10 +218,8 @@ func (s *Server) listenHTTPS(errCh chan<- error, certPath, keyPath string) bool 
 	}
 	s.httpsPortActual = httpsPort
 
-	httpsAddr := fmt.Sprintf("%s:%d", s.bindHost(), httpsPort)
 	quietLog := log.New(&handshakeFilter{next: os.Stderr}, "", log.LstdFlags)
 	httpsSrv := &http.Server{
-		Addr:         httpsAddr,
 		Handler:      s,
 		ReadTimeout:  60 * time.Second,
 		WriteTimeout: 0, // same rationale as the HTTP listener
@@ -222,7 +227,7 @@ func (s *Server) listenHTTPS(errCh chan<- error, certPath, keyPath string) bool 
 	}
 	s.httpsSrv = httpsSrv
 	go func() {
-		errCh <- httpsSrv.ListenAndServeTLS(certPath, keyPath)
+		errCh <- netutil.ServeTLS(httpsSrv, httpsPort, s.cfg.Proxy.LAN, certPath, keyPath)
 	}()
 	return true
 }
@@ -545,11 +550,8 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		return ss, nil
 	}
 
-	port := s.portNext
-	for !isPortFree(port) || s.isReservedPort(port) {
-		port++
-	}
-	s.portNext = port + 1
+	ports := s.allocPorts(phpProcessCount())
+	port := ports[0]
 
 	if err := os.MkdirAll(s.cfg.Logs, 0o755); err != nil {
 		return nil, err
@@ -606,15 +608,26 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		}
 	}
 
-	php, err := startPHP(phpBin, port, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(name+"."+s.cfg.TLD))
-	if err != nil {
-		lf.Close()
-		return nil, err
+	phpProcs := make([]*managedPHP, 0, len(ports))
+	for _, p := range ports {
+		ph, err := startPHP(phpBin, p, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(name+"."+s.cfg.TLD))
+		if err != nil {
+			for _, started := range phpProcs {
+				_ = started.stop()
+			}
+			lf.Close()
+			return nil, err
+		}
+		phpProcs = append(phpProcs, ph)
 	}
-	if !waitForPort(port, 3*time.Second) {
-		lf.Close()
-		_ = php.stop()
-		return nil, fmt.Errorf("php did not start on :%d (see %s)", port, logPath)
+	for _, p := range ports {
+		if !waitForPort(p, 3*time.Second) {
+			for _, started := range phpProcs {
+				_ = started.stop()
+			}
+			lf.Close()
+			return nil, fmt.Errorf("php did not start on :%d (see %s)", p, logPath)
+		}
 	}
 
 	target := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", port)}
@@ -623,9 +636,18 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	// XHR partials) must reach the browser as they are produced instead of
 	// waiting for the internal buffer — part of the "page feels frozen" fix.
 	rp.FlushInterval = -1
+	// Round-robin across this site's PHP processes. The Director runs per
+	// request on many goroutines, hence the atomic counter. With a single
+	// process (every Unix build) this always selects ports[0], which is
+	// exactly the previous behaviour.
+	var rr atomic.Uint64
 	rp.Director = func(r *http.Request) {
+		p := ports[0]
+		if len(ports) > 1 {
+			p = ports[int(rr.Add(1)%uint64(len(ports)))]
+		}
 		r.URL.Scheme = target.Scheme
-		r.URL.Host = target.Host
+		r.URL.Host = fmt.Sprintf("127.0.0.1:%d", p)
 		r.Host = host
 	}
 
@@ -634,16 +656,37 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		name:      name,
 		dir:       docroot,
 		port:      port,
+		ports:     ports,
 		proxy:     rp,
-		php:       php,
+		php:       phpProcs,
 		logFile:   lf,
 		framework: framework,
 	}
 	s.sites[host] = ss
 	if s.Verbose {
-		fmt.Printf("  ▶  %s → php :%d  (%s)\n", host, port, docroot)
+		if len(ports) > 1 {
+			fmt.Printf("  ▶  %s → php :%d (+%d more, %d procs)  (%s)\n", host, ports[0], len(ports)-1, len(ports), docroot)
+		} else {
+			fmt.Printf("  ▶  %s → php :%d  (%s)\n", host, port, docroot)
+		}
 	}
 	return ss, nil
+}
+
+// allocPorts reserves n free, unreserved ports starting at portNext.
+// Callers hold s.mu.
+func (s *Server) allocPorts(n int) []int {
+	ports := make([]int, 0, n)
+	next := s.portNext
+	for len(ports) < n {
+		for !isPortFree(next) || s.isReservedPort(next) {
+			next++
+		}
+		ports = append(ports, next)
+		next++
+	}
+	s.portNext = next
+	return ports
 }
 
 // StartSite pre-warms (starts) the PHP server for a named site.
@@ -667,8 +710,8 @@ func (s *Server) StopSite(name string) bool {
 	s.mu.Lock()
 	ss, ok := s.sites[host]
 	if ok {
-		if ss.php != nil {
-			_ = ss.php.stop()
+		for _, p := range ss.php {
+			_ = p.stop()
 		}
 		if ss.logFile != nil {
 			_ = ss.logFile.Close()
@@ -773,8 +816,8 @@ func (s *Server) StopAll() int {
 	defer s.mu.Unlock()
 	n := 0
 	for host, ss := range s.sites {
-		if ss.php != nil {
-			_ = ss.php.stop()
+		for _, p := range ss.php {
+			_ = p.stop()
 		}
 		if ss.logFile != nil {
 			_ = ss.logFile.Close()
@@ -874,14 +917,10 @@ func discoverSites(cfg *config.Engine) ([]string, error) {
 	return vhost.Scan(cfg)
 }
 
-// bindHost — security default: sites answer on 127.0.0.1 only. LAN access
-// is an explicit opt-in ([proxy] lan = true) because PHP executes code.
-func (s *Server) bindHost() string {
-	if s.cfg.Proxy.LAN {
-		return ""
-	}
-	return "127.0.0.1"
-}
+// bindHost used to live here. The bind scope is now decided by netutil.Listen,
+// which answers the security question (loopback only unless [proxy] lan = true,
+// because PHP executes on these ports) and the Windows address-family question
+// in one place.
 
 func normalizeHost(h string) string {
 	if h, _, err := net.SplitHostPort(h); err == nil {

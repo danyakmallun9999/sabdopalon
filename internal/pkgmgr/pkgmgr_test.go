@@ -47,6 +47,58 @@ sha256_linux_x86_64 = "abc123"
 target = "mariadb"
 `
 
+// TestDownloadLeavesBundledSymlinkAlone: in desktop mode bin/<pkg> is a link
+// into the read-only bundled resources (the Tauri sidecar links
+// resources/core/* into bin/). `add <pkg>` must report it as already provided
+// rather than trying to replace it: os.Rename cannot replace a link on Windows
+// ("Access is denied"), and the failure-path cleanup must never delete through
+// the link and destroy the bundled stack.
+func TestDownloadLeavesBundledSymlinkAlone(t *testing.T) {
+	// A URL is present so the platform-source check passes; the guard must
+	// return before any download happens (no network access in this test).
+	m := testManager(t, `
+[bundled]
+version = "1.2.3"
+url = "https://example.test/bundled-{version}.tar.gz"
+target = "mariadb"
+`)
+
+	bundled := filepath.Join(t.TempDir(), "mariadb")
+	if err := os.MkdirAll(filepath.Join(bundled, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	canary := filepath.Join(bundled, "bin", "mariadbd.exe")
+	if err := os.WriteFile(canary, []byte("bundled"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	link := filepath.Join(m.binRoot, "mariadb")
+	// binRoot must exist first: on Windows CreateSymbolicLink reports a missing
+	// parent as ERROR_PRIVILEGE_NOT_HELD ("A required privilege is not held by
+	// the client") — the very confusion that hid the deploy bug.
+	if err := os.MkdirAll(m.binRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(bundled, link); err != nil {
+		t.Skipf("cannot create symlink in this environment: %v", err)
+	}
+
+	if err := m.Download("bundled"); err != nil {
+		t.Fatalf("Download over a bundled link: %v", err)
+	}
+	// Lstat, not Stat: the link must still BE a link.
+	fi, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("bundled link was removed: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink == 0 {
+		t.Error("bundled link was replaced by a real directory")
+	}
+	if _, err := os.Stat(canary); err != nil {
+		t.Errorf("bundled target was damaged: %v", err)
+	}
+}
+
 func TestExpandPlaceholders(t *testing.T) {
 	got := expandPlaceholders("https://x.test/p-{version}-{os}-{arch}-{goos}-{march}.tgz", "8.4.23")
 	for _, want := range []string{"8.4.23", runtime.GOOS} {

@@ -90,6 +90,49 @@ func TestPHPMyAdminRepairsPartialDeploy(t *testing.T) {
 	}
 }
 
+// TestPHPMyAdminFromLinkedSource reproduces the desktop-mode layout: the
+// bundled stack is exposed through a link (bin/phpmyadmin ->
+// resources/core/phpmyadmin), so the deploy source is a symlink, and the
+// destination's parent (sites/phpmyadmin) does not exist yet.
+//
+// This used to fail with "A required privilege is not held by the client":
+// copyTree saw the link, skipped the directory branch that would have created
+// the destination, and tried to recreate the link at a path whose parent was
+// missing — which Windows reports as a privilege error. The deployed docroot
+// must additionally be a REAL tree, never a link back into resources/.
+func TestPHPMyAdminFromLinkedSource(t *testing.T) {
+	cfg := testCfg(t)
+	realSrc := makeSrc(t, true)
+
+	linkDir := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(linkDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	linked := filepath.Join(linkDir, "phpmyadmin")
+	if err := os.Symlink(realSrc, linked); err != nil {
+		// Needs Developer Mode or SeCreateSymbolicLinkPrivilege on Windows.
+		t.Skipf("cannot create symlink in this environment: %v", err)
+	}
+
+	if err := PHPMyAdminFrom(linked, cfg); err != nil {
+		t.Fatalf("deploy from linked source: %v", err)
+	}
+
+	dest := filepath.Join(cfg.Root, "phpmyadmin", "public")
+	fi, err := os.Lstat(dest)
+	if err != nil {
+		t.Fatalf("stat deployed docroot: %v", err)
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		t.Error("deployed docroot is a symlink; the deploy must materialise real files")
+	}
+	for _, rel := range append(phpMyAdminCanaries, "config.inc.php") {
+		if _, err := os.Stat(filepath.Join(dest, rel)); err != nil {
+			t.Errorf("deployed tree missing %s: %v", rel, err)
+		}
+	}
+}
+
 // makeAdminerSrc stages a fake adminer-<v>.php file in a temp bin/adminer dir.
 func makeAdminerSrc(t *testing.T) string {
 	t.Helper()

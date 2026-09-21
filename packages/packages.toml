@@ -116,6 +116,22 @@ type = "tar.gz"
 type_windows = "zip"
 license = "PHP License"
 
+[php84]
+version = "8.4.11"
+version_windows = "8.4.11"
+url = "https://dl.static-php.dev/static-php-cli/bulk/php-{version}-cli-{os}-{arch}.tar.gz"
+url_windows = "https://dl.static-php.dev/static-php-cli/windows/spc-max/php-{version}-cli-win.zip"
+sha256_linux_x86_64 = "a4f4bc398479514e3d8d942182dd37f98d0cd695596dad656d5d823438e0258f"
+sha256_linux_aarch64 = "f55ec2d161a40fe29cdb0cd90c260857ae83de8779e3d68d2d581e770e487306"
+sha256_macos_aarch64 = "6e0e7bc2c4a4e735ebf29a7981c40dde1cbe3aeff84b86f28a3f283e0cee6146"
+sha256_macos_x86_64 = "cdd7a945b6e921beb81045eeb12faf5405e486127c07503796e74fd3d7b940cd"
+sha256_windows_x64 = "46d160c2a436e55099a43215c20805be52249b05df81985dd2e34317b220d19e"
+target = "php/{version_short}"
+strip_root = false
+type = "tar.gz"
+type_windows = "zip"
+license = "PHP License"
+
 [php85]
 version = "8.5.8"
 version_windows = "8.5.5"

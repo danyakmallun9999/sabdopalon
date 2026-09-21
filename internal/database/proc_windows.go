@@ -12,6 +12,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // createNoWindow is Windows' CREATE_NO_WINDOW (not exported by syscall).
@@ -52,7 +54,9 @@ func terminateExternal(p *os.Process) {
 
 // TaskKillTree force-terminates pid and every descendant.
 func TaskKillTree(pid int) error {
-	return exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
+	cmd := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
+	winproc.Quiet(cmd) // no console flash from the windowsgui sidecar
+	return cmd.Run()
 }
 
 // processAlive reports whether a pid has a live process behind it. Plain
@@ -72,7 +76,9 @@ func processAlive(pid int) bool {
 // processMatches checks that pid runs wantBinary (tasklist CSV output),
 // guarding against adopting a recycled PID.
 func processMatches(pid int, wantBinary string) bool {
-	out, err := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH", "/FO", "CSV").Output()
+	cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH", "/FO", "CSV")
+	winproc.Quiet(cmd) // no console flash from the windowsgui sidecar
+	out, err := cmd.Output()
 	if err != nil {
 		return false
 	}

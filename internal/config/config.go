@@ -129,7 +129,15 @@ func (e *Engine) Save() error {
 			return def
 		}
 		if r, err := filepath.Rel(e.RootDir, p); err == nil && !strings.HasPrefix(r, "..") {
-			return "./" + r
+			// ToSlash, not the native separator: this value goes inside a TOML
+			// basic string, where a backslash begins an escape sequence. On
+			// Windows filepath.Rel returns "./data\nested", and \n is a
+			// newline — the path was silently rewritten as "./data" + LF +
+			// "ested". (\s, as in the wizard's "./data\sabdopalon.db", is not
+			// an escape at all and makes the file invalid TOML.) Forward
+			// slashes are accepted by every OS; resolve() joins them back
+			// through filepath.Join, which normalises on Windows.
+			return "./" + filepath.ToSlash(r)
 		}
 		return p
 	}

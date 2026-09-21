@@ -278,8 +278,15 @@ func (m *Manager) Stop(engine string) error {
 		return nil
 	}
 	if p.cmd.Process != nil {
-		killProcessGroup(p.cmd.Process)
-		signalTerm(p.cmd.Process)
+		// Ask for a clean shutdown first. On Unix gracefulStop is a no-op and
+		// signalTerm delivers SIGTERM to the daemon's process group; on
+		// Windows signalTerm is TerminateProcess, so without this every stop
+		// would deny the engine a chance to flush and force crash recovery on
+		// the next start. Escalation below is unchanged either way.
+		if !gracefulStop(m.cfg, engine, EffectivePort(m.cfg, engine)) {
+			killProcessGroup(p.cmd.Process)
+			signalTerm(p.cmd.Process)
+		}
 	}
 	select {
 	case <-p.done:

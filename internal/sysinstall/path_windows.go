@@ -30,6 +30,7 @@ var (
 // it already contained dir. No admin rights required — HKCU is per-user.
 func addToUserPathPersistent(dir string) (bool, error) {
 	dir = filepath.Clean(dir)
+	migrateLegacyBinDir(dir)
 
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.SET_VALUE|registry.QUERY_VALUE|registry.READ)
 	if err != nil {
@@ -68,6 +69,102 @@ func addToUserPathPersistent(dir string) (bool, error) {
 	// change without a logoff. Already-open processes keep their old PATH.
 	broadcastSettingChange()
 	return true, nil
+}
+
+// EnsureUserPath puts dir on the persistent user PATH (HKCU) if it is not
+// already there. Errors are deliberately swallowed at this level: this runs on
+// every app start as a repair, and a locked-down registry must never stop the
+// app from launching. Use addToUserPathPersistent directly when the caller
+// wants to report the outcome (the sys-install flow does).
+func EnsureUserPath(dir string) {
+	if dir == "" {
+		return
+	}
+	_, _ = addToUserPathPersistent(dir)
+}
+
+// legacyBinDirs lists the per-user bin locations earlier versions put tools
+// into. Their PATH entries have to go once the merged layout is in use, or the
+// user PATH keeps a dead entry pointing at a folder that no longer receives
+// anything.
+func legacyBinDirs() []string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return nil
+	}
+	return []string{filepath.Join(home, "sabdopalon-bin")}
+}
+
+// migrateLegacyBinDir folds a pre-merge <home>\sabdopalon-bin into dir, then
+// removes the old PATH entry.
+//
+// Tools installed by an older build (composer.bat, npm.cmd, …) live in that
+// folder, so abandoning it would silently drop them from PATH. Files are
+// MOVED and never overwritten; the old folder is deleted only if it ends up
+// empty, so anything unrecognised stays exactly where it was.
+func migrateLegacyBinDir(dir string) {
+	for _, old := range legacyBinDirs() {
+		if strings.EqualFold(filepath.Clean(old), dir) {
+			continue
+		}
+		st, err := os.Stat(old)
+		if err != nil || !st.IsDir() {
+			continue
+		}
+		if err := os.MkdirAll(dir, 0o755); err == nil {
+			if entries, err := os.ReadDir(old); err == nil {
+				for _, e := range entries {
+					src := filepath.Join(old, e.Name())
+					dst := filepath.Join(dir, e.Name())
+					if _, err := os.Lstat(dst); err == nil {
+						continue // never clobber what the new layout already has
+					}
+					_ = os.Rename(src, dst)
+				}
+			}
+			if rest, err := os.ReadDir(old); err == nil && len(rest) == 0 {
+				_ = os.Remove(old)
+			}
+		}
+		removeFromUserPath(old)
+	}
+}
+
+// removeFromUserPath drops dir from the persistent user PATH (HKCU). Returns
+// true when the PATH was actually changed.
+func removeFromUserPath(dir string) bool {
+	dir = filepath.Clean(dir)
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`,
+		registry.SET_VALUE|registry.QUERY_VALUE|registry.READ)
+	if err != nil {
+		return false
+	}
+	defer k.Close()
+
+	cur, _, err := k.GetStringValue("Path")
+	if err != nil {
+		return false
+	}
+	kept := make([]string, 0, 8)
+	removed := false
+	for _, p := range strings.Split(cur, string(os.PathListSeparator)) {
+		if p != "" && strings.EqualFold(filepath.Clean(p), dir) {
+			removed = true
+			continue
+		}
+		kept = append(kept, p)
+	}
+	if !removed {
+		return false
+	}
+	newVal := strings.Join(kept, string(os.PathListSeparator))
+	if err := k.SetExpandStringValue("Path", newVal); err != nil {
+		if err := k.SetStringValue("Path", newVal); err != nil {
+			return false
+		}
+	}
+	broadcastSettingChange()
+	return true
 }
 
 // userPathContains reports whether dir is in the persistent user PATH (HKCU).

@@ -1,5 +1,5 @@
 // Sidecar management: locate the bundled Go binary, launch it with
-// SABDOPALON_DIR pointing at the user-facing install root (~/Sabdopalon),
+// SABDOPALON_DIR pointing at the user-facing install root (~/sabdopalon),
 // wait for the dashboard HTTP endpoint, then point the window at it.
 use std::io::Write;
 use std::path::PathBuf;
@@ -16,20 +16,36 @@ static SIDECAR: Mutex<Option<Child>> = Mutex::new(None);
 // watcher) — the self-heal monitor must not "revive" the sidecar then.
 static STOPPING: AtomicBool = AtomicBool::new(false);
 static AUTO_RESTARTS: AtomicU32 = AtomicU32::new(0);
+// Per-run token passed to the sidecar so stop() can reach its HTTP shutdown
+// endpoint. See shutdown_token().
+static SHUTDOWN_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
 /// The install root where the sidecar keeps engine.toml, sites/, data/…
 ///
-/// Friendly, user-visible location: `<home>/Sabdopalon` — Linux
-/// `/home/<user>/Sabdopalon`, Windows `C:\Users\<user>\Sabdopalon`.
+/// Friendly, user-visible location: `<home>/sabdopalon` — Linux
+/// `/home/<user>/sabdopalon`, Windows `C:\Users\<user>\sabdopalon`.
 /// Herd-style: the app itself is installed read-only elsewhere; only this
-/// folder holds user data.
+/// folder holds user data. Lower-case to match the sibling conventions users
+/// already know (`C:\laragon`, `C:\xampp`).
 ///
-/// Back-compat: installs created before the friendly default lived under the
-/// OS app-data dir (`~/.local/share/com.sabdopalon.app` and friends). When
-/// that legacy dir is bootstrapped (engine.toml present) and the friendly
-/// one is not yet, keep using it — an upgrade must never strand user data.
+/// On Windows the casing is cosmetic: NTFS is case-insensitive, so an install
+/// created as `Sabdopalon` resolves through the same path and nothing has to
+/// move — only freshly created folders show the new spelling.
+///
+/// Back-compat, and it matters on the case-SENSITIVE filesystems (Linux,
+/// macOS): installs from before this rename live in `<home>/Sabdopalon`, and
+/// on those systems the new path genuinely does not exist. When the old folder
+/// is bootstrapped and the new one is not, keep using it — an upgrade must
+/// never strand a user's sites. The same rule protects the pre-friendly
+/// default under the OS app-data dir (`~/.local/share/com.sabdopalon.app`).
 pub fn data_dir(app: &AppHandle) -> PathBuf {
-    let friendly = home_dir().join("Sabdopalon");
+    let friendly = home_dir().join("sabdopalon");
+    let old_name = home_dir().join("Sabdopalon");
+    if old_name.join("config").join("engine.toml").is_file()
+        && !friendly.join("config").join("engine.toml").is_file()
+    {
+        return old_name;
+    }
     if let Ok(legacy) = app.path().app_data_dir() {
         if legacy.join("config").join("engine.toml").is_file()
             && !friendly.join("config").join("engine.toml").is_file()
@@ -294,6 +310,11 @@ pub fn start(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // native window IS the dashboard).
     cmd.env("SABDOPALON_DIR", &dir)
         .env("SABDOPALON_BIN_DIR", &bin_dir)
+        // Enables POST /api/shutdown for this run only. The sidecar is a
+        // console-less windowsgui process on Windows, so there is no Ctrl+C
+        // to send it — this endpoint is how stop() reaches the Go graceful
+        // shutdown path (clean MariaDB/PostgreSQL stop, services, dev tools).
+        .env("SABDOPALON_SHUTDOWN_TOKEN", shutdown_token())
         .arg("--no-open");
     if let Some(archive) = core_archive {
         cmd.env("SABDOPALON_CORE_ARCHIVE", archive);
@@ -521,12 +542,15 @@ fn copy_dir_recursive(src: &PathBuf, dst: &PathBuf) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Stop the sidecar GRACEFULLY. The Go side handles SIGTERM by running its
-/// full shutdown path (stops sites, databases and services — those live in
-/// their own process groups and would be ORPHANED by a hard kill: MariaDB
-/// kept running after Quit). So: SIGTERM first, wait bounded, SIGKILL as
-/// the last resort. Windows has no signals — taskkill /T takes the whole
-/// process tree down instead.
+/// Stop the sidecar GRACEFULLY. The Go side runs its full shutdown path on
+/// SIGTERM (stops sites, databases and services — those live in their own
+/// process groups and would be ORPHANED by a hard kill: MariaDB kept running
+/// after Quit). So: ask it to stop, wait bounded, kill as the last resort.
+///
+/// Windows has no signal for a console-less (-H windowsgui) process, so the
+/// request goes over its own HTTP API instead. taskkill /T /F used to be the
+/// first and only step there, which skipped the graceful path entirely and
+/// forced MariaDB/PostgreSQL crash recovery on every Quit.
 pub fn stop() {
     STOPPING.store(true, Ordering::SeqCst);
     let mut guard = SIDECAR.lock().unwrap();
@@ -536,17 +560,22 @@ pub fn stop() {
             let _ = std::process::Command::new("kill")
                 .arg(child.id().to_string())
                 .status();
-            // The Go shutdown path stops sites, then every database daemon
-            // (up to ~5s each), then services — its own internal budgets add
-            // up well past 10s, and SIGKILL-ing mid-shutdown is exactly how
-            // orphaned daemons happen. Give it a full 30s before escalating.
-            for _ in 0..120 {
-                match child.try_wait() {
-                    Ok(Some(_)) => return, // graceful exit confirmed
-                    _ => std::thread::sleep(Duration::from_millis(250)),
-                }
+        }
+        #[cfg(windows)]
+        {
+            let _ = request_shutdown("127.0.0.1", 9900);
+        }
+        // The Go shutdown path stops sites, then every database daemon (up to
+        // ~5s each), then services — its own internal budgets add up well past
+        // 10s, and killing mid-shutdown is exactly how orphaned daemons
+        // happen. Give it a full 30s before escalating.
+        for _ in 0..120 {
+            match child.try_wait() {
+                Ok(Some(_)) => return, // graceful exit confirmed
+                _ => std::thread::sleep(Duration::from_millis(250)),
             }
         }
+        // Last resort: take the whole tree so no daemon is left behind.
         #[cfg(windows)]
         {
             let _ = std::process::Command::new("taskkill")
@@ -556,6 +585,48 @@ pub fn stop() {
         let _ = child.kill();
         let _ = child.wait();
     }
+}
+
+/// Per-run secret that unlocks POST /api/shutdown.
+///
+/// Not a cryptographic secret and not meant to be: the port is loopback-only
+/// and the custom request header already forces a CORS preflight that a web
+/// page cannot satisfy. This just makes the endpoint unmistakably ours, so a
+/// stale or unrelated process on :9900 can never be stopped by accident.
+fn shutdown_token() -> &'static str {
+    SHUTDOWN_TOKEN.get_or_init(|| {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        format!("{:x}{:x}", nanos, std::process::id())
+    })
+}
+
+/// Ask the sidecar to shut itself down through its own API. Returns true when
+/// it accepted (any HTTP response), false when it could not be reached — in
+/// which case stop() falls through to the hard kill.
+fn request_shutdown(host: &str, port: u16) -> bool {
+    use std::io::{Read, Write};
+    let addr: std::net::SocketAddr = format!("{host}:{port}")
+        .parse()
+        .unwrap_or(([127, 0, 0, 1], port).into());
+    let mut stream = match std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(2)) {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+    let req = format!(
+        "POST /api/shutdown HTTP/1.1\r\nHost: {host}:{port}\r\n\
+         X-Sabdopalon-Token: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        shutdown_token()
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 64];
+    matches!(stream.read(&mut buf), Ok(n) if n > 0 && buf.starts_with(b"HTTP/"))
 }
 
 /// Poll 127.0.0.1:9900 until the dashboard answers an HTTP request, then

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
@@ -233,6 +234,31 @@ Sites are served at http://<name>.` + a.Cfg.TLD + ` — no Apache/Nginx needed.
 	return 0
 }
 
+// prepareBinDir makes the whole stack reachable through the ONE PATH entry
+// that points at the install's bin/ folder — the `C:\laragon`-style layout the
+// product presents to users.
+//
+// bin/ is where the CLI copy, PHP, MariaDB's clients and the services live, but
+// PHP and the DB clients sit in sub-folders, so a bare bin/ entry would expose
+// only whatever happens to be at the top level. EnsureShims writes the one-line
+// launchers that lift them to the top; EnsureUserPath wires bin/ into the
+// persistent user PATH.
+//
+// Called from BOTH serve paths, including setup mode: the very first launch is
+// when a user goes looking for the folder, and it should already look right
+// rather than appearing only after a restart. Both calls are idempotent and
+// failures are non-fatal — a locked-down registry must never stop the app.
+func prepareBinDir(cfg *config.Engine) {
+	if cfg == nil {
+		return
+	}
+	binDir := cfg.BinDir()
+	if err := sysinstall.EnsureShims(binDir); err != nil {
+		fmt.Fprintf(os.Stderr, "  \u26a0 shims: %v\n", err)
+	}
+	sysinstall.EnsureUserPath(binDir)
+}
+
 // serve is the main command: starts the DB (if needed), optional services,
 // the multiplexing proxy and the dashboard, then blocks until Ctrl+C.
 // Console output is intentionally minimal — everything else lives in the
@@ -275,6 +301,7 @@ func (a *App) serve() int {
 		fmt.Fprintf(os.Stderr, "⚠ core archive: %v\n", err)
 	}
 	_ = os.MkdirAll(a.Cfg.Root, 0o755)
+	prepareBinDir(a.Cfg)
 	// Full-bundle installs ship phpMyAdmin in bin/ — deploy it as a site.
 	if err := bootstrap.DeployBundled(a.Cfg); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ bundled deploy: %v\n", err)
@@ -381,24 +408,52 @@ func (a *App) serve() int {
 	// down whatever daemons have already started instead of leaving them
 	// orphaned. srv.Stop() (not StopAll()) also closes the HTTPS listener and
 	// its watcher so no socket is left dangling for the next start to trip on.
+	//
+	// shutdown is the full graceful stop, shared by Ctrl+C / SIGTERM, the
+	// desktop shell's POST /api/shutdown, and the normal return path of Run()
+	// below. The bundled sidecar is a console-less windowsgui process, so
+	// Windows cannot deliver it a signal at all; without that second entry
+	// point the Tauri shell had to taskkill the whole tree.
+	//
+	// The sync.Once is load-bearing, not defensive. srv.Stop() closes stopCh,
+	// which immediately unblocks srv.Start() at the end of Run() — and Run()
+	// returning means main calls os.Exit. That exit used to race the rest of
+	// this sequence and, being microseconds away against seconds of daemon
+	// shutdown, it almost always won: services and database daemons were left
+	// RUNNING after every quit, still holding their ports. Whichever entry
+	// point arrives first now performs the stop while the others block here
+	// until it has finished, so Run() can no longer return early.
+	var shutdownOnce sync.Once
+	shutdown := func() {
+		shutdownOnce.Do(func() {
+			fmt.Println("\n\nStopping Sabdopalon...")
+			n := srv.Stop()
+			dtMgr.StopAll()
+			// Stop services BEFORE database daemons: services (mailpit, redis…)
+			// die fast on SIGTERM, while each DB daemon's shutdown can take up
+			// to ~5s. The Rust sidecar waits 30s before SIGKILL; if services are
+			// stopped last, a slow DB shutdown can exhaust that budget and the
+			// SIGKILL lands before svcMgr.StopAll() runs — orphaning mailpit on
+			// its ports. Stopping services first guarantees they are reaped.
+			if svcMgr != nil {
+				svcMgr.StopAll()
+			}
+			dbMgr.StopAll()
+			fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
+		})
+	}
+	// Registered before the dashboard starts so the shell's very first
+	// shutdown request is already answered.
+	dashboard.SetShutdown(func() {
+		shutdown()
+		os.Exit(0)
+	})
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		fmt.Println("\n\nStopping Sabdopalon...")
-		n := srv.Stop()
-		dtMgr.StopAll()
-		// Stop services BEFORE database daemons: services (mailpit, redis…)
-		// die fast on SIGTERM, while each DB daemon's shutdown can take up
-		// to ~5s. The Rust sidecar waits 30s before SIGKILL; if services are
-		// stopped last, a slow DB shutdown can exhaust that budget and the
-		// SIGKILL lands before svcMgr.StopAll() runs — orphaning mailpit on
-		// its ports. Stopping services first guarantees they are reaped.
-		if svcMgr != nil {
-			svcMgr.StopAll()
-		}
-		dbMgr.StopAll()
-		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
+		shutdown()
 		os.Exit(0)
 	}()
 
@@ -442,8 +497,14 @@ func (a *App) serve() int {
 
 	if err := srv.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ proxy error: %v\n", err)
+		shutdown()
 		return 1
 	}
+	// srv.Start() returns the moment Stop() closes stopCh — i.e. in the middle
+	// of a shutdown another entry point started. Join it here (shutdown is
+	// idempotent and blocks until the first caller finishes) so Run() never
+	// returns, and the process never exits, while daemons are still stopping.
+	shutdown()
 	return 0
 }
 

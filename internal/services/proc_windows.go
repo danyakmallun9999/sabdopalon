@@ -11,6 +11,8 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/windows"
+
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // createNoWindow is Windows' CREATE_NO_WINDOW (not exported by syscall).
@@ -35,7 +37,9 @@ func signalTerm(p *os.Process) {
 // to (its Go parent already died). taskkill /T also takes child processes,
 // which a bare Process.Kill can miss. Indirect (var) so tests can stub it.
 var killProcessTree = func(pid int) {
-	_ = exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid)).Run()
+	cmd := exec.Command("taskkill", "/T", "/F", "/PID", strconv.Itoa(pid))
+	winproc.Quiet(cmd) // no console flash from the windowsgui sidecar
+	_ = cmd.Run()
 }
 
 // processAlive reports whether a pid has a live process behind it. Plain

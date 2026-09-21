@@ -390,10 +390,35 @@ func (m *Manager) Download(name string) error {
 		case staleBackup != "" && replacedOld:
 			_ = os.RemoveAll(staleBackup)
 		case staleBackup != "":
-			_ = os.RemoveAll(fullTarget)
+			// Restore the previous install — but never delete through a link
+			// into the read-only bundled resources.
+			if !isSymlink(fullTarget) {
+				_ = os.RemoveAll(fullTarget)
+			}
 			_ = os.Rename(staleBackup, fullTarget)
 		}
 	}()
+
+	// A symlinked entry is provided by the desktop bundle (the Tauri sidecar
+	// links resources/core/* into bin/), not installed by pkgmgr. Its target
+	// lives in the app's read-only resource directory, so pkgmgr must never
+	// replace or delete through it:
+	//   - os.Rename cannot replace a link on Windows ("Access is denied"),
+	//     which is how `add <pkg>` used to fail on every desktop install;
+	//   - a delete that followed the link would destroy the bundled stack.
+	if isSymlink(fullTarget) {
+		if dirExists(fullTarget) {
+			m.printf("  •  %s is provided by the bundled stack at %s — leaving it in place\n", name, fullTarget)
+			return nil
+		}
+		// Dangling: the bundled resource is gone. Drop the broken LINK only —
+		// os.RemoveAll on a symlink removes the link, never its target.
+		m.printf("  ⚠  %s is a broken link into the bundled stack — installing a real copy\n", name)
+		if err := os.RemoveAll(fullTarget); err != nil {
+			return fmt.Errorf("remove broken link %s: %w", fullTarget, err)
+		}
+	}
+
 	if dirExists(fullTarget) {
 		if targetHasMarker(fullTarget) || m.targetVerified(&p, fullTarget) {
 			m.printf("  •  %s already installed at %s\n", name, fullTarget)
@@ -1086,6 +1111,14 @@ func getBool(kv map[string]toml.Value, key string) bool {
 func dirExists(p string) bool {
 	st, err := os.Stat(p)
 	return err == nil && st.IsDir()
+}
+
+// isSymlink reports whether p is a symbolic link — including a Windows
+// reparse point such as a junction — regardless of whether its target exists.
+// It uses Lstat, so a dangling link is still detected.
+func isSymlink(p string) bool {
+	st, err := os.Lstat(p)
+	return err == nil && st.Mode()&os.ModeSymlink != 0
 }
 
 // fileExistsIn reports whether rel (a slash-separated path relative to dir)

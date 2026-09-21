@@ -27,6 +27,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/config"
 	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/devtools"
+	"github.com/sabdopalon/sabdopalon/internal/netutil"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
 )
@@ -63,14 +64,23 @@ func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services
 }
 
 // Start launches the dashboard. Blocks.
+//
+// It binds BOTH loopback families. "localhost" — which is exactly how the
+// desktop shell and the startup banner address the dashboard — resolves to ::1
+// before 127.0.0.1 on Windows, so an IPv4-only listener refuses the first
+// attempt and the page has to fall back to IPv4 to load at all.
 func (s *Server) Start() error {
-	addr := fmt.Sprintf("127.0.0.1:%d", s.cfg.Dashboard.Port)
-	return http.ListenAndServe(addr, s.mux)
+	return netutil.Serve(&http.Server{Handler: s.mux}, s.cfg.Dashboard.Port, false)
 }
 
 func (s *Server) routes() {
 	// JSON API (used by the React SPA and handy for scripting).
 	s.mux.HandleFunc("/api/status", s.handleAPIStatus)
+
+	// Graceful remote stop, used by the desktop shell — the bundled sidecar is
+	// a console-less windowsgui process, so Windows has no Ctrl+C to send it.
+	// Inert unless the shell supplied a token (see handlers_shutdown.go).
+	s.mux.HandleFunc("/api/shutdown", s.handleAPIShutdown)
 
 	// API: sites
 	s.mux.HandleFunc("/api/sites", s.handleAPISites)

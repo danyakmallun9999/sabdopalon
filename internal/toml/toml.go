@@ -30,6 +30,15 @@ func Decode(r io.Reader) (Table, error) {
 	for scanner.Scan() {
 		lineNo++
 		raw := scanner.Text()
+		if lineNo == 1 {
+			// Strip a UTF-8 BOM. Notepad (and most Windows editors) prepend
+			// one by default when saving as "UTF-8", and U+FEFF is not
+			// whitespace — it survives TrimSpace, so the first table header
+			// parses as "\ufeff[sabdopalon]" and the whole file fails with
+			// "missing '=' in ...". A hand-edited engine.toml must not be
+			// able to brick startup.
+			raw = strings.TrimPrefix(raw, "\uFEFF")
+		}
 		line := stripComment(raw)
 		line = strings.TrimSpace(line)
 		if line == "" {

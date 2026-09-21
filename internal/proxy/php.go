@@ -85,7 +85,10 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 		// php -S is single-threaded by default: one slow/DB-bound request
 		// blocks every other request (framework session file locks make this
 		// visible as pages that "freeze" until another route is hit). Workers
-		// (PHP 7.4+) let the app answer concurrently.
+		// (PHP 7.4+) let the app answer concurrently — but ONLY on Unix, where
+		// PHP forks real worker processes. Windows ignores this variable, so
+		// there phpProcessCount() runs several children instead; see it for
+		// the measurement.
 		fmt.Sprintf("PHP_CLI_SERVER_WORKERS=%d", phpCliServerWorkers()),
 	)
 	// Per-site php.ini override takes priority; otherwise use the global one.
@@ -122,6 +125,26 @@ func phpCliServerWorkers() int {
 		return n
 	}
 	return 4
+}
+
+// phpProcessCount is how many `php -S` children one site runs.
+//
+// Unix: 1. The single child forks PHP_CLI_SERVER_WORKERS workers internally,
+// so it already answers requests concurrently.
+//
+// Windows: phpCliServerWorkers(). php -S ignores PHP_CLI_SERVER_WORKERS there
+// — PHP documents the variable as unsupported on Windows, and measurement
+// agrees (two concurrent requests to a script that sleeps 3s take ~6s with
+// the variable set to 4, i.e. fully serialised). One child therefore means
+// one request at a time: any page that triggers a sub-request — an XHR, a
+// Vite asset, a second tab — waits for the previous one and the app looks
+// frozen. Running several children behind the proxy restores the concurrency
+// Unix gets for free.
+func phpProcessCount() int {
+	if runtime.GOOS != "windows" {
+		return 1
+	}
+	return phpCliServerWorkers()
 }
 
 // stop terminates the PHP process group.

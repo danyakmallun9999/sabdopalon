@@ -14,6 +14,16 @@ import (
 	"strings"
 )
 
+// EnsureUserPath is the Unix counterpart of the Windows helper.
+//
+// Deliberately a no-op. On Windows the equivalent writes one registry value and
+// broadcasts a settings change; on Linux/macOS it would mean editing the
+// user's shell rc file on every app start, which is too invasive for something
+// that runs at launch. The Unix flow stays explicit: the sys-install path
+// offers the rc edit once, when a tool is actually installed (ensurePath), and
+// the integrated terminal already puts <root>/bin on PATH for its child shell.
+func EnsureUserPath(dir string) {}
+
 // addToUserPathPersistent appends dir to the user's shell rc file if it is not
 // already present. Returns true when the rc file was changed, false when the
 // guard line already existed. On Linux/macOS we target the detected login

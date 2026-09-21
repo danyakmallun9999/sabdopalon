@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
@@ -213,6 +214,11 @@ func (a *App) serveSetupMode() int {
 	cfg.Dashboard.Port = 9900
 	cfg.Dashboard.AutoOpen = false
 
+	// First launch is exactly when the user goes looking for the install
+	// folder, so bin/ and its single PATH entry are prepared here too rather
+	// than only after the wizard finishes and the app restarts.
+	prepareBinDir(cfg)
+
 	dashboard.Version = Version
 	dashURL := fmt.Sprintf("http://localhost:%d", cfg.Dashboard.Port)
 
@@ -220,18 +226,32 @@ func (a *App) serveSetupMode() int {
 	bk := backup.New(cfg, 5)
 	dash := dashboard.New(cfg, srv, bk, nil, nil, nil)
 
-	// Serve until SIGINT/SIGTERM; the desktop app quits the sidecar the same
-	// way a Ctrl+C would. Cleanup mirrors the full server's shutdown path:
-	// a bare os.Exit would skip whatever children a later wiring change
-	// puts under this process (that class of bug is exactly how orphaned
-	// daemons happen). srv.Stop() also closes the HTTPS listener/watcher.
+	// Serve until SIGINT/SIGTERM, or until the desktop shell asks us to stop
+	// over HTTP — the sidecar is a console-less windowsgui process on Windows,
+	// so no signal can be delivered to it there. Cleanup mirrors the full
+	// server's shutdown path: a bare os.Exit would skip whatever children a
+	// later wiring change puts under this process (that class of bug is
+	// exactly how orphaned daemons happen). srv.Stop() also closes the HTTPS
+	// listener/watcher. sync.Once because both entry points can now fire
+	// together, and a second srv.Stop() would close a closed channel.
+	var shutdownOnce sync.Once
+	shutdown := func() {
+		shutdownOnce.Do(func() {
+			fmt.Println("\nStopping Sabdopalon (setup mode)...")
+			n := srv.Stop()
+			fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
+		})
+	}
+	dashboard.SetShutdown(func() {
+		shutdown()
+		os.Exit(0)
+	})
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
-		fmt.Println("\nStopping Sabdopalon (setup mode)...")
-		n := srv.Stop()
-		fmt.Printf("Stopped %d site(s). Goodbye!\n", n)
+		shutdown()
 		os.Exit(0)
 	}()
 

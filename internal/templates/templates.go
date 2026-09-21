@@ -116,13 +116,25 @@ declare(strict_types=1);
 $site   = '{{NAME}}';
 $phpVer = PHP_VERSION;
 
-// --- database probe (bundled MariaDB: root@127.0.0.1, no password) --------
-$db = ['ok' => false, 'ver' => '', 'label' => 'MariaDB'];
+// --- database probe ------------------------------------------------------
+// Connection details come from the env the proxy injects for every site.
+// Hardcoding 3306 here made a perfectly healthy install look broken on any
+// machine where MariaDB runs on another port — 3306 is inside the Windows
+// dynamic port range (1024+) and can be reserved by Hyper-V/WSL or already
+// held by another server, so it is a port users genuinely have to change.
+$dbHost = getenv('SABDOPALON_MARIADB_HOST') ?: '127.0.0.1';
+$dbPort = getenv('SABDOPALON_MARIADB_PORT') ?: '3306';
+$dbUser = getenv('SABDOPALON_MARIADB_USER') ?: 'root';
+$dbPass = getenv('SABDOPALON_MARIADB_PASSWORD');
+if ($dbPass === false) { $dbPass = ''; }
+$dbAddr = $dbHost . ':' . $dbPort;
+
+$db = ['ok' => false, 'ver' => '', 'label' => 'MariaDB', 'addr' => $dbAddr];
 try {
     $pdo = new PDO(
-        'mysql:host=127.0.0.1;port=3306;charset=utf8mb4',
-        'root',
-        '',
+        'mysql:host=' . $dbHost . ';port=' . $dbPort . ';charset=utf8mb4',
+        $dbUser,
+        $dbPass,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 2]
     );
     $db['ok']  = true;
@@ -681,12 +693,12 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
             <div class="mock-head">
               <span class="mock-title">&#128452;&#65039; <?= htmlspecialchars($db['label']) ?></span>
               <?php if ($db['ok']): ?>
-                <span class="mock-pill status-ok">● 127.0.0.1:3306</span>
+                <span class="mock-pill status-ok">● <?= htmlspecialchars($db['addr']) ?></span>
               <?php else: ?>
                 <span class="mock-pill status-warn">○ Not Connected</span>
               <?php endif; ?>
             </div>
-            <p class="mock-sub">MySQL/MariaDB database connection as user <code>root</code>.</p>
+            <p class="mock-sub">MySQL/MariaDB connection to <code><?= htmlspecialchars($dbAddr) ?></code> as user <code><?= htmlspecialchars($dbUser) ?></code>.</p>
             <div class="mock-code"><?= $db['ok'] ? 'server: ' . htmlspecialchars($db['ver']) : 'status: offline' ?></div>
           </div>
 
@@ -771,7 +783,12 @@ func setupWordPress(sitesDir, name string) error {
 		"define('DB_NAME', 'sabdopalon');\n" +
 		"define('DB_USER', '" + database.DatabaseRootUser + "');\n" +
 		"define('DB_PASSWORD', '" + database.DatabaseRootPassword + "');\n" +
-		"define('DB_HOST', '127.0.0.1:3306');\n" +
+		// host:port read from the env the proxy injects for every site, so a
+		// non-default MariaDB port keeps working. Hardcoding "127.0.0.1:3306"
+		// broke WordPress on any machine that had to move the port — 3306 sits
+		// inside the Windows dynamic port range (1024+) and can be reserved by
+		// Hyper-V/WSL or already held by another server.
+		"define('DB_HOST', (getenv('SABDOPALON_MARIADB_HOST') ?: '127.0.0.1') . ':' . (getenv('SABDOPALON_MARIADB_PORT') ?: '3306'));\n" +
 		"define('DB_CHARSET', 'utf8mb4');\n" +
 		"define('DB_COLLATE', '');\n\n" +
 		"$table_prefix = 'wp_';\n\n" +
