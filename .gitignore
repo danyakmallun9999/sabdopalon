@@ -2,6 +2,7 @@
 /sabdopalon
 config/php.ini
 /sabdopalon.exe
+*.zip
 *.exe
 *.dll
 *.so
@@ -66,3 +67,5 @@ desktop.ini
 
 # Deployed phpMyAdmin (copied from bin/phpmyadmin at install time)
 /sites/phpmyadmin/
+
+/dist/**
