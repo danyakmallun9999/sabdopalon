@@ -282,7 +282,7 @@ func cmdRunsBin(args string, binNames []string) bool {
 	if len(binNames) == 0 {
 		return false
 	}
-	base := filepath.Base(firstCommandField(args))
+	base := binBasename(firstCommandField(args))
 	// Strip a .exe suffix so "mailpit" matches the Windows candidate
 	// "mailpit.exe" even when the command line omits the extension.
 	base = strings.TrimSuffix(strings.ToLower(base), ".exe")
@@ -293,6 +293,24 @@ func cmdRunsBin(args string, binNames []string) bool {
 		}
 	}
 	return false
+}
+
+// binBasename returns the executable name at the end of a path, treating both
+// "/" and "\" as separators on every platform.
+//
+// filepath.Base cannot be used here because it is host-dependent: on Windows it
+// splits on both separators, but on Unix "\" is an ordinary character, so a
+// Windows image path such as `C:\Sabdopalon\bin\mailpit\mailpit.exe` came back
+// whole, matched no candidate, and the ghost was never recognised. Windows hid
+// the bug — it kept passing — so it only ever showed up as a red `go test -race`
+// on Linux and macOS. Command lines name either platform's paths (they come from
+// Win32_Process.CommandLine on Windows and the process table elsewhere), so the
+// split must not depend on the host.
+func binBasename(p string) string {
+	if i := strings.LastIndexAny(p, `/\`); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }
 
 // firstCommandField returns the executable token of a command line, honouring

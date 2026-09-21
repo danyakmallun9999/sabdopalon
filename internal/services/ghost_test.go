@@ -65,6 +65,28 @@ func TestFirstCommandField(t *testing.T) {
 	}
 }
 
+// The Windows-path cases above MUST pass on every host. filepath.Base treats
+// "\" as a separator only on Windows, so using it here made them fail on Linux
+// and macOS (Windows kept passing and hid it) — a red `go test -race` on two of
+// three CI runners for a bug in the sweep. Pin the host-independent split
+// directly so a future "just use filepath.Base" change fails on any platform.
+func TestBinBasenameSplitsBothSeparators(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`C:\Sabdopalon\bin\mailpit\mailpit.exe`, "mailpit.exe"},
+		{`C:/Sabdopalon/bin/mailpit/mailpit.exe`, "mailpit.exe"},
+		{`/home/u/.sabdopalon/bin/mailpit/mailpit`, "mailpit"},
+		{`C:\Program Files\a b\x.exe`, "x.exe"},
+		{`mailpit.exe`, "mailpit.exe"},
+		{`mixed\and/slashes.exe`, "slashes.exe"},
+		{``, ``},
+	}
+	for _, tc := range cases {
+		if got := binBasename(tc.in); got != tc.want {
+			t.Errorf("binBasename(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 // End-to-end: the sweep must actually collect and kill the quoted ghost, and
 // must leave a same-binary process on a DIFFERENT port alone (a user's own
 // mailpit is not ours to kill).
