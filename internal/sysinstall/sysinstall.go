@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Progress is the live progress sink used by Install so callers (the dashboard
@@ -193,6 +195,20 @@ func IsOnPersistentPath(dir string) bool {
 	return userPathContains(dir)
 }
 
+// versionCommand builds the `<bin> --version` probe used by Version.
+//
+// It goes through winproc.Quiet because this probe is not a one-off: the
+// dashboard's Packages tab polls /api/sys-tools every 8s and that handler
+// calls Version for every registered tool. The desktop sidecar is linked
+// with -H windowsgui, so an unmarked console-subsystem child is handed a
+// fresh console window — which the user sees as a black window flashing on
+// a loop, with no error anywhere to explain it.
+func versionCommand(bin string) *exec.Cmd {
+	cmd := exec.Command(bin, "--version")
+	winproc.Quiet(cmd)
+	return cmd
+}
+
 // Version runs `<bin> --version` and returns the trimmed output. Returns ""
 // when the binary is missing or the command fails.
 func Version(name string) string {
@@ -206,8 +222,7 @@ func Version(name string) string {
 	}
 	// Every registered tool reports its version with `--version`; the per-bin
 	// switch above was always identical, so a single call suffices.
-	cmd := exec.Command(p, "--version")
-	out, err := cmd.Output()
+	out, err := versionCommand(p).Output()
 	if err != nil {
 		return ""
 	}
