@@ -1,0 +1,177 @@
+name: Release (Windows installer)
+
+# Publishes the one artifact Windows users need: the NSIS setup executable with
+# the whole core stack (PHP + MariaDB + phpMyAdmin) already inside it. A `v*` tag
+# therefore produces exactly ONE asset, so the download page cannot be
+# misread — "download the setup and double-click it" is the whole instruction.
+#
+# The multi-platform release (CLI archives for Linux/macOS/Windows plus the
+# deb/AppImage/dmg/MSI bundles) still exists as release.yml. That one is now
+# manual-only: leaving it on the same `v*` trigger would add six more assets to
+# every release and defeat the point of this workflow.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v0.11.1). Must match tauri.conf.json."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows-installer:
+    name: Windows installer (bundled)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # A release whose tag disagrees with the app version ships an installer
+      # whose file name contradicts the release it hangs off, so check it here
+      # rather than discovering it on the download page.
+      - name: Resolve and verify version
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag }}"
+          if [ -z "$tag" ]; then tag="${{ github.ref_name }}"; fi
+          case "$tag" in
+            v*) ;;
+            *) echo "::error::expected a v* release tag, got '$tag'"; exit 1 ;;
+          esac
+          version="${tag#v}"
+          conf=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          if [ "$conf" != "$version" ]; then
+            echo "::error::tag $tag does not match tauri.conf.json version $conf — bump the version before tagging"
+            exit 1
+          fi
+          go_version=$(sed -n 's/^var Version = "\(.*\)"/\1/p' internal/app/app.go)
+          if [ "$go_version" != "$version" ]; then
+            echo "::error::tag $tag does not match internal/app/app.go Version $go_version"
+            exit 1
+          fi
+          {
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "releasing $tag (version $version)"
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: internal/dashboard/ui/package-lock.json
+
+      # The dashboard is embedded into the Go binary with go:embed, so it has to
+      # exist before the sidecar is built.
+      - name: Build React dashboard
+        working-directory: internal/dashboard/ui
+        run: |
+          npm ci
+          npm run build
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: "stable"
+
+      - name: Build sidecar (Go)
+        shell: bash
+        working-directory: desktop
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          TARGET_TRIPLE: x86_64-pc-windows-msvc
+        run: bash scripts/build-sidecar.sh
+
+      - name: Download core stack (PHP + MariaDB + phpMyAdmin)
+        shell: bash
+        working-directory: desktop
+        run: |
+          set -euo pipefail
+          CORE=src-tauri/resources/core
+          mkdir -p "$CORE/php/8.5" "$CORE/phpmyadmin" "$CORE/mariadb"
+
+          # Ship the default package registry as a resource too (the Go binary
+          # also embeds it; this keeps a visible copy inside the app).
+          mkdir -p src-tauri/resources/packages
+          cp ../packages/packages.toml src-tauri/resources/packages/
+
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            -o /tmp/pma.tar.gz https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.tar.gz
+          tar xzf /tmp/pma.tar.gz -C "$CORE/phpmyadmin" --strip-components=1
+
+          # spc-max is the fullest Windows static-php combo (mysqli, gd, zip,
+          # curl). spc-min ships 7 extensions and phpMyAdmin needs mysqli.
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            -o /tmp/php.zip https://dl.static-php.dev/static-php-cli/windows/spc-max/php-8.5.5-cli-win.zip
+          (cd "$CORE/php/8.5" && unzip -q /tmp/php.zip)
+
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
+          (cd "$CORE/mariadb" && unzip -q /tmp/mariadb.zip && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
+
+          # Fail loud. An empty core still builds an installer — just one that
+          # cannot run PHP, serve phpMyAdmin, or start a database, which is far
+          # worse than a red build.
+          for f in "$CORE/php/8.5/php.exe" "$CORE/phpmyadmin/index.php" "$CORE/mariadb/bin/mysqld.exe"; do
+            test -f "$f" || { echo "::error::core stack incomplete: missing $f"; exit 1; }
+          done
+          echo "core stack:"; du -sh "$CORE"
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Tauri build (NSIS only)
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build -- --target x86_64-pc-windows-msvc --bundles nsis
+
+      # --target <triple> puts bundles under target/<triple>/release/bundle, so a
+      # plain target/release/bundle glob matches nothing and silently publishes
+      # an empty release.
+      - name: Locate the installer (fail loud)
+        id: find
+        shell: bash
+        working-directory: desktop/src-tauri/target
+        run: |
+          set -euo pipefail
+          # -print -quit stops find at the first hit. Do NOT pipe this through
+          # `head -1`: under `set -o pipefail` find can die with SIGPIPE (141)
+          # when head closes the pipe early, failing the step on a good build.
+          installer=$(find . -path '*release/bundle/nsis/*-setup.exe' -type f -print -quit)
+          if [ -z "$installer" ]; then
+            echo "::error::no NSIS installer was produced"
+            find . -path '*bundle*' -type f | head -20 || true
+            exit 1
+          fi
+          abs="$(pwd)/${installer#./}"
+          size=$(stat -c%s "$abs")
+          # The bundled stack is ~355 MB uncompressed and the setup compresses
+          # to ~59 MB. A core-less installer lands near 10 MB, so this catches
+          # "the download step silently did nothing".
+          if [ "$size" -lt 20000000 ]; then
+            echo "::error::installer is only $size bytes — the bundled core stack is missing"
+            exit 1
+          fi
+          ls -lh "$abs"
+          echo "path=$abs" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release (single asset)
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Sabdopalon ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ${{ steps.find.outputs.path }}

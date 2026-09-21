@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-09-21
+
+Builds on the Windows compatibility work in `5ff9337` and fixes three defects
+found while verifying it against a real Windows install.
+
+### Fixed
+- **The setup wizard failed on every Windows desktop install** — it stopped at
+  the phpMyAdmin step with `deploy phpMyAdmin: copy phpMyAdmin: symlink …: A
+  required privilege is not held by the client`. Desktop installs expose the
+  bundled stack through a link (`bin/phpmyadmin` → `resources/core/phpmyadmin`),
+  and `copyTree` treated that linked source root as a link to recreate rather
+  than a directory to copy: it skipped the branch that would have created
+  `sites/phpmyadmin/`, then called `os.Symlink` at a path whose parent did not
+  exist — which Windows reports as that privilege error, not as a missing
+  directory. The deploy now follows the link, creates the destination, and
+  copies the contents, so `sites/phpmyadmin/public` is a real tree and
+  `resources/` is never written to.
+- **`sabdopalon add <pkg>` replaced a component provided by the bundled stack** —
+  when a package target is itself a link into `resources/` (e.g.
+  `bin/phpmyadmin`), the installer treated the healthy bundle as an
+  "incomplete/unverified installation", renamed it aside and substituted a fresh
+  download, all while reporting success. It now recognises the link and leaves it
+  in place. Note: installing a *different version* of a component whose target
+  sits **inside** a linked directory (`bin/php/8.5`) still writes through the link
+  into the bundle — tracked separately.
+- **Black console windows flashed on a loop in the Packages tab** —
+  `/api/sys-tools` probes every registered tool with `<bin> --version`, and the
+  tab polls that endpoint every 8s. The probe did not mark its child, and the
+  desktop sidecar is linked with `-H windowsgui` (so it owns no console): Windows
+  handed each probe a brand-new console window, giving three flashes every 8s
+  with no error text anywhere to explain them. The probe now goes through
+  `winproc.Quiet` (`CREATE_NO_WINDOW` + `HideWindow`), the same helper every other
+  Windows spawn site uses — it was the last unmarked one of 55.
+
 ## [0.11.0] — 2026-08-27
 
 ### Fixed

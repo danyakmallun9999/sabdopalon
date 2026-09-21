@@ -1,9 +1,17 @@
-name: Release
+name: Release (all platforms)
 
+# Manual-only. The primary release path is release-windows.yml, which publishes
+# a single bundled Windows installer for every `v*` tag. This workflow is the
+# full multi-platform spread (CLI archives for Linux/macOS/Windows plus
+# deb/AppImage/dmg/MSI); leaving it on the `v*` trigger would add six more
+# assets to those releases and defeat the point of having one download.
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to attach these assets to (e.g. v0.11.1)."
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -40,7 +48,8 @@ jobs:
           CGO_ENABLED: "0"
         run: |
           set -e
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${{ inputs.tag }}"
+          VERSION="${VERSION#v}"
           LDFLAGS="-s -w -X github.com/sabdopalon/sabdopalon/internal/app.Version=${VERSION}"
           mkdir -p dist
           build() {
@@ -192,6 +201,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ inputs.tag }}
           generate_release_notes: true
           files: |
             dist/*.tar.gz
@@ -242,7 +252,7 @@ jobs:
         shell: bash
         working-directory: desktop
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ inputs.tag }}
         run: |
           # Strip the leading "v" so the version string is "0.7.0" not "v0.7.0".
           VERSION="${VERSION#v}" bash scripts/build-sidecar.sh
@@ -353,6 +363,7 @@ jobs:
       - name: Upload artifacts
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ inputs.tag }}
           files: |
             desktop/src-tauri/target/**/bundle/**/*.deb
             desktop/src-tauri/target/**/bundle/**/*.rpm
