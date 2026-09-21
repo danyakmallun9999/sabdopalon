@@ -143,20 +143,26 @@ jobs:
       - name: Locate the installer (fail loud)
         id: find
         shell: bash
-        working-directory: desktop/src-tauri/target
         run: |
           set -euo pipefail
+          # Deliberately run from the repo root and hand the action a path
+          # RELATIVE to it. `pwd` under Git Bash prints an MSYS path
+          # (/d/a/sabdopalon/...), and action-gh-release runs in Node, which on
+          # Windows reads that as "D:\d\a\sabdopalon\..." — it matched no files
+          # and the release was stopped by fail_on_unmatched_files. A relative
+          # path resolves against the action's own working directory, which is
+          # the repo root.
+          #
           # -print -quit stops find at the first hit. Do NOT pipe this through
           # `head -1`: under `set -o pipefail` find can die with SIGPIPE (141)
           # when head closes the pipe early, failing the step on a good build.
-          installer=$(find . -path '*release/bundle/nsis/*-setup.exe' -type f -print -quit)
+          installer=$(find desktop/src-tauri/target -path '*release/bundle/nsis/*-setup.exe' -type f -print -quit)
           if [ -z "$installer" ]; then
             echo "::error::no NSIS installer was produced"
-            find . -path '*bundle*' -type f | head -20 || true
+            find desktop/src-tauri/target -path '*bundle*' -type f | head -20 || true
             exit 1
           fi
-          abs="$(pwd)/${installer#./}"
-          size=$(stat -c%s "$abs")
+          size=$(stat -c%s "$installer")
           # The bundled stack is ~355 MB uncompressed and the setup compresses
           # to ~59 MB. A core-less installer lands near 10 MB, so this catches
           # "the download step silently did nothing".
@@ -164,8 +170,11 @@ jobs:
             echo "::error::installer is only $size bytes — the bundled core stack is missing"
             exit 1
           fi
-          ls -lh "$abs"
-          echo "path=$abs" >> "$GITHUB_OUTPUT"
+          case "$installer" in
+            /?*) echo "::error::refusing an absolute path for action-gh-release: $installer"; exit 1 ;;
+          esac
+          ls -lh "$installer"
+          echo "path=$installer" >> "$GITHUB_OUTPUT"
 
       - name: Publish release (single asset)
         uses: softprops/action-gh-release@v3
