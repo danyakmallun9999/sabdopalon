@@ -20,6 +20,15 @@ type Site struct {
 }
 
 // Scan walks the configured root and returns site names (folder names).
+//
+// Links are followed deliberately: a project may live anywhere on disk and be
+// linked into sites/ (a junction on Windows, a symlink elsewhere) so that work
+// kept in D:\projects\... still shows up in the dashboard and is served like any
+// other site. os.ReadDir reports the LINK's own type and DirEntry.IsDir() is
+// false for both a symlink and a junction, so matching on IsDir() alone silently
+// hid every linked-in project — the site simply never appeared, with nothing to
+// explain why. Stat (which follows the link) is the honest test; a broken link
+// is not a directory and is skipped.
 func Scan(cfg *config.Engine) ([]string, error) {
 	entries, err := os.ReadDir(cfg.Root)
 	if err != nil {
@@ -27,9 +36,13 @@ func Scan(cfg *config.Engine) ([]string, error) {
 	}
 	var names []string
 	for _, e := range entries {
-		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-			names = append(names, e.Name())
+		if strings.HasPrefix(e.Name(), ".") {
+			continue
 		}
+		if !dirExists(filepath.Join(cfg.Root, e.Name())) {
+			continue
+		}
+		names = append(names, e.Name())
 	}
 	return names, nil
 }

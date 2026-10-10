@@ -25,9 +25,15 @@ var (
 	procSendMessageTimeout = modUser32.NewProc("SendMessageTimeoutW")
 )
 
-// addToUserPathPersistent appends dir to the persistent user PATH (HKCU) if it
-// is not already present. Returns true when the PATH was changed, false when
-// it already contained dir. No admin rights required — HKCU is per-user.
+// addToUserPathPersistent makes dir the FIRST entry of the persistent user PATH
+// (HKCU) and returns true when that changed it. No admin rights required — HKCU
+// is per-user.
+//
+// Position matters, not mere presence. This used to append dir when it was
+// absent, which is exactly how the shims ended up last: `php`, `mysql` and
+// `mysqldump` lost every lookup to Herd/Laragon/MySQL while bin/ was on PATH the
+// whole time. The entry is now moved to the front, leaving every other entry's
+// order and spelling untouched.
 func addToUserPathPersistent(dir string) (bool, error) {
 	dir = filepath.Clean(dir)
 	migrateLegacyBinDir(dir)
@@ -43,22 +49,13 @@ func addToUserPathPersistent(dir string) (bool, error) {
 		return false, fmt.Errorf("read Path: %w", err)
 	}
 
-	// Check if dir is already in the PATH (case-insensitive on Windows).
-	cur = strings.TrimSpace(cur)
-	for _, p := range strings.Split(cur, string(os.PathListSeparator)) {
-		if strings.EqualFold(filepath.Clean(p), dir) {
-			return false, nil // already there
-		}
+	newVal, changed := pathFirst(cur, dir)
+	if !changed {
+		return false, nil // already first
 	}
 
-	// Append dir to the existing PATH. Try REG_EXPAND_SZ first (preserves
-	// %USERPROFILE% style entries), fall back to REG_SZ.
-	newVal := cur
-	if newVal != "" {
-		newVal += string(os.PathListSeparator)
-	}
-	newVal += dir
-
+	// Try REG_EXPAND_SZ first (preserves %USERPROFILE% style entries), fall
+	// back to REG_SZ.
 	if err := k.SetExpandStringValue("Path", newVal); err != nil {
 		if err := k.SetStringValue("Path", newVal); err != nil {
 			return false, fmt.Errorf("write Path: %w", err)
@@ -71,11 +68,11 @@ func addToUserPathPersistent(dir string) (bool, error) {
 	return true, nil
 }
 
-// EnsureUserPath puts dir on the persistent user PATH (HKCU) if it is not
-// already there. Errors are deliberately swallowed at this level: this runs on
-// every app start as a repair, and a locked-down registry must never stop the
-// app from launching. Use addToUserPathPersistent directly when the caller
-// wants to report the outcome (the sys-install flow does).
+// EnsureUserPath puts dir FIRST on the persistent user PATH (HKCU). Errors are
+// deliberately swallowed at this level: this runs on every app start as a
+// repair, and a locked-down registry must never stop the app from launching. Use
+// addToUserPathPersistent directly when the caller wants to report the outcome
+// (the sys-install flow does).
 func EnsureUserPath(dir string) {
 	if dir == "" {
 		return

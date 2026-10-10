@@ -880,6 +880,13 @@ func PHPVersionedPath(binRoot, shortVersion string) string {
 
 // InstalledVersions lists all installed bundled PHP versions as major.minor
 // strings sorted ascending (e.g. ["8.3","8.4"]).
+//
+// A version folder that is a LINK to a PHP build kept elsewhere counts as
+// installed: os.ReadDir reports the link's own type, and DirEntry.IsDir() is
+// false for both a symlink and a junction, so a hand-supplied build linked in as
+// bin/php/8.4 would have been invisible — the user would have dropped a working
+// PHP in and watched Sabdopalon insist it was not there. Stat follows the link,
+// which is the question actually being asked.
 func InstalledVersions(binRoot string) []string {
 	root := filepath.Join(binRoot, "php")
 	entries, err := os.ReadDir(root)
@@ -888,10 +895,11 @@ func InstalledVersions(binRoot string) []string {
 	}
 	var out []string
 	for _, e := range entries {
-		if !e.IsDir() {
+		dir := filepath.Join(root, e.Name())
+		if st, err := os.Stat(dir); err != nil || !st.IsDir() {
 			continue
 		}
-		if phpBinaryIn(filepath.Join(root, e.Name())) == "" {
+		if phpBinaryIn(dir) == "" {
 			continue
 		}
 		if looksLikeVersion(e.Name()) {

@@ -309,9 +309,8 @@ func installTool(t *SystemTool, p Progress) error {
 	return nil
 }
 
-// ensurePath adds prefix to the persistent user PATH if missing, and prints a
-// clear message about what happened. Separated so the install flow stays
-// readable.
+// ensurePath puts prefix FIRST on the persistent user PATH, and prints a clear
+// message about what happened. Separated so the install flow stays readable.
 func ensurePath(prefix string, p Progress) {
 	changed, err := addToUserPathPersistent(prefix)
 	switch {
@@ -319,9 +318,11 @@ func ensurePath(prefix string, p Progress) {
 		p.Printf("  ⚠  could not auto-add %s to PATH (%v)\n", prefix, err)
 		p.Printf("     Add it manually and restart your terminal.\n")
 	case changed:
-		p.Printf("  ✓  added %s to your PATH — open a NEW terminal for it to take effect.\n", prefix)
+		p.Printf("  ✓  %s is now FIRST on your PATH — open a NEW terminal for it to take effect.\n", prefix)
+		p.Printf("     (First, not merely present: anywhere else it would lose `php`/`mysql` to a\n")
+		p.Printf("      Herd/Laragon/MySQL entry that comes earlier.)\n")
 	default:
-		p.Printf("  ✓  %s is already on your PATH.\n", prefix)
+		p.Printf("  ✓  %s is already first on your PATH.\n", prefix)
 	}
 }
 

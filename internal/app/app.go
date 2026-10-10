@@ -25,6 +25,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
+	"github.com/sabdopalon/sabdopalon/internal/sitelink"
 	"github.com/sabdopalon/sabdopalon/internal/ssl"
 	"github.com/sabdopalon/sabdopalon/internal/sysinstall"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
@@ -175,6 +176,8 @@ func (a *App) Run(args []string) int {
 		return a.sslTrust()
 	case "new":
 		return a.newProject(args[1:])
+	case "link":
+		return a.linkProject(args[1:])
 	case "backup":
 		return a.doBackup()
 	case "backup:list":
@@ -205,6 +208,8 @@ Usage:
   sabdopalon doctor             Health check: PHP, ports, database, SSL
   sabdopalon sites              List discovered sites
   sabdopalon new <tmpl> <name>  Create a project (templates: ` + templates.ListNames() + `)
+  sabdopalon link <name> <path> Link an existing project that lives outside
+                                sites/ (junction/symlink) and serve it as <name>
 
   Packages:
   sabdopalon add <pkg>          Install a package (mariadb, mailpit, php@8.2 …)
@@ -638,6 +643,36 @@ func (a *App) doctor() int {
 	}
 	fmt.Printf("\n  priority  : [php] binary > prefer=%s (system|bundled)\n", prefer)
 
+	// Being on PATH is not the same as winning it. The bundled tools are exposed
+	// through shims in bin/, and a shim only runs when nothing earlier offers the
+	// same name — which is exactly what happens on a machine that also has Herd,
+	// Laragon or MySQL installed. Say which install actually runs, and when the
+	// winner is beyond reach say why, instead of leaving the user to guess why
+	// `php` is not the bundled one.
+	fmt.Println("\n  Command resolution (what `php`/`mysql` actually run)")
+	binDir := a.Cfg.BinDir()
+	shadowed := sysinstall.ShadowedCommands(binDir,
+		"php", "mysql", "mysqldump", "mariadb", "mariadb-dump", "mariadb-admin",
+		"redis-cli", "redis-server", "mailpit", "minio", "meilisearch")
+	if len(shadowed) == 0 {
+		fmt.Printf("    ✓  nothing shadows %s — the bundled tools win\n", binDir)
+	}
+	for _, s := range shadowed {
+		fmt.Printf("    !  %-14s → %s\n", s.Command, s.Winner)
+		if s.Machine {
+			fmt.Printf("       ^ that entry is in the MACHINE PATH, which Windows searches\n")
+			fmt.Printf("         BEFORE the per-user PATH, so no per-user change can outrank it.\n")
+			fmt.Printf("         Fix it once from an ADMIN shell (edit System PATH and move\n")
+			fmt.Printf("         %s to the top), or run:\n", binDir)
+			fmt.Printf("           $p=[Environment]::GetEnvironmentVariable('Path','Machine')\n")
+			fmt.Printf("           [Environment]::SetEnvironmentVariable('Path','%s;'+(($p -split ';')|?{$_ -and $_ -ne '%s'}) -join ';','Machine')\n", binDir, binDir)
+		} else {
+			fmt.Printf("         its directory is on the per-user PATH ahead of %s —\n", binDir)
+			fmt.Printf("         `sabdopalon` puts its own bin/ first on each start, so re-running\n")
+			fmt.Printf("         it (or opening a new terminal) is usually enough.\n")
+		}
+	}
+
 	fmt.Println()
 	fmt.Println("  Sites discovered:")
 	names, _ := vhost.Scan(a.Cfg)
@@ -1008,6 +1043,29 @@ func (a *App) newProject(args []string) int {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+// linkProject links a project that lives OUTSIDE sites/ into it, so work kept
+// in D:\projects\... is discovered and served like any other site. The link is
+// what keeps it undoable: deleting sites/<name> removes the link, never the
+// project.
+func (a *App) linkProject(args []string) int {
+	a.Cfg = a.cfgOrBare() // fresh-install safe
+	if len(args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: sabdopalon link <name> <path>")
+		fmt.Fprintln(os.Stderr, "  <name>  folder to create under sites/ — also the URL: <name>.<tld>")
+		fmt.Fprintln(os.Stderr, "  <path>  an existing project directory, anywhere on disk")
+		return 1
+	}
+	link, err := sitelink.Link(a.Cfg.Root, args[0], args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
+		return 1
+	}
+	fmt.Printf("  ✓  linked %s\n", link)
+	fmt.Printf("     served at http://%s.%s:%d/\n", args[0], a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
+	fmt.Printf("     the project itself stays where it is; remove the link (not the project) to undo this.\n")
 	return 0
 }
 
