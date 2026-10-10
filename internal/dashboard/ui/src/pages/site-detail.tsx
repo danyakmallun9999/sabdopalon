@@ -509,8 +509,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolS
       <div className="flex items-center gap-2 text-sm">
         <Zap className="size-4 text-amber-500" />
         <p className="text-muted-foreground">
-          Start Vite, Artisan, or npm scripts directly from here — no terminal needed.
-          Vite is auto-proxied so <code className="bg-muted rounded-sm px-1">{name}.localhost</code> serves HMR assets.
+          Vite is auto-proxied, so <code className="bg-muted rounded-sm px-1">{name}.localhost</code> serves HMR assets.
         </p>
       </div>
       {applicable.length === 0 && (

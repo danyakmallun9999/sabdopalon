@@ -178,10 +178,8 @@ export default function SettingsPage() {
                 Allow other devices on the network to open your sites
               </Label>
               <p className="text-muted-foreground text-xs">
-                Disabled (default): sites can only be opened from this computer
-                (127.0.0.1). Enabling this exposes ports 8080/8443 to the
-                network — make sure your Wi-Fi is trusted. Applies after
-                restart.
+                Exposes ports 8080/8443 to your network — only enable this on a
+                Wi-Fi you trust. Applies after restart.
               </p>
             </div>
             <Switch

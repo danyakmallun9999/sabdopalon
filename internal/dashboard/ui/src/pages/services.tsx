@@ -143,9 +143,7 @@ export default function ServicesPage() {
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
       <p className="text-muted-foreground text-sm">
-        Additional services — <strong>Start/Stop</strong> starts/stops the tool right away;
-        <strong>Auto-start</strong> controls whether the tool starts when Sabdopalon
-        opens.
+        <strong>Start/Stop</strong> acts now; <strong>Auto-start</strong> applies when Sabdopalon opens.
       </p>
 
       {installed.length === 0 ? (

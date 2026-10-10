@@ -376,8 +376,7 @@ function DaemonsTab({
       </div>
 
       <p className="text-muted-foreground mt-4 px-1 text-xs">
-        All databases can run at the same time — your sites can freely use any connection
-        (env <code>SABDOPALON_MARIADB_*</code> and <code>SABDOPALON_PG_*</code> are available to all sites).
+        Every site can reach any engine: <code>SABDOPALON_MARIADB_*</code> and <code>SABDOPALON_PG_*</code> are set for it.
       </p>
     </>
   )
@@ -408,7 +407,7 @@ function BackupsTab({
       <div className="px-4 pb-4 lg:px-6">
         {backups.length === 0 ? (
           <p className="text-muted-foreground border-dashed rounded-xl border p-8 text-center text-sm">
-            No backups yet — click “Back Up Now”.
+            No backups yet.
           </p>
         ) : (
           <div className="bg-card overflow-hidden rounded-xl border">

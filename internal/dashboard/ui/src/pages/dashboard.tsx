@@ -475,10 +475,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-muted-foreground text-sm">
-          Server, service, and traffic overview — all on one screen.
-        </p>
+      <div className="flex items-center justify-end gap-2">
         <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
           <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
         </Button>
@@ -729,7 +726,6 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Installed services</CardTitle>
-          <CardDescription>Brief status of installed tools.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

@@ -524,7 +524,7 @@ function InstallPanel({
         <div className="bg-destructive/10 rounded-xl border border-destructive/30 p-3.5">
           <p className="text-destructive font-medium text-xs sm:text-sm">Setup failed: {job.error}</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            You can try again from here, or continue manually via the Packages page later.
+            You can also finish later from the Packages page.
           </p>
           <Button
             size="sm"

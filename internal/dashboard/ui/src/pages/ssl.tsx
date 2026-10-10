@@ -107,10 +107,6 @@ export default function SslPage() {
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <p className="text-muted-foreground text-sm">
-        Local HTTPS with a Sabdopalon root certificate — the mkcert approach, no third-party tools.
-      </p>
-
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
         {steps.map((s) => (
           <Card key={s.n}>
