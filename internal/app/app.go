@@ -11,7 +11,9 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/backup"
 	"github.com/sabdopalon/sabdopalon/internal/bootstrap"
@@ -261,7 +263,32 @@ func prepareBinDir(cfg *config.Engine) {
 	if err := sysinstall.EnsureShims(binDir); err != nil {
 		fmt.Fprintf(os.Stderr, "  \u26a0 shims: %v\n", err)
 	}
+	// The persistent PATH entry must be the STABLE per-user folder, never a
+	// transient override. userBinDir's own contract says so; the code simply was
+	// not checking, and writing the override outlived the run that caused it:
+	// measuring the dashboard bind time with SABDOPALON_BIN_DIR pointing at a
+	// temp root left that temp folder at position 1 of the real user PATH, where
+	// it shadowed the real install until it was removed by hand.
+	//
+	// The CLI never sets the override (it uses <root>/bin, a real location and
+	// still wired below); the desktop shell sets it to exactly the per-user
+	// folder, so both intended layouts keep their PATH entry.
+	if !shouldWirePersistentPath() {
+		return
+	}
 	sysinstall.EnsureUserPath(binDir)
+}
+
+// shouldWirePersistentPath reports whether the active bin dir may be written to
+// the user's PERSISTENT PATH (HKCU on Windows, shell rc elsewhere).
+//
+// False only for a transient SABDOPALON_BIN_DIR — a dev run, a test harness, a
+// relocated extraction — because that value would outlive the run and shadow the
+// real install. Split out so the decision is testable without writing to the
+// real registry.
+func shouldWirePersistentPath() bool {
+	override := os.Getenv("SABDOPALON_BIN_DIR")
+	return override == "" || samePath(override, sysinstall.UserBinDir())
 }
 
 // serve is the main command: starts the DB (if needed), optional services,
@@ -351,17 +378,13 @@ func (a *App) serve() int {
 	_ = os.MkdirAll(a.Cfg.Data, 0o755)
 	_ = os.MkdirAll(a.Cfg.Logs, 0o755)
 
-	// Start every enabled database daemon (mariadb AND postgresql can run
-	// side by side, each with its own port). Failures don't kill the server:
-	// the reason shows up in the dashboard and the daemon can be retried.
+	// Database and service managers are created here because the dashboard
+	// needs them to report state — but their daemons are started AFTER the
+	// dashboard is listening (see startDaemons). Starting them on the path to
+	// the bind is what froze the wizard on a fresh install; the full
+	// explanation lives on startDaemons.
 	dbMgr := database.New(a.Cfg)
 	dbMgr.Verbose = a.Verbose
-	if errs := dbMgr.StartAll(); len(errs) > 0 {
-		for eng, err := range errs {
-			fmt.Fprintf(os.Stderr, "⚠ database %s: %v\n", eng, err)
-		}
-		fmt.Fprintf(os.Stderr, "  (continuing without the problem database — check the Database page)\n")
-	}
 
 	// Optional bundled services (mail catcher, cache, storage, search…).
 	// The manager is always created so the dashboard can start/stop any
@@ -375,24 +398,14 @@ func (a *App) serve() int {
 		// svcMgr.StopAll() — otherwise they hold our ports and the start
 		// below fails with "port busy" forever.
 		svcMgr.SweepGhosts()
-		for _, st := range svcMgr.All() {
-			if !st.Enabled {
-				continue
-			}
-			if !st.Installed {
-				if a.Verbose {
-					fmt.Printf("  ℹ  %s enabled but not installed — use `sabdopalon add %s`\n", st.Name, st.Name)
-				}
-				continue
-			}
-			if err := svcMgr.Start(st.Name); err != nil {
-				fmt.Fprintf(os.Stderr, "  ⚠ %s: %v\n", st.Name, err)
-				continue
-			}
-		}
 	} else {
 		svcMgr = services.New(a.Cfg)
 	}
+
+	// The background daemon start below is joined on shutdown: see the shutdown
+	// closure, which sets the flag and waits (bounded) before stopping daemons.
+	var daemonWG sync.WaitGroup
+	var daemonStop atomic.Bool
 
 	// Per-site dev-tools supervisor (Vite, Artisan, npm, composer). Always
 	// created so the dashboard can start/stop tools at runtime; tools are
@@ -434,6 +447,15 @@ func (a *App) serve() int {
 			fmt.Println("\n\nStopping Sabdopalon...")
 			n := srv.Stop()
 			dtMgr.StopAll()
+			// The database/service daemons may still be coming up in the
+			// background (startDaemons). Flag the stop and give that goroutine a
+			// moment to notice, or a daemon spawned just after the StopAll calls
+			// below would outlive this process holding its port — the exact
+			// orphan the sweeps elsewhere exist to clean up. Bounded: the desktop
+			// shell SIGKILLs 30s after asking for shutdown, and each StopAll has
+			// its own grace windows.
+			daemonStop.Store(true)
+			waitGroupTimeout(&daemonWG, 5*time.Second)
 			// Stop services BEFORE database daemons: services (mailpit, redis…)
 			// die fast on SIGTERM, while each DB daemon's shutdown can take up
 			// to ~5s. The Rust sidecar waits 30s before SIGKILL; if services are
@@ -476,6 +498,15 @@ func (a *App) serve() int {
 		}()
 	}
 
+	// Only now bring the databases and optional services up, in the background.
+	// The dashboard is what the user is looking at (and, right after setup, what
+	// the wizard is polling), so it gets to bind first.
+	daemonWG.Add(1)
+	go func() {
+		defer daemonWG.Done()
+		a.startDaemons(dbMgr, svcMgr, &daemonStop)
+	}()
+
 	// Warn once when local HTTPS exists but browsers won't trust it yet.
 	if st := trust.CheckStatus(a.Cfg); st.CAExists && !st.Installed {
 		fmt.Println("  ⚠  Local CA is not trusted yet — HTTPS will warn in browsers.")
@@ -511,6 +542,76 @@ func (a *App) serve() int {
 	// returns, and the process never exits, while daemons are still stopping.
 	shutdown()
 	return 0
+}
+
+// startDaemons brings up the enabled database engines and optional services.
+//
+// It runs in the background, AFTER the dashboard is listening, and that ordering
+// is the whole point. Starting them on the path to the bind meant the first
+// launch after setup could not answer the UI for minutes: a fresh MariaDB had to
+// initialise its data directory, a fresh PostgreSQL had to run initdb, and every
+// enabled optional service had to answer its readiness probe — each with its own
+// 30s TCP wait (plus 10s for the pidfile) run one after another, all before
+// :9900 was listening.
+//
+// The wizard screen is the visible victim: it polls THIS server, its progress
+// bar is capped at 95%, and it has no way to say "the downloads are done, the
+// databases are still starting". An install that had finished downloading looked
+// frozen, and the report that led here was a fresh Windows laptop with
+// PostgreSQL selected where the user eventually killed the app and only got into
+// the dashboard on the next launch.
+//
+// stopped is polled between engines so a shutdown arriving mid-start cannot race
+// the StopAll calls into leaving an orphaned daemon holding its port.
+func (a *App) startDaemons(dbMgr *database.Manager, svcMgr *services.Manager, stopped *atomic.Bool) {
+	if stopped.Load() {
+		return
+	}
+	// Failures don't kill the server: the reason shows up on the Database page
+	// and the daemon can be retried from there.
+	if errs := dbMgr.StartAll(); len(errs) > 0 {
+		for eng, err := range errs {
+			fmt.Fprintf(os.Stderr, "⚠ database %s: %v\n", eng, err)
+		}
+		fmt.Fprintf(os.Stderr, "  (continuing without the problem database — check the Database page)\n")
+	}
+	if svcMgr == nil {
+		return
+	}
+	for _, st := range svcMgr.All() {
+		if stopped.Load() {
+			return
+		}
+		if !st.Enabled {
+			continue
+		}
+		if !st.Installed {
+			if a.Verbose {
+				fmt.Printf("  ℹ  %s enabled but not installed — use `sabdopalon add %s`\n", st.Name, st.Name)
+			}
+			continue
+		}
+		if err := svcMgr.Start(st.Name); err != nil {
+			fmt.Fprintf(os.Stderr, "  ⚠ %s: %v\n", st.Name, err)
+			continue
+		}
+	}
+}
+
+// waitGroupTimeout waits for wg, up to d. Reports false when it timed out, so
+// the caller can carry on and stop whatever it knows about.
+func waitGroupTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
 }
 
 // openBrowser opens url in the default browser (best-effort).
