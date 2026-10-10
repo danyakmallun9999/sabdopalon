@@ -15,6 +15,7 @@
     "core:window:allow-internal-toggle-maximize",
     "core:window:allow-is-maximized",
     "shell:allow-open",
+    "opener:allow-open-url",
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"
