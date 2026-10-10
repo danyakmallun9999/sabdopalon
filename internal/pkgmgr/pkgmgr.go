@@ -68,6 +68,29 @@ type PackageDef struct {
 	VerifyPath string
 	// TypeWin overrides Type for Windows artifacts (e.g. MariaDB: zip).
 	TypeWin string
+	// TypeByPlat overrides Type per platform (type_macos, type_linux_x86_64 …)
+	// for packages whose artifact is packaged differently per OS — cloudflared
+	// ships a bare executable on Windows/Linux and a .tgz on macOS.
+	TypeByPlat map[string]string
+}
+
+// effectiveType resolves which container format a package's artifact uses.
+//
+// Most packages ship the same format everywhere and only need "type". The two
+// overrides exist for the ones that do not: type_windows (MariaDB and PHP ship a
+// .zip on Windows) and type_<os>_<arch> (cloudflared ships a bare executable on
+// Windows/Linux and a .tgz on macOS). The most specific statement wins.
+func effectiveType(p *PackageDef, windowsURL bool) string {
+	if over, ok := p.TypeByPlat[platformKey()]; ok && over != "" {
+		return over
+	}
+	if windowsURL && p.TypeWin != "" {
+		return p.TypeWin
+	}
+	if p.Type == "" {
+		return "tar.gz"
+	}
+	return p.Type
 }
 
 // platformKey returns the registry checksum key suffix for this machine,
@@ -146,6 +169,7 @@ func (m *Manager) loadRegistry() error {
 			SHA256:     getStr(kv, "sha256"),
 			SHAByPlat:  map[string]string{},
 			URLByPlat:  map[string]string{},
+			TypeByPlat: map[string]string{},
 			License:    getStr(kv, "license"),
 			StripRoot:  getBool(kv, "strip_root"),
 			Type:       getStr(kv, "type"),
@@ -162,6 +186,13 @@ func (m *Manager) loadRegistry() error {
 				suffix := strings.TrimPrefix(k, "url_")
 				if suffix != "windows" { // legacy key handled separately below
 					p.URLByPlat[suffix] = str
+				}
+			}
+			if str, ok := v.(string); ok && strings.HasPrefix(k, "type_") {
+				// type_<os>_<arch> overrides. The legacy type_windows key is read
+				// separately above, so it is skipped here.
+				if suffix := strings.TrimPrefix(k, "type_"); suffix != "windows" {
+					p.TypeByPlat[suffix] = str
 				}
 			}
 		}
@@ -528,15 +559,7 @@ func (m *Manager) Download(name string) error {
 	if _, err := tmpFile.Seek(0, 0); err != nil {
 		return err
 	}
-	pkgType := p.Type
-	if pkgType == "" {
-		pkgType = "tar.gz"
-	}
-	// The Windows artifact may be packaged differently from the generic one
-	// (MariaDB ships a .zip on Windows, a .tar.gz on Linux).
-	if windowsURL && p.TypeWin != "" {
-		pkgType = p.TypeWin
-	}
+	pkgType := effectiveType(&p, windowsURL)
 
 	// Extract into a staging directory next to the target, then promote with
 	// a single rename — an interrupted install can never leave a half-written

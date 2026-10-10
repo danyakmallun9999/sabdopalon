@@ -17,6 +17,8 @@ export type Status = {
   php_version?: string
   /** Live public-tunnel state per site, keyed by site name. */
   tunnels?: Record<string, TunnelState>
+  /** Whether the tunnel feature can run at all (is cloudflared present?). */
+  cloudflared?: { installed: boolean; path: string; version: string; install_hint?: string }
 }
 
 export type ServiceStatus = {

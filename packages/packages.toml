@@ -258,6 +258,43 @@ target = "adminer"
 type = "binary"
 license = "Apache-2.0 / GPL-2.0"
 
+# Cloudflare Tunnel (cloudflared) — powers the dashboard's "share this site
+# publicly" action. Installed to bin/cloudflared/, which is exactly where the
+# tunnel manager looks for a copy it owns (it takes precedence over PATH).
+#
+# Pinned, not "latest": the flags we pass and the URL scheme we scrape are
+# version-sensitive, and a floating tag would invalidate the SHA pins on every
+# upstream release.
+#
+# Upstream packaging is irregular per OS, which is why every URL is explicit
+# and why type_<os>_<arch> exists: Windows and Linux ship a bare executable,
+# macOS ships a .tgz containing a single file named "cloudflared" (verified: no
+# top-level directory, hence strip_root stays false).
+# SHA values are GitHub's own release digests, each re-verified by downloading
+# the artifact and hashing it locally before being pinned here.
+[cloudflared]
+version = "2026.10.0"
+url = "https://github.com/cloudflare/cloudflared/releases/download/{version}/cloudflared-linux-amd64"
+url_linux_aarch64 = "https://github.com/cloudflare/cloudflared/releases/download/{version}/cloudflared-linux-arm64"
+url_macos_x86_64 = "https://github.com/cloudflare/cloudflared/releases/download/{version}/cloudflared-darwin-amd64.tgz"
+url_macos_aarch64 = "https://github.com/cloudflare/cloudflared/releases/download/{version}/cloudflared-darwin-arm64.tgz"
+url_windows = "https://github.com/cloudflare/cloudflared/releases/download/{version}/cloudflared-windows-amd64.exe"
+sha256_linux_x86_64 = "d33ff2d14475178d2012c2c56beba87389ac5ded27649519f198a7d3134a99db"
+sha256_linux_aarch64 = "e6422b9d4f72d3194bc5a38676f13667c06666523217b842a877d72a80b5ac08"
+sha256_macos_x86_64 = "903845b81828c8cb3c5d13d816a2de71c06a3da5785469df8eb0e1b736d92f9f"
+sha256_macos_aarch64 = "a2f79ff7b9420aa537d74af239f376da170bbabeb529aec416002adac6a72e70"
+sha256_windows_x64 = "86aee4017b26625cee8484c113558f48effa4cd47f7aa05fcf425604e5d2b23c"
+target = "cloudflared"
+binary_name = "cloudflared"
+type = "binary"
+type_macos_x86_64 = "tar.gz"
+type_macos_aarch64 = "tar.gz"
+strip_root = false
+# The generic (Linux) URL is platform-specific: never fall back to it elsewhere.
+platform_specific = true
+verify_path = "cloudflared.exe cloudflared"
+license = "Apache-2.0"
+
 # [mysql]
 # version = "8.4.11"
 # url = "https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-8.4.11-linux-glibc2.17-x86_64.tar.xz"

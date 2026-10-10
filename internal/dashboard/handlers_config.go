@@ -53,6 +53,18 @@ func (s *Server) statusSnapshot() map[string]any {
 	// moment cloudflared prints it, with no polling and no second channel.
 	if s.tn != nil {
 		resp["tunnels"] = s.tn.Snapshot()
+		// Whether the tunnel feature can run at all, so the UI can offer to
+		// install cloudflared instead of failing after the user clicks Share.
+		binPath, binVer, binErr := s.tn.BinaryInfo()
+		info := map[string]any{
+			"installed": binErr == nil,
+			"path":      binPath,
+			"version":   binVer,
+		}
+		if binErr != nil {
+			info["install_hint"] = tunnel.InstallHint()
+		}
+		resp["cloudflared"] = info
 	} else {
 		resp["tunnels"] = map[string]tunnel.State{}
 	}

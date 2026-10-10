@@ -6,6 +6,7 @@ import {
   Clock,
   Copy,
   Database,
+  Download,
   ExternalLink,
   FileCode2,
   FolderTree,
@@ -306,7 +307,10 @@ function PublicAccessCard({ name }: { name: string }) {
   // The mutation reply covers the gap before the next /api/events snapshot;
   // from then on the live entry is the one that wins.
   const [answer, setAnswer] = useState<TunnelState | null>(null)
+  const [installing, setInstalling] = useState(false)
   const tunnel = status?.tunnels?.[name] ?? answer
+  const cf = status?.cloudflared
+  const needsCloudflared = cf ? !cf.installed : false
 
   const state = tunnel?.status ?? "off"
   const dot: DotStatus =
@@ -348,6 +352,32 @@ function PublicAccessCard({ name }: { name: string }) {
     toast.success("Public URL copied")
   }
 
+  // The only route an ordinary user has into this feature: without it, sharing
+  // answers with a winget command and a terminal. It drives the same install job
+  // the Packages page polls, so the two agree on progress.
+  async function installCloudflared() {
+    setInstalling(true)
+    try {
+      const r = await api.installPackage("cloudflared")
+      if (r.error) {
+        toast.error(r.error)
+        return
+      }
+      for (let i = 0; i < 600; i++) {
+        const job = await api.installJob().catch(() => null)
+        if (job?.done && !job.running) {
+          if (job.error) toast.error(job.error)
+          else toast.success("cloudflared installed")
+          return
+        }
+        await new Promise((res) => setTimeout(res, 1000))
+      }
+      toast.error("cloudflared is still installing — check the Packages page")
+    } finally {
+      setInstalling(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -356,6 +386,17 @@ function PublicAccessCard({ name }: { name: string }) {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        {needsCloudflared && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed p-2.5">
+            <span className="text-muted-foreground text-xs">
+              Public URLs need cloudflared — not installed yet.
+            </span>
+            <Button size="sm" variant="outline" disabled={installing} onClick={() => void installCloudflared()}>
+              {installing ? <Spinner /> : <Download className="size-4" />}
+              {installing ? "Installing…" : "Install"}
+            </Button>
+          </div>
+        )}
         <div className="flex items-center justify-between gap-2">
           <Label htmlFor="tunnel-share" className="font-normal">
             Share this site on a public URL
@@ -363,7 +404,7 @@ function PublicAccessCard({ name }: { name: string }) {
           <Switch
             id="tunnel-share"
             checked={shared}
-            disabled={busy}
+            disabled={busy || needsCloudflared}
             onCheckedChange={(v) => toggle(v === true)}
           />
         </div>

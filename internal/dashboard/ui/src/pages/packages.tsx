@@ -31,6 +31,7 @@ const LABELS: Record<string, string> = {
   php85: "PHP 8.5",
   mariadb: "MariaDB server (auto-managed daemon)",
   mailpit: "Mailpit — local e-mail catcher",
+  cloudflared: "cloudflared — public URLs for your sites (Cloudflare Tunnel)",
 }
 
 function SystemPHPCard() {

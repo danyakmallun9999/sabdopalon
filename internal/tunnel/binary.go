@@ -38,21 +38,19 @@ type ErrNotInstalled struct {
 }
 
 func (e *ErrNotInstalled) Error() string {
-	return "cloudflared was not found — install it with: " + InstallHint()
+	return "cloudflared is not installed — install it from the Packages page in the dashboard, or run: " + InstallHint()
 }
 
 // findBinary looks for cloudflared in the places it actually ends up:
 //
 //  1. an override (tests, and a future "use this binary" setting);
-//  2. the app-managed copy under <root>/bin/cloudflared, so a later version can
-//     download and own it the way the other tools are owned;
+//  2. the managed copy under <bin>/cloudflared — where pkgmgr installs the
+//     "cloudflared" package, and therefore the copy this app can keep up to
+//     date. It deliberately wins over PATH;
 //  3. PATH — which is where winget's Links shim and brew both land;
 //  4. the winget package directory, because a winget install is not on PATH
 //     until the shell that ran it has been restarted.
-//
-// Nothing here downloads anything: v1 detects and, when it finds nothing, tells
-// the user the one command that fixes it on their platform.
-func findBinary(rootDir, override string) (string, error) {
+func findBinary(binDir, override string) (string, error) {
 	searched := []string{}
 
 	try := func(p string) (string, bool) {
@@ -69,7 +67,7 @@ func findBinary(rootDir, override string) (string, error) {
 	if p, ok := try(override); ok {
 		return p, nil
 	}
-	if p, ok := try(filepath.Join(rootDir, "bin", "cloudflared", exeName())); ok {
+	if p, ok := try(filepath.Join(binDir, "cloudflared", exeName())); ok {
 		return p, nil
 	}
 	if p, err := exec.LookPath("cloudflared"); err == nil {

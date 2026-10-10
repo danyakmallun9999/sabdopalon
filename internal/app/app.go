@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.6"
+var Version = "0.11.7"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -436,6 +436,9 @@ func (a *App) serve() int {
 	// exposing a site to the internet is always an explicit action.
 	tnMgr := tunnel.New(tunnel.Options{
 		RootDir: a.Cfg.RootDir,
+		// The managed copy (installed from the dashboard's Packages page) lives
+		// in bin/, and is preferred over anything on PATH.
+		BinDir:  a.Cfg.BinDir(),
 		LogsDir: a.Cfg.Logs,
 		Aliaser: srv,
 		ProxyURL: func() string {

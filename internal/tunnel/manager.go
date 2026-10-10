@@ -74,7 +74,11 @@ func newCommand(ctx context.Context, bin string, args ...string) *exec.Cmd {
 // Options configures a Manager. Everything is injected so the package can be
 // tested without a network, a proxy or an installed cloudflared.
 type Options struct {
-	RootDir  string        // install dir: holds bin/ and config/
+	RootDir string // install dir: holds config/ (the tunnels.json store)
+	// BinDir is where managed tools are installed (bin/). Empty means
+	// RootDir/bin, which is the same directory unless SABDOPALON_BIN_DIR
+	// overrides it.
+	BinDir   string
 	LogsDir  string        // where tunnel-<site>.log goes
 	ProxyURL func() string // e.g. http://127.0.0.1:8080, asked at start time
 	Aliaser  Aliaser       // may be nil (no proxy to teach)
@@ -94,6 +98,8 @@ type Manager struct {
 	mu     sync.Mutex
 	insts  map[string]*instance
 	bin    string
+	ver    string // cached output of `cloudflared --version`
+	verFor string // the path that version belongs to
 	closed bool
 }
 
@@ -111,16 +117,23 @@ func New(opt Options) *Manager {
 // binary resolves cloudflared, caching a success but re-probing a failure: the
 // user who just ran the install command we printed should not be told to restart
 // Sabdopalon.
+//
+// A cached path that is NOT the managed copy is deliberately not trusted: the
+// managed copy (bin/cloudflared, installed from the Packages page) takes
+// precedence over PATH, and it can appear at any moment — including right after
+// the user clicks Install. Caching the system copy would leave the app running
+// the old binary until it was restarted, which is how "install cloudflared" first
+// shipped broken.
 func (m *Manager) binary() (string, error) {
 	m.mu.Lock()
-	if m.bin != "" {
+	if m.bin != "" && m.isManaged(m.bin) {
 		bin := m.bin
 		m.mu.Unlock()
 		return bin, nil
 	}
 	m.mu.Unlock()
 
-	bin, err := findBinary(m.opt.RootDir, m.opt.Binary)
+	bin, err := findBinary(m.binDir(), m.opt.Binary)
 	if err != nil {
 		return "", err
 	}
@@ -130,15 +143,49 @@ func (m *Manager) binary() (string, error) {
 	return bin, nil
 }
 
+// isManaged reports whether a resolved path is the copy this app manages.
+func (m *Manager) isManaged(path string) bool {
+	managed := filepath.Join(m.binDir(), "cloudflared", exeName())
+	return strings.EqualFold(filepath.Clean(path), filepath.Clean(managed))
+}
+
+// binDir is where a managed copy lives — bin/cloudflared/cloudflared[.exe], the
+// path pkgmgr installs the "cloudflared" package into. It is a candidate BEFORE
+// PATH, so a copy this app manages always wins over whatever the machine happens
+// to have installed globally.
+func (m *Manager) binDir() string {
+	if m.opt.BinDir != "" {
+		return m.opt.BinDir
+	}
+	return filepath.Join(m.opt.RootDir, "bin")
+}
+
 // BinaryInfo reports which cloudflared would be used, so the dashboard can say
 // so before anything is started (and quote the install command when there is
 // none).
+//
+// The version is cached per path. This is called from the status snapshot, which
+// the SSE feed re-serialises every two seconds — spawning `cloudflared --version`
+// on every tick would be a process launch every two seconds, which is exactly the
+// kind of thing that makes an idle dev server feel busy.
 func (m *Manager) BinaryInfo() (path, ver string, err error) {
 	bin, err := m.binary()
 	if err != nil {
 		return "", "", err
 	}
-	return bin, version(bin), nil
+	m.mu.Lock()
+	if m.verFor == bin && m.ver != "" {
+		ver = m.ver
+		m.mu.Unlock()
+		return bin, ver, nil
+	}
+	m.mu.Unlock()
+
+	v := version(bin)
+	m.mu.Lock()
+	m.verFor, m.ver = bin, v
+	m.mu.Unlock()
+	return bin, v, nil
 }
 
 // SavedMail is the email list remembered for a site, for pre-filling the field.

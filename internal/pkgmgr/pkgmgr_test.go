@@ -338,6 +338,11 @@ func TestRegistryTemplatesWellFormed(t *testing.T) {
 				t.Errorf("[%s] sha256 key %q not in platformKey vocabulary", p.Name, k)
 			}
 		}
+		for k := range p.TypeByPlat {
+			if !validKeys[k] {
+				t.Errorf("[%s] type key %q not in platformKey vocabulary", p.Name, k)
+			}
+		}
 	}
 }
 
