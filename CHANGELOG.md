@@ -5,6 +5,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.9] — 2026-10-10
+
+### Fixed
+- **A publicly shared Laravel site came out blank.** The proxy rewrote every
+  request's Host to the site's canonical `*.localhost` name — right for local
+  traffic, wrong for a tunnel: the visitor's browser was told to fetch
+  `http://point-of-sales.localhost/build/assets/app-*.js`, a host that exists on
+  nobody else's machine. The HTML arrived, the JavaScript never did, and a
+  client-rendered page stayed empty. Requests arriving on a tunnel hostname now
+  keep the host the visitor actually used; local traffic is untouched.
+
+  This also corrects a claim that shipped in 0.11.5: "the origin sees the real
+  public Host" was never true. The first end-to-end test used a plain PHP page,
+  which does not care what Host it was asked for, so the rewrite went unnoticed.
+
+- **The request also still looked like plain HTTP to the framework.** Cloudflare
+  terminates TLS, so PHP generated `http://` asset URLs inside an `https://` page
+  and the browser blocked them as mixed content — a blank page again. The
+  generated router now marks the request secure when the proxy says it arrived
+  over HTTPS. It has to be the router: the PHP built-in server never sets
+  `$_SERVER['HTTPS']` for a plain request.
+
+- **Existing sites now actually receive router fixes.** `ensureRouters`
+  deliberately never overwrote a router that was already there, so a fix like the
+  one above would only ever have reached sites created after the upgrade. The
+  generated routers carry a version marker, and a router *we* wrote that lacks it
+  (or has an older one) is refreshed; a router a project ships itself is still
+  left alone.
+
 ## [0.11.8] — 2026-10-10
 
 ### Fixed
