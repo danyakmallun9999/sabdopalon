@@ -5,6 +5,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.7] — 2026-10-10
+
+### Added
+- **cloudflared can be installed from the dashboard.** Sharing a site used to
+  answer with a `winget install Cloudflare.cloudflared` command and a terminal —
+  workable for you, hopeless for anyone else. `cloudflared` is now a package like
+  PHP or Mailpit: it appears on the Packages page, and the Public access card
+  offers an **Install** button whenever it is missing. It installs to
+  `bin/cloudflared/`, the copy that takes precedence over anything on PATH, so
+  the version this app manages is the version it runs.
+  Pinned to 2026.10.0 per platform with GitHub's own release digests — each one
+  re-verified by downloading the artifact and hashing it locally before being
+  written into the registry — and the install verifies the checksum before it is
+  used. The installer does not bundle it: the Windows download is 53 MB, and only
+  people who actually share a site need it. On macOS and Linux the same package
+  installs through `sabdopalon add cloudflared`.
+
+### Fixed
+- **The managed copy was ignored until restart.** The binary lookup cached the
+  first path it resolved, so installing cloudflared from the dashboard left the
+  app pointing at the system copy (or at nothing at all) until Sabdopalon was
+  restarted — the install appeared to do nothing. A cached path that is not the
+  managed one is no longer trusted, and two tests pin both the precedence
+  (managed beats PATH) and the caching rule.
+- **`type` can now be overridden per platform.** The registry could only say "the
+  Windows artifact is packaged differently" (`type_windows`). cloudflared needs
+  the general case: a bare executable on Windows/Linux and a `.tgz` on macOS, so
+  `type_<os>_<arch>` exists now — and the registry guard test validates those
+  keys against the same platform vocabulary as the checksum and URL overrides,
+  which is what caught the first draft of the entry.
+
 ## [0.11.6] — 2026-10-10
 
 ### Fixed
