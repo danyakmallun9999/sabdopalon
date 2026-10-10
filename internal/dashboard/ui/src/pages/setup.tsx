@@ -401,9 +401,14 @@ export default function SetupPage() {
 }
 
 // Poll until the full server (proxy actually bound) replaces the setup-mode
-// instance, then reload. The desktop shell restarts the sidecar right after
+// instance, then hand over. The desktop shell restarts the sidecar right after
 // the wizard finishes — a blind reload here would land on a dead port.
-// Bounded; falls back to a plain reload.
+// Bounded; falls back to the same handover.
+//
+// It lands on /dashboard explicitly: the wizard used to render its own success
+// panel (with a "Go to Dashboard" button and a second copy of the same
+// sentence) on top of a page that then reloaded into the dashboard, which read
+// as the same screen twice.
 async function reloadWhenReady() {
   for (let i = 0; i < 60; i++) {
     try {
@@ -417,7 +422,7 @@ async function reloadWhenReady() {
     }
     await new Promise((res) => setTimeout(res, 600))
   }
-  window.location.reload()
+  window.location.replace("/dashboard")
 }
 
 function coreIcon(key: string) {
@@ -498,11 +503,11 @@ function InstallPanel({
             )}
             <div className="flex flex-col">
               <h2 className="font-heading text-sm font-semibold text-foreground sm:text-base">
-                {success ? "Sabdopalon Is Ready!" : "Setting up Sabdopalon…"}
+                {success ? "Setup complete" : "Setting up Sabdopalon…"}
               </h2>
               <p className="text-xs text-muted-foreground">
                 {success
-                  ? "All core components and selected tools were configured successfully."
+                  ? "Opening the dashboard…"
                   : "Downloading packages and setting up the install directory..."}
               </p>
             </div>
@@ -551,18 +556,6 @@ function InstallPanel({
             onClick={() => window.location.reload()}
           >
             Reload wizard
-          </Button>
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-success/10 border-success/30 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5">
-          <div className="flex flex-col gap-0.5">
-            <p className="font-medium text-xs text-foreground sm:text-sm">Everything is installed and configured.</p>
-            <p className="text-xs text-muted-foreground">Your local server is ready for app development.</p>
-          </div>
-          <Button size="default" className="cursor-pointer gap-1.5" onClick={() => void reloadWhenReady()}>
-            Go to Dashboard <ArrowRight className="size-4" />
           </Button>
         </div>
       )}

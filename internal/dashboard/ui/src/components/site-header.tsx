@@ -70,6 +70,12 @@ export default function SiteHeader() {
               <Boxes /> Active services
             </ToneBadge>
           )}
+          {/* Version and uptime live here now: the desktop title bar already
+              carries the brand, so the sidebar's brand block was pure
+              duplication — but the build number is what a bug report needs. */}
+          <span className="text-muted-foreground hidden text-xs whitespace-nowrap tabular-nums sm:inline">
+            v{status?.version ?? "…"} · up {status?.uptime ?? "—"}
+          </span>
           <StatusDot
             status={status ? "running" : "error"}
             aria-label={status ? "Dashboard connected" : "Dashboard disconnected"}

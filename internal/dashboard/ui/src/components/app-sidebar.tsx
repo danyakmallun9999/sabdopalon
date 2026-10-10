@@ -18,7 +18,6 @@ import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -68,30 +67,6 @@ export default function AppSidebar() {
   const { status } = useLive()
   return (
     <Sidebar collapsible="offcanvas">
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
-              render={<NavLink to="/sites" />}
-            >
-              <img
-                src="/logo.png"
-                alt="Sabdopalon logo"
-                className="size-7 rounded-md"
-                draggable={false}
-              />
-              <span className="flex flex-col">
-                <span className="text-base leading-tight font-semibold">Sabdopalon</span>
-                <span className="text-muted-foreground text-xs">
-                  v{status?.version ?? "…"} · up {status?.uptime ?? "—"}
-                </span>
-              </span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-
       <SidebarContent>
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label}>
