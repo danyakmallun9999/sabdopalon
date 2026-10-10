@@ -62,9 +62,14 @@ func ShadowedCommands(binDir string, names ...string) []ShadowedCommand {
 }
 
 // provides reports whether binDir holds a launcher for name — either the real
-// binary or the ".cmd" shim written by EnsureShims.
+// binary or a launcher written by Sabdopalon.
+//
+// ".bat" matters: Composer is installed as bin/composer.bat wrapping the .phar,
+// so a check that only knew about extensions ".cmd" and none would silently
+// decide Sabdopalon does not provide Composer at all — and then never report the
+// older machine-wide install that actually runs in the user's terminal.
 func provides(binDir, name string) bool {
-	for _, candidate := range []string{name, name + ".cmd"} {
+	for _, candidate := range []string{name, name + ".cmd", name + ".bat", name + ".exe"} {
 		if st, err := os.Stat(filepath.Join(binDir, candidate)); err == nil && !st.IsDir() {
 			return true
 		}

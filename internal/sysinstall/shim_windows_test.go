@@ -38,6 +38,41 @@ func TestUserBinDirIsInsideSabdopalonRoot(t *testing.T) {
 	}
 }
 
+// TestEnsureShimsPointsPHPAtTheInstallIni: sites receive config/php.ini through
+// PHPRC, and the CLI used to receive nothing — `php -i` reported
+// "Loaded Configuration File => (none)" while the site happily read the file. A
+// setting (or an `extension=` line) added there then looked like it was being
+// ignored, and Composer's own deprecation warnings became noise.
+func TestEnsureShimsPointsPHPAtTheInstallIni(t *testing.T) {
+	bin := t.TempDir()
+	mkfile(t, filepath.Join(bin, "php", "8.5", "php.exe"))
+	mkfile(t, filepath.Join(bin, "redis", "redis-server.exe"))
+
+	if err := EnsureShims(bin); err != nil {
+		t.Fatalf("EnsureShims: %v", err)
+	}
+
+	b, err := os.ReadFile(filepath.Join(bin, "php.cmd"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(b)
+	if !contains(got, "PHPRC=") || !contains(got, `%~dp0..\config\php.ini`) {
+		t.Errorf("php.cmd = %q, want PHPRC pointing at the install's config\\php.ini", got)
+	}
+	if !contains(got, "if exist") {
+		t.Errorf("php.cmd = %q, want the PHPRC line guarded so a missing ini is not an error", got)
+	}
+	// php.ini is a PHP concern: every other shim stays a one-liner.
+	other, err := os.ReadFile(filepath.Join(bin, "redis-server.cmd"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if contains(string(other), "PHPRC") {
+		t.Errorf("redis-server.cmd = %q, want no PHPRC outside the php shim", other)
+	}
+}
+
 func TestEnsureShimsExposesToolsUnderBin(t *testing.T) {
 	bin := t.TempDir()
 	mkfile(t, filepath.Join(bin, "php", "8.5", "php.exe"))

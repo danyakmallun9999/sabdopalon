@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.9"
+var Version = "0.11.10"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -804,7 +804,13 @@ func (a *App) doctor() int {
 	binDir := a.Cfg.BinDir()
 	shadowed := sysinstall.ShadowedCommands(binDir,
 		"php", "mysql", "mysqldump", "mariadb", "mariadb-dump", "mariadb-admin",
-		"redis-cli", "redis-server", "mailpit", "minio", "meilisearch")
+		"redis-cli", "redis-server", "mailpit", "minio", "meilisearch",
+		// System tools, reported only when Sabdopalon actually provides them
+		// (the check is skipped otherwise). A machine-wide Composer installed by
+		// Composer-Setup is the common case, and it is usually years older than
+		// the PHP beside it — which shows up as deprecation warnings printed by
+		// Composer's own bundled libraries.
+		"composer", "node", "npm")
 	if len(shadowed) == 0 {
 		fmt.Printf("    ✓  nothing shadows %s — the bundled tools win\n", binDir)
 	}
@@ -821,6 +827,14 @@ func (a *App) doctor() int {
 			fmt.Printf("         its directory is on the per-user PATH ahead of %s —\n", binDir)
 			fmt.Printf("         `sabdopalon` puts its own bin/ first on each start, so re-running\n")
 			fmt.Printf("         it (or opening a new terminal) is usually enough.\n")
+		}
+		// Composer is the one people actually hit: version 2.8 and older print
+		// deprecation warnings of their own on a modern PHP, which reads as "the
+		// PHP Sabdopalon ships is broken" rather than "this Composer is old".
+		if v := sysinstall.ManagedToolVersion(s.Command); s.Command == "composer" && v != "" {
+			fmt.Printf("         Sabdopalon manages Composer %s. If the winner above is older it\n", v)
+			fmt.Printf("         prints deprecation warnings of its own on a new PHP; update it with:\n")
+			fmt.Printf("           composer self-update\n")
 		}
 	}
 

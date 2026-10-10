@@ -68,6 +68,20 @@ const nodeVersion = "v24.19.0"
 // composerVersion is the pinned Composer stable release.
 const composerVersion = "2.10.2"
 
+// ManagedToolVersion returns the pinned version of a system tool Sabdopalon
+// installs ("node", "npm", "composer"), or "" for anything else.
+//
+// Callers use it to say what the managed copy would be — and, when an older
+// install further up PATH wins, what the user is actually running instead.
+func ManagedToolVersion(name string) string {
+	for _, t := range tools {
+		if t.Name == name {
+			return t.version
+		}
+	}
+	return ""
+}
+
 // tools is the system-tool registry. Adding a tool = append one entry.
 var tools = []*SystemTool{
 	{

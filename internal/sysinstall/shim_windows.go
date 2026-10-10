@@ -137,7 +137,16 @@ func writeShim(binDir, name, rel string) error {
 		return nil
 	}
 	path := filepath.Join(binDir, name+".cmd")
-	content := "@echo off\r\n\"%~dp0" + rel + "\" %*\r\n"
+	content := "@echo off\r\n"
+	if name == "php" {
+		// One php.ini for the sites and the terminal alike. Sites get theirs via
+		// PHPRC; the CLI got nothing, so `php -i` reported "Loaded Configuration
+		// File => (none)" while the site used config/php.ini — which makes a
+		// setting (or an `extension=` line) look like it was ignored, and turns
+		// Composer's own deprecation warnings into noise nobody can turn off.
+		content += "if exist \"%~dp0..\\config\\php.ini\" set \"PHPRC=%~dp0..\\config\\php.ini\"\r\n"
+	}
+	content += "\"%~dp0" + rel + "\" %*\r\n"
 	if old, err := os.ReadFile(path); err == nil && string(old) == content {
 		return nil // already correct — leave the mtime alone
 	}
