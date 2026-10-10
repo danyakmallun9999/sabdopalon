@@ -5,6 +5,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.16] - 2026-10-11
+
+### Added
+- **Laravel starter kits, the same choices `laravel new` offers.** Creating a site
+  now offers the four first-party kits - React, Vue, Svelte and Livewire - each
+  with and without authentication scaffolding (laravel/react-starter-kit,
+  laravel/blank-react-starter-kit, ...), installed exactly the way the Laravel
+  installer does it: `composer create-project <kit> <dir> --stability=dev`.
+
+  A kit performs its own setup through composer.json's
+  `extra.laravel.installer["post-create-project"]` hook, so nothing imitates what
+  a kit does internally: verified end to end, a fresh React kit generated its key,
+  migrated SQLite, installed npm dependencies and built its assets by itself.
+
+  One thing is Sabdopalon's own: APP_URL is written as `http://<name>.localhost`
+  in both .env and .env.example. `laravel new` writes `http://localhost:8000`,
+  which names a port nothing listens on behind the proxy - the difference between
+  a page that loads its assets and a blank one.
+
+### Fixed
+- **Scaffolding no longer depends on how Sabdopalon was launched.** Both failures
+  below were found by verifying starter-kit creation on a real machine, and they
+  are the same mistake: trusting an inherited environment.
+
+  - `composer create-project` shells out to `php`, and the child inherited a PATH
+    without the install's bin/, so the download died with
+    "'php' is not recognized as an internal or external command". bin/ is now
+    prepended for every scaffolding command.
+  - PHP fell back to C:\WINDOWS as its temp directory when TMP/TEMP were absent,
+    and Composer refused to run there: "PHP temp directory (C:\WINDOWS) does not
+    exist or is not writable to Composer". Missing or empty temp variables are now
+    filled in from a folder Sabdopalon owns (`<root>/tmp`), falling back to the OS
+    temp - deliberately not os.TempDir() alone, which returns empty in exactly the
+    stripped environment that produced this failure.
+
 ## [0.11.15] - 2026-10-11
 
 ### Changed

@@ -33,6 +33,16 @@ var Registry = []Template{
 		Description: "Laravel project (requires composer, runs composer create-project)",
 		Setup:       setupLaravel,
 	},
+	// Laravel starter kits — the same choices `laravel new` offers. The "-blank"
+	// variants are the same stacks with no authentication scaffolding.
+	{Name: "laravel-react", Description: "Laravel + Inertia React starter kit (auth, Tailwind)", Setup: setupStarterKit(kitReact)},
+	{Name: "laravel-vue", Description: "Laravel + Inertia Vue starter kit (auth, Tailwind)", Setup: setupStarterKit(kitVue)},
+	{Name: "laravel-svelte", Description: "Laravel + Inertia Svelte starter kit (auth, Tailwind)", Setup: setupStarterKit(kitSvelte)},
+	{Name: "laravel-livewire", Description: "Laravel + Livewire starter kit (auth, Tailwind)", Setup: setupStarterKit(kitLivewire)},
+	{Name: "laravel-react-blank", Description: "Laravel + Inertia React, no authentication", Setup: setupStarterKit(blankReact)},
+	{Name: "laravel-vue-blank", Description: "Laravel + Inertia Vue, no authentication", Setup: setupStarterKit(blankVue)},
+	{Name: "laravel-svelte-blank", Description: "Laravel + Inertia Svelte, no authentication", Setup: setupStarterKit(blankSvelte)},
+	{Name: "laravel-livewire-blank", Description: "Laravel + Livewire, no authentication", Setup: setupStarterKit(blankLivewire)},
 	{
 		Name:        "wordpress",
 		Description: "WordPress installation (downloads latest WP)",
@@ -817,6 +827,9 @@ func runCommand(dir, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	winproc.Quiet(cmd)
 	cmd.Dir = dir
+	// `composer create-project` shells out to `php`, so the child needs our bin/
+	// on PATH even when the process that launched Sabdopalon did not have it.
+	cmd.Env = childEnv()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

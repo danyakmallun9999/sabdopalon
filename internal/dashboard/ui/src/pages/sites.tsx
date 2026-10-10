@@ -84,7 +84,17 @@ import {
 
 const TEMPLATES = [
   { id: "blank", label: "Blank PHP" },
-  { id: "laravel", label: "Laravel (needs composer)" },
+  { id: "laravel", label: "Laravel (plain skeleton)" },
+  // The same starter kits `laravel new` offers: four stacks, each with and
+  // without authentication scaffolding.
+  { id: "laravel-react", label: "Laravel + React starter kit (auth)" },
+  { id: "laravel-vue", label: "Laravel + Vue starter kit (auth)" },
+  { id: "laravel-svelte", label: "Laravel + Svelte starter kit (auth)" },
+  { id: "laravel-livewire", label: "Laravel + Livewire starter kit (auth)" },
+  { id: "laravel-react-blank", label: "Laravel + React (no auth)" },
+  { id: "laravel-vue-blank", label: "Laravel + Vue (no auth)" },
+  { id: "laravel-svelte-blank", label: "Laravel + Svelte (no auth)" },
+  { id: "laravel-livewire-blank", label: "Laravel + Livewire (no auth)" },
   { id: "wordpress", label: "WordPress (downloads latest)" },
   { id: "codeigniter", label: "CodeIgniter 4 (needs composer)" },
 ]
