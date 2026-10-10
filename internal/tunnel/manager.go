@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Aliaser is the part of the proxy this package needs.
@@ -37,10 +39,36 @@ type Runner interface {
 type execRunner struct{}
 
 func (execRunner) Run(ctx context.Context, bin string, args []string, w io.Writer) error {
-	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd := newCommand(ctx, bin, args...)
 	cmd.Stdout = w
 	cmd.Stderr = w
 	return cmd.Run()
+}
+
+// newCommand builds the exec.Cmd for cloudflared and marks it console-free.
+//
+// The marking matters more than it looks. The installed sidecar is linked with
+// -H windowsgui (desktop/scripts/build-sidecar.sh), so it owns no console, and
+// Windows hands any console-subsystem child a brand-new, visible window. That
+// window is not cosmetic: it IS cloudflared's console, so closing it kills the
+// tunnel — which is how "share publicly" presented in 0.11.5. Every other
+// subsystem here (services, php, mysqld, devtools) already routes through
+// winproc.Quiet; this package missed it, and a plain local `go build` hides the
+// bug entirely because a console-linked sidecar lets the child inherit its
+// console instead of allocating a new one.
+//
+// It is a function, not an inline exec.Command, so the Windows regression test
+// can assert the flags directly — the window itself is unobservable from a
+// console-linked test binary.
+func newCommand(ctx context.Context, bin string, args ...string) *exec.Cmd {
+	var cmd *exec.Cmd
+	if ctx == nil {
+		cmd = exec.Command(bin, args...)
+	} else {
+		cmd = exec.CommandContext(ctx, bin, args...)
+	}
+	winproc.Quiet(cmd)
+	return cmd
 }
 
 // Options configures a Manager. Everything is injected so the package can be

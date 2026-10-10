@@ -116,7 +116,8 @@ func wingetCandidates() []string {
 // version runs `cloudflared --version` once, so the dashboard can show what is
 // actually installed instead of guessing. Empty when the binary cannot tell us.
 func version(bin string) string {
-	out, err := exec.Command(bin, "--version").CombinedOutput()
+	cmd := newCommand(nil, bin, "--version")
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return ""
 	}

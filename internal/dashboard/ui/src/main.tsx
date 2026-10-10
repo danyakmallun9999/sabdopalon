@@ -16,15 +16,27 @@ import { inShell, openExternal } from "@/lib/external"
 // v2 (withGlobalTauri exposes the CORE api; plugin apis arrive with their own
 // injected script) — so the check quietly matched nothing and the click fell
 // through to a navigation the webview cannot perform.
-document.addEventListener("click", (e) => {
-  if (!inShell()) return // plain browser: the anchor's own new-tab behaviour is right
-  const anchor = (e.target as HTMLElement)?.closest?.("a[target='_blank']") as HTMLAnchorElement | null
-  if (!anchor) return
-  const url = anchor.href
-  if (!url || url.startsWith("javascript:")) return
-  e.preventDefault() // never let the webview attempt a navigation it cannot do
-  void openExternal(url)
-})
+//
+// The listener is registered in the CAPTURE phase on purpose. React 17+ attaches
+// its own listener at the root container, and a synthetic stopPropagation() also
+// calls the native one — so a bubble-phase listener here never sees clicks on
+// links inside a cell that stops propagation to keep the row from navigating
+// (the Sites table's URL column). Capture runs before all of that, so the anchor
+// opens regardless; the Tauri plugin's own window listener then sees
+// defaultPrevented and stands down, so nothing opens twice.
+document.addEventListener(
+  "click",
+  (e) => {
+    if (!inShell()) return // plain browser: the anchor's own new-tab behaviour is right
+    const anchor = (e.target as HTMLElement)?.closest?.("a[target='_blank']") as HTMLAnchorElement | null
+    if (!anchor) return
+    const url = anchor.href
+    if (!url || url.startsWith("javascript:")) return
+    e.preventDefault() // never let the webview attempt a navigation it cannot do
+    void openExternal(url)
+  },
+  true,
+)
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
