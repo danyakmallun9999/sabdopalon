@@ -569,10 +569,13 @@ export default function SitesPage() {
       </div>
 
       {/* Two-pane app frame: content | terminal dock. Both scroll internally;
-          the frame spans exactly to the bottom of the viewport. */}
+          the frame spans exactly to the bottom of the viewport. The content
+          column carries NO extra right padding: with lg:pr-4 here the table
+          ended 16px short of the toolbar buttons above it. The gap belongs to
+          the dock, which is the only thing that needs separating. */}
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Left: scrolling content column */}
-        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-6 lg:pr-4">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-6">
           {listing}
         </div>
 
@@ -580,7 +583,7 @@ export default function SitesPage() {
           <>
             {/* Divider: vertical on desktop (drag width), horizontal on mobile */}
             <div
-              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded-full lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
+              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded-full lg:my-0 lg:ml-4 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
               onPointerDown={(e) => {
                 draggingRef.current = true
                 e.currentTarget.setPointerCapture(e.pointerId)
