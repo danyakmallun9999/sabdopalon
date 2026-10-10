@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from "react"
-import { Navigate, Route, Routes, useLocation } from "react-router-dom"
+import { Navigate, Outlet, Route, Routes } from "react-router-dom"
 
 import AppSidebar from "@/components/app-sidebar"
 import { AppTitlebar, TITLEBAR_H, isTauri } from "@/components/app-titlebar"
@@ -23,10 +23,11 @@ const SitesPage = lazy(() => import("@/pages/sites"))
 const SiteDetailPage = lazy(() => import("@/pages/site-detail"))
 const SslPage = lazy(() => import("@/pages/ssl"))
 const TerminalPage = lazy(() => import("@/pages/terminal"))
+const SettingsLazy = lazy(() => import("@/pages/settings"))
 
 function PageSkeleton() {
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4 px-4 py-6 lg:px-6">
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -38,18 +39,47 @@ function PageSkeleton() {
   )
 }
 
+/** The wizard owns the whole window on first run, so this is the app's first
+ *  impression. It used to be `fallback={null}`: a blank window for as long as
+ *  the chunk took to arrive. */
+function SetupSkeleton() {
+  return (
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-6 sm:px-6">
+      <Skeleton className="h-9 w-56" />
+      <Skeleton className="h-52 w-full rounded-xl" />
+      <Skeleton className="h-16 w-full rounded-xl" />
+    </div>
+  )
+}
+
+/**
+ * Layouts, not a list of route names.
+ *
+ * Which pages scroll internally used to be decided by comparing the pathname
+ * against a hard-coded array in this file (`fullBleed`), so a new page meant
+ * editing two places — and forgetting one silently changed how that page
+ * scrolled. The distinction now lives where the routes are declared, and the
+ * height comes from --app-h, which the shell defines once.
+ */
+function FullBleedLayout() {
+  return (
+    <div className="h-(--app-h) flex min-h-0 flex-col overflow-hidden pt-2">
+      <Outlet />
+    </div>
+  )
+}
+
+function PageLayout() {
+  return (
+    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+      <Outlet />
+    </div>
+  )
+}
+
 export function App() {
   const [setup, setSetup] = useState<SetupStatus | null>(null)
   const [setupLoaded, setSetupLoaded] = useState(false)
-
-  // Full-bleed pages manage their own height (app-frame layout): content
-  // spans exactly from the header to the bottom of the viewport and scrolls
-  // internally — no window-level gap under the fold.
-  const location = useLocation()
-  const fullBleed = location.pathname === "/sites" ||
-    location.pathname.startsWith("/sites/") ||
-    location.pathname === "/terminal" ||
-    location.pathname === "/database"
 
   // One-shot bootstrap check: unbuilt installs redirect to the setup wizard.
   useEffect(() => {
@@ -65,9 +95,8 @@ export function App() {
   if (!setupLoaded) return null
 
   // Inside the Tauri desktop shell the native title bar is replaced by our
-  // own (design-system) bar: it is FIXED at the top (never scrolls away)
-  // and the whole frame is pushed down by --tb-h so no content hides
-  // underneath it.
+  // own (design-system) bar: it is FIXED at the top (never scrolls away) and
+  // the frame is pushed down by --tb-h so no content hides underneath it.
   const tauri = isTauri()
   const frameStyle = tauri
     ? ({ "--tb-h": TITLEBAR_H, paddingTop: TITLEBAR_H } as React.CSSProperties)
@@ -78,10 +107,10 @@ export function App() {
   // setup completes (backend marker decides).
   if (setup !== null && !setup.bootstrapped) {
     return (
-      <div className={cn("flex flex-col", tauri ? "tb-frame min-h-[calc(100dvh-var(--tb-h,0px))]" : "min-h-dvh")} style={frameStyle}>
+      <div className={cn("flex flex-col", tauri ? "tb-frame" : "min-h-dvh")} style={frameStyle}>
         <AppTitlebar />
         <div className="flex flex-1 flex-col">
-          <Suspense fallback={null}>
+          <Suspense fallback={<SetupSkeleton />}>
             <SetupPage />
           </Suspense>
         </div>
@@ -90,61 +119,56 @@ export function App() {
   }
 
   return (
-    <div className={cn("flex flex-col", tauri ? "tb-frame min-h-[calc(100dvh-var(--tb-h,0px))]" : "min-h-dvh")} style={frameStyle}>
+    <div className={cn("flex flex-col", tauri ? "tb-frame" : "min-h-dvh")} style={frameStyle}>
       <AppTitlebar />
       <LiveProvider>
       <SidebarProvider
-        className={cn(tauri && "min-h-[calc(100svh-var(--tb-h,0px))] flex-1")}
+        className={cn(tauri && "min-h-(--app-h) flex-1")}
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 64)",
             "--header-height": "calc(var(--spacing) * 12)",
+            // The frame the pages live in: viewport minus the desktop title bar
+            // and the app header. Defined ONCE — pages read h-(--app-h) instead
+            // of each repeating a calc() chain (there used to be three, mixing
+            // dvh and svh).
+            "--app-h": "calc(100dvh - var(--tb-h, 0px) - var(--header-height))",
           } as React.CSSProperties
         }
       >
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="flex flex-1 flex-col">
-            <div className="@container/main flex flex-1 flex-col gap-2">
-              <div
-                className={
-                  fullBleed
-                    ? "flex h-[calc(100dvh-var(--tb-h,0px)-var(--header-height))] flex-col overflow-hidden pt-2"
-                    : "flex flex-col gap-4 py-4 md:gap-6 md:py-6"
-                }
-              >
-                <Suspense fallback={<PageSkeleton />}>
-                  <Routes>
-                    {/* The gate above owns the un-bootstrapped case; a manual
-                        /setup visit after setup simply returns to the dashboard. */}
-                    <Route path="/setup" element={<Navigate to="/dashboard" replace />} />
-                    <>
-                      <Route path="/" element={<DashboardPage />} />
-                      <Route path="/dashboard" element={<DashboardPage />} />
-                      <Route path="/sites" element={<SitesPage />} />
-                    <Route path="/sites/:name" element={<SiteDetailPage />} />
-                      <Route path="/database" element={<DatabasePage />} />
-                      <Route path="/packages" element={<PackagesPage />} />
-                      <Route path="/services" element={<ServicesPage />} />
-                      <Route path="/ssl" element={<SslPage />} />
-                      <Route path="/settings" element={<SettingsLazy />} />
-                      <Route path="/logs" element={<LogsPage />} />
-                      <Route path="/terminal" element={<TerminalPage />} />
-                    </>
-                  </Routes>
-                </Suspense>
-              </div>
-            </div>
+          <div className="@container/main flex min-h-0 flex-1 flex-col">
+            <Suspense fallback={<PageSkeleton />}>
+              <Routes>
+                {/* The gate above owns the un-bootstrapped case; a manual
+                    /setup visit after setup simply returns to the dashboard. */}
+                <Route path="/setup" element={<Navigate to="/dashboard" replace />} />
+                <Route element={<FullBleedLayout />}>
+                  <Route path="/sites" element={<SitesPage />} />
+                  <Route path="/sites/:name" element={<SiteDetailPage />} />
+                  <Route path="/database" element={<DatabasePage />} />
+                  <Route path="/terminal" element={<TerminalPage />} />
+                </Route>
+                <Route element={<PageLayout />}>
+                  <Route path="/" element={<DashboardPage />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/packages" element={<PackagesPage />} />
+                  <Route path="/services" element={<ServicesPage />} />
+                  <Route path="/ssl" element={<SslPage />} />
+                  <Route path="/settings" element={<SettingsLazy />} />
+                  <Route path="/logs" element={<LogsPage />} />
+                </Route>
+              </Routes>
+            </Suspense>
           </div>
         </SidebarInset>
-        <Toaster position="bottom-right" richColors closeButton />
+        <Toaster position="bottom-right" closeButton />
       </SidebarProvider>
       </LiveProvider>
     </div>
   )
 }
-
-const SettingsLazy = lazy(() => import("@/pages/settings"))
 
 export default App

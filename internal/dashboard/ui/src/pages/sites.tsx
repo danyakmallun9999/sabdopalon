@@ -35,6 +35,7 @@ import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
 import { IconButton } from "@/components/icon-button"
+import { Empty, EmptyTitle } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -393,10 +394,10 @@ export default function SitesPage() {
   )
 
   const emptyRow = (
-    <div className="text-muted-foreground flex h-40 flex-col items-center justify-center gap-2">
+    <Empty className="h-40 border-0">
       <Globe className="size-6 opacity-50" />
-      No sites yet.
-    </div>
+      <EmptyTitle>No sites yet.</EmptyTitle>
+    </Empty>
   )
 
   /* ------------------------------- listing ------------------------------- */
@@ -429,7 +430,15 @@ export default function SitesPage() {
               )}
               {filtered.map((s) => (
                 <TableRow key={s.name} className="cursor-pointer" onClick={() => navigate(`/sites/${s.name}`)}>
-                  <TableCell className="font-medium">{s.name}</TableCell>
+                  {/* The name is a real link: the row's onClick is a convenience
+                      for the mouse, but it leaves keyboard and screen-reader
+                      users no way in. A link also gives the row a middle-click
+                      and copy-link target. */}
+                  <TableCell className="font-medium">
+                    <Link to={`/sites/${s.name}`} className="hover:underline">
+                      {s.name}
+                    </Link>
+                  </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{urlCell(s)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{phpBadge(s)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{runBadge(s)}</TableCell>

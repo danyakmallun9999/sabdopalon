@@ -204,7 +204,9 @@ export default function SettingsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>PHP</TableHead>
                 <TableHead>DB</TableHead>
-                <TableHead />
+                <TableHead className="w-24 text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

@@ -25,17 +25,44 @@ import {
 } from "@/components/ui/sidebar"
 import { useLive } from "@/lib/live"
 
-export const NAV_ITEMS = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Sites", url: "/sites", icon: Globe },
-  { title: "Database", url: "/database", icon: Database },
-  { title: "Services", url: "/services", icon: Boxes },
-  { title: "Packages", url: "/packages", icon: Package },
-  { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Terminal", url: "/terminal", icon: TerminalSquare },
-  { title: "Logs", url: "/logs", icon: ScrollText },
+type NavItem = { title: string; url: string; icon: typeof LayoutDashboard }
+
+/**
+ * The sidebar groups the nine pages by what the user came to do. One group
+ * called "Manage" holding everything told nobody anything; "Tools" and "System"
+ * are what people actually look for.
+ */
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Manage",
+    items: [
+      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+      { title: "Sites", url: "/sites", icon: Globe },
+      { title: "Database", url: "/database", icon: Database },
+    ],
+  },
+  {
+    label: "Tools",
+    items: [
+      { title: "Services", url: "/services", icon: Boxes },
+      { title: "Packages", url: "/packages", icon: Package },
+      { title: "Terminal", url: "/terminal", icon: TerminalSquare },
+      { title: "Logs", url: "/logs", icon: ScrollText },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
+      { title: "Settings", url: "/settings", icon: Settings },
+    ],
+  },
 ]
+
+// Flat view of the same list, for the header that resolves the current page
+// title from the path — one source, so a page cannot be in the sidebar and
+// nameless in the header.
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
 
 export default function AppSidebar() {
   const { status } = useLive()
@@ -66,29 +93,31 @@ export default function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Manage</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {NAV_ITEMS.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <NavLink to={item.url}>
-                    {({ isActive }) => (
-                      <SidebarMenuButton
-                        tooltip={item.title}
-                        isActive={isActive}
-                        render={<span />}
-                      >
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </SidebarMenuButton>
-                    )}
-                  </NavLink>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.url}>
+                    <NavLink to={item.url}>
+                      {({ isActive }) => (
+                        <SidebarMenuButton
+                          tooltip={item.title}
+                          isActive={isActive}
+                          render={<span />}
+                        >
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </SidebarMenuButton>
+                      )}
+                    </NavLink>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
       <SidebarFooter>

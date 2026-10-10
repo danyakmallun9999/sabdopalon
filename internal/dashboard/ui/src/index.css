@@ -114,6 +114,11 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    /* Registering the tokens as Tailwind colours is what makes bg-success,
+       text-warning and border-success/30 exist at all — the variables alone do
+       not generate a single utility. */
+    --color-success: var(--success);
+    --color-warning: var(--warning);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -169,11 +174,16 @@
 }
 /* Custom desktop title bar (Tauri shell only): the FIXED sidebar container
    must start below the bar instead of the viewport top (it used to sit
-   under the title bar — "buried sidebar"). */
+   under the title bar — "buried sidebar").
+   The frame height is stated once here (dvh throughout — the svh/dvh mix was
+   an accident of two separate fixes): viewport minus the title bar. */
+.tb-frame {
+  min-height: calc(100dvh - var(--tb-h, 0px));
+}
 .tb-frame [data-slot="sidebar-container"] {
   top: var(--tb-h, 0px);
-  height: calc(100svh - var(--tb-h, 0px));
+  height: calc(100dvh - var(--tb-h, 0px));
 }
 .tb-frame [data-slot="sidebar-wrapper"] {
-  min-height: calc(100svh - var(--tb-h, 0px));
+  min-height: calc(100dvh - var(--tb-h, 0px));
 }

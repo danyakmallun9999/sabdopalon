@@ -29,6 +29,7 @@ import api, {
 } from "@/lib/api"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { StatusDot } from "@/components/status"
+import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -93,8 +94,8 @@ export default function SiteDetailPage() {
 
   if (!detail) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        Loading…
+      <div className="flex h-full items-center justify-center">
+        <Spinner className="size-6" />
       </div>
     )
   }

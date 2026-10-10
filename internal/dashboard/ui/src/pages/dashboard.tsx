@@ -42,6 +42,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IconButton } from "@/components/icon-button"
+import { StatusDot, ToneBadge } from "@/components/status"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -215,7 +216,7 @@ function LogDialog({
             ref={preRef}
             className="bg-background text-muted-foreground max-h-[55vh] overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
           >
-            {lines.length ? lines.join("\n") : "No log entries yet."}
+            {lines.length ? lines.join("\n") : "No logs yet."}
           </pre>
         )}
       </DialogContent>
@@ -735,8 +736,8 @@ export default function DashboardPage() {
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Service</TableHead>
                   <TableHead>Ports</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-24">Status</TableHead>
+                  <TableHead className="w-40 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -745,12 +746,16 @@ export default function DashboardPage() {
                     <TableCell className="font-medium">{svc.label}</TableCell>
                     <TableCell className="font-mono text-xs">{svc.ports?.join("  ")}</TableCell>
                     <TableCell>
-                      <Badge variant={svc.running ? "default" : "outline"}>
+                      {/* Same vocabulary as the Sites table: a state is never
+                          the primary button colour, and the dot always travels
+                          with its label. */}
+                      <ToneBadge tone={svc.running ? "success" : "muted"}>
+                        <StatusDot status={svc.running ? "running" : "stopped"} />
                         {svc.running ? "running" : svc.enabled ? "enabled" : "stopped"}
-                      </Badge>
+                      </ToneBadge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="flex items-center justify-end gap-1">
                         {svc.running ? (
                           <Button size="sm" variant="outline" onClick={() => stopService(svc)} disabled={busy === svc.name}>
                             <Square /> Stop

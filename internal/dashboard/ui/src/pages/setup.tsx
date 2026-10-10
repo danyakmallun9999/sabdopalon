@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
 import { ToneBadge } from "@/components/status"
+import { FieldError } from "@/components/ui/field"
 
 const TOOL_ICONS: Record<string, typeof Database> = {
   postgresql: Database,
@@ -106,17 +107,23 @@ export default function SetupPage() {
     })
   }
 
+  // Validation belongs to the fields (components/ui/field.tsx explains why):
+  // a toast about a port shows up far from the input, expires on its own, and
+  // leaves the input looking perfectly fine.
+  const [errors, setErrors] = useState<{ tld?: string; ports?: string }>({})
+
   async function start() {
     const hp = parseInt(httpPort, 10)
     const sp = parseInt(httpsPort, 10)
+    const next: { tld?: string; ports?: string } = {}
     if (!Number.isInteger(hp) || hp < 1 || hp > 65535 || !Number.isInteger(sp) || sp < 1 || sp > 65535) {
-      toast.error("Port must be a number 1–65535")
-      return
+      next.ports = "Every port must be a number from 1 to 65535."
     }
     if (!/^[a-z0-9.]+$/.test(tld.trim())) {
-      toast.error("TLD may only contain lowercase letters, numbers, and dots")
-      return
+      next.tld = "Lowercase letters, numbers and dots only."
     }
+    setErrors(next)
+    if (next.tld || next.ports) return
     setProgress(5)
     const r = await api.runSetup({
       install_mariadb: true,
@@ -161,7 +168,7 @@ export default function SetupPage() {
                     <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">
                       Sabdopalon
                     </h1>
-                    <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium tracking-wide uppercase">
+                    <Badge variant="outline" className="px-1.5 py-0 text-xs font-medium tracking-wide uppercase">
                       Setup
                     </Badge>
                   </div>
@@ -185,7 +192,7 @@ export default function SetupPage() {
                           Required components always provisioned in the local environment.
                         </CardDescription>
                       </div>
-                      <Badge variant="secondary" className="shrink-0 text-[11px] font-normal">
+                      <Badge variant="secondary" className="shrink-0 text-xs font-normal">
                         3 Components
                       </Badge>
                     </div>
@@ -202,7 +209,7 @@ export default function SetupPage() {
                           </div>
                           <div className="flex min-w-0 flex-col">
                             <span className="truncate text-xs font-medium text-foreground sm:text-sm">{c.label}</span>
-                            <span className="truncate text-[11px] text-muted-foreground">
+                            <span className="truncate text-xs text-muted-foreground">
                               {c.installed
                                 ? c.version
                                   ? `v${c.version}`
@@ -212,11 +219,11 @@ export default function SetupPage() {
                           </div>
                         </div>
                         {c.installed ? (
-                          <ToneBadge tone="success" className="shrink-0 text-[11px]">
+                          <ToneBadge tone="success" className="shrink-0 text-xs">
                             <CheckCircle2 className="size-3" /> Installed
                           </ToneBadge>
                         ) : (
-                          <ToneBadge tone="muted" className="shrink-0 text-[11px]">
+                          <ToneBadge tone="muted" className="shrink-0 text-xs">
                             Included
                           </ToneBadge>
                         )}
@@ -240,8 +247,8 @@ export default function SetupPage() {
                     <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40">
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-xs font-medium text-foreground sm:text-sm">Create sample site</span>
-                        <span className="text-[11px] text-muted-foreground sm:text-xs">
-                          The <code className="bg-muted rounded-sm px-1 py-0.5 font-mono text-[11px]">myapp</code> site will be ready to open once setup finishes
+                        <span className="text-xs text-muted-foreground sm:text-xs">
+                          The <code className="bg-muted rounded-sm px-1 py-0.5 font-mono text-xs">myapp</code> site will be ready to open once setup finishes
                         </span>
                       </span>
                       <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5 shrink-0" />
@@ -257,7 +264,7 @@ export default function SetupPage() {
                           <ChevronDown className={`size-3.5 transition-transform duration-200 ${advanced ? "rotate-180" : ""}`} />
                           Advanced settings (domain & ports)
                         </span>
-                        <span className="text-[11px] text-muted-foreground font-normal">
+                        <span className="text-xs text-muted-foreground font-normal">
                           {advanced ? "Hide" : "Customize"}
                         </span>
                       </button>
@@ -265,7 +272,7 @@ export default function SetupPage() {
                       {advanced && (
                         <div className="grid grid-cols-1 gap-2.5 border-t border-border/40 pt-2 sm:grid-cols-3">
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-tld" className="text-[11px] font-medium text-muted-foreground">
+                            <Label htmlFor="setup-tld" className="text-xs font-medium text-muted-foreground">
                               Domain lokal (*.…)
                             </Label>
                             <Input
@@ -274,10 +281,13 @@ export default function SetupPage() {
                               onChange={(e) => setTld(e.target.value)}
                               placeholder="localhost"
                               className="h-8 text-xs font-mono"
+                              aria-invalid={!!errors.tld}
+                              aria-describedby={errors.tld ? "setup-tld-error" : undefined}
                             />
+                            <FieldError id="setup-tld-error">{errors.tld}</FieldError>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-http" className="text-[11px] font-medium text-muted-foreground">
+                            <Label htmlFor="setup-http" className="text-xs font-medium text-muted-foreground">
                               Port HTTP
                             </Label>
                             <Input
@@ -286,10 +296,12 @@ export default function SetupPage() {
                               value={httpPort}
                               onChange={(e) => setHttpPort(e.target.value)}
                               className="h-8 text-xs font-mono"
+                              aria-invalid={!!errors.ports}
+                              aria-describedby={errors.ports ? "setup-ports-error" : undefined}
                             />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-https" className="text-[11px] font-medium text-muted-foreground">
+                            <Label htmlFor="setup-https" className="text-xs font-medium text-muted-foreground">
                               Port HTTPS
                             </Label>
                             <Input
@@ -298,8 +310,13 @@ export default function SetupPage() {
                               value={httpsPort}
                               onChange={(e) => setHttpsPort(e.target.value)}
                               className="h-8 text-xs font-mono"
+                              aria-invalid={!!errors.ports}
+                              aria-describedby={errors.ports ? "setup-ports-error" : undefined}
                             />
                           </div>
+                          <FieldError id="setup-ports-error" className="col-span-full">
+                            {errors.ports}
+                          </FieldError>
                         </div>
                       )}
                     </div>
@@ -319,7 +336,7 @@ export default function SetupPage() {
                         </CardDescription>
                       </div>
                       {selected.size > 0 && (
-                        <Badge variant="default" className="shrink-0 text-[11px] font-normal">
+                        <Badge variant="default" className="shrink-0 text-xs font-normal">
                           {selected.size} Selected
                         </Badge>
                       )}
@@ -338,12 +355,12 @@ export default function SetupPage() {
 
                     {activeTools.length > 0 && (
                       <div className="mt-2 flex flex-col gap-1.5 border-t border-border/50 pt-2.5">
-                        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           Already Active
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {activeTools.map((t) => (
-                            <ToneBadge key={t.key} tone="success" className="text-[11px]">
+                            <ToneBadge key={t.key} tone="success" className="text-xs">
                               <CheckCircle2 className="size-3" /> {t.label}
                             </ToneBadge>
                           ))}
@@ -361,7 +378,7 @@ export default function SetupPage() {
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="bg-primary/80 size-2 shrink-0 rounded-full animate-pulse" />
-                <span className="text-[11px] sm:text-xs">
+                <span className="text-xs sm:text-xs">
                   {selected.size > 0
                     ? `${selected.size} additional tools will be downloaded + 3 core components.`
                     : "Only the 3 core components will be provisioned."}
@@ -428,7 +445,7 @@ function ToolRow({ tool, checked, onToggle }: { tool: SetupTool; checked: boolea
         </div>
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-xs font-medium text-foreground sm:text-sm">{tool.label}</span>
-          <span className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground sm:text-xs">
+          <span className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-xs">
             {tool.description}
           </span>
         </span>
@@ -509,9 +526,9 @@ function InstallPanel({
               <span className="size-2 rounded-full bg-amber-500/80" />
               <span className="size-2 rounded-full bg-emerald-500/80" />
             </div>
-            <span className="ml-1.5 font-mono text-[11px] text-zinc-400">setup-process.log</span>
+            <span className="ml-1.5 font-mono text-xs text-zinc-400">setup-process.log</span>
           </div>
-          <span className="font-mono text-[10px] text-zinc-500">Live Output</span>
+          <span className="font-mono text-xs text-zinc-500">Live Output</span>
         </div>
         <pre
           ref={logRef}

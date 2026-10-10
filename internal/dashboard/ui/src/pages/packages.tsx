@@ -11,6 +11,7 @@ import api, {
   type SysToolJob,
 } from "@/lib/api"
 import { ToneBadge } from "@/components/status"
+import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -131,7 +132,7 @@ function SystemToolsCard() {
           </CardDescription>
         </div>
         {tools.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Loading…</p>
+          <Spinner />
         ) : (
           <div className="mt-2 flex flex-col gap-3">
             {tools.map((t) => (

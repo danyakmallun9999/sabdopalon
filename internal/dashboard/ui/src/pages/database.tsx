@@ -7,6 +7,7 @@ import { useLive } from "@/lib/live"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { Badge } from "@/components/ui/badge"
 import { StatusDot } from "@/components/status"
+import { Empty, EmptyTitle } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -407,17 +408,17 @@ function BackupsTab({
       </CardHeader>
       <div className="px-4 pb-4 lg:px-6">
         {backups.length === 0 ? (
-          <p className="text-muted-foreground border-dashed rounded-xl border p-8 text-center text-sm">
-            No backups yet.
-          </p>
+          <Empty>
+            <EmptyTitle>No backups yet.</EmptyTitle>
+          </Empty>
         ) : (
           <div className="bg-card overflow-hidden rounded-xl border">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
                   <TableHead>Name</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Time</TableHead>
+                  <TableHead className="w-20">Size</TableHead>
+                  <TableHead className="w-44">Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
