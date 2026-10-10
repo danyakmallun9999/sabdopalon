@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -200,6 +201,74 @@ func usesPackageManager(bin string) func(string) bool {
 	}
 }
 
+// laravelDevTool describes how Sabdopalon starts a Laravel project's dev tree.
+//
+// On Unix that is the project's own `composer run dev`. On Windows it cannot be:
+// Laravel's script ends with `php artisan pail`, pail requires the POSIX-only
+// pcntl extension, and the whole concurrently tree dies with it — the runner
+// prints "The [pcntl] extension is required to run Pail." and then kills the
+// queue worker and Vite it just started. The other thing that script starts is
+// redundant here anyway: Sabdopalon serves the site through its own proxy, so
+// `artisan serve` would only open a second server on :8000 that nothing outside
+// this machine can reach.
+//
+// What is left is exactly what needs supervising: the queue worker and Vite.
+func laravelDevTool() *ToolSpec {
+	if runtime.GOOS != "windows" {
+		return &ToolSpec{
+			Name:      "laravel-dev",
+			Label:     "Laravel Dev (composer run dev)",
+			BinName:   "composer",
+			Args:      func(string, int) []string { return []string{"run", "dev"} },
+			Port:      8000,
+			ReadyKind: "tcp",
+			Env: func(siteDir string, port int) []string {
+				// Laravel's `artisan serve` takes its bind address from SERVER_HOST /
+				// SERVER_PORT (Illuminate\Foundation\Console\ServeCommand), not from
+				// APP_PORT. With APP_PORT the server stayed on :8000 while this
+				// manager probed whatever port it had picked, so the readiness check
+				// timed out after 15s and killed an otherwise healthy dev tree.
+				//
+				// Verified against Laravel 13: SERVER_PORT=8127 makes it print
+				// "Server running on [http://127.0.0.1:8127]" and :8000 stays free.
+				return []string{
+					"APP_ENV=local",
+					"SERVER_HOST=127.0.0.1",
+					fmt.Sprintf("SERVER_PORT=%d", port),
+				}
+			},
+			available: func(siteDir string) bool { return hasComposerScript(siteDir, "dev") },
+			preflight: nodeModulesReady,
+		}
+	}
+	return &ToolSpec{
+		Name:    "laravel-dev",
+		Label:   "Laravel Dev (queue + Vite)",
+		BinName: "npx",
+		Args: func(string, int) []string {
+			// Each command is a single argv entry: concurrently receives them
+			// verbatim, so no shell quoting is involved.
+			return []string{
+				"concurrently",
+				"-c", "#93c5fd,#fb7185",
+				"-n", "queue,vite",
+				"php artisan queue:listen --tries=1 --timeout=0",
+				"npm run dev",
+				"--kill-others",
+			}
+		},
+		// No readiness probe: Vite's port comes from the project's own config (and
+		// `public/hot`), so probing a fixed one would fail a healthy tree and the
+		// manager kills what fails to become ready. nodeModulesReady still runs
+		// first, which is the failure that actually happens.
+		Port:      0,
+		ReadyKind: "",
+		Env:       func(string, int) []string { return []string{"APP_ENV=local"} },
+		available: func(siteDir string) bool { return hasComposerScript(siteDir, "dev") },
+		preflight: nodeModulesReady,
+	}
+}
+
 var toolRegistry = []*ToolSpec{
 	{
 		Name:    "vite",
@@ -217,33 +286,7 @@ var toolRegistry = []*ToolSpec{
 		available: viteNotCoveredByComposerDev,
 		preflight: nodeModulesReady,
 	},
-	{
-		Name:    "laravel-dev",
-		Label:   "Laravel Dev (composer run dev)",
-		BinName: "composer",
-		Args: func(siteDir string, port int) []string {
-			return []string{"run", "dev"}
-		},
-		Port:      8000,
-		ReadyKind: "tcp",
-		Env: func(siteDir string, port int) []string {
-			// Laravel's `artisan serve` takes its bind address from SERVER_HOST /
-			// SERVER_PORT (Illuminate\Foundation\Console\ServeCommand), not from
-			// APP_PORT. With APP_PORT the server stayed on :8000 while this
-			// manager probed whatever port it had picked, so the readiness check
-			// timed out after 15s and killed an otherwise healthy dev tree.
-			//
-			// Verified against Laravel 13: SERVER_PORT=8127 makes it print
-			// "Server running on [http://127.0.0.1:8127]" and :8000 stays free.
-			return []string{
-				"APP_ENV=local",
-				"SERVER_HOST=127.0.0.1",
-				fmt.Sprintf("SERVER_PORT=%d", port),
-			}
-		},
-		available: func(siteDir string) bool { return hasComposerScript(siteDir, "dev") },
-		preflight: nodeModulesReady,
-	},
+	laravelDevTool(),
 	{
 		Name:    "npm-dev",
 		Label:   "npm run dev",

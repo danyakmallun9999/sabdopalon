@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.10"
+var Version = "0.11.11"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -429,6 +429,16 @@ func (a *App) serve() int {
 	}
 	// Kill dev-tools when a site is stopped so Vite/artisan don't linger.
 	srv.OnStopSite = dtMgr.StopAllForSite
+
+	// Workers left behind by a run that was killed rather than stopped — an
+	// installer replacing the app does exactly that — are invisible in the UI and
+	// keep holding their memory. One machine accumulated 25 of them and 2.2 GB
+	// across a day of updates, with 3.4 GB free: exactly the pressure that makes a
+	// worker die, and a dead worker is what the proxy then handed every Nth
+	// request to (a blank page until a refresh landed on a live one).
+	if n := proxy.ReapOrphanWorkers(a.Cfg.Root); n > 0 {
+		fmt.Printf("  ✔  reaped %d orphaned PHP worker(s) from a previous run\n", n)
+	}
 
 	// Cloudflare Quick Tunnels ("share this site publicly"). The manager lives
 	// in this process because a tunnel has to point at the proxy it belongs to

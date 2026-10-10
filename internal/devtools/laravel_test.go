@@ -3,6 +3,7 @@ package devtools
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -20,6 +21,37 @@ func TestLaravelDevUsesServerPortEnv(t *testing.T) {
 	if spec == nil {
 		t.Fatal("laravel-dev is not registered")
 	}
+
+	// Windows cannot run Laravel's own script at all (see laravelDevTool): it
+	// ends with `artisan pail`, which needs the POSIX-only pcntl extension. There
+	// is no artisan serve to point anywhere either, because Sabdopalon serves the
+	// site through its proxy — so what is checked here is that the Windows shape
+	// starts the two things that genuinely need supervising and nothing else.
+	if runtime.GOOS == "windows" {
+		args := strings.Join(spec.Args(t.TempDir(), 0), " ")
+		if !strings.Contains(args, "queue:listen") {
+			t.Errorf("laravel-dev on Windows must run the queue worker, got %q", args)
+		}
+		if !strings.Contains(args, "npm run dev") {
+			t.Errorf("laravel-dev on Windows must run Vite, got %q", args)
+		}
+		if strings.Contains(args, "pail") {
+			t.Errorf("laravel-dev must not run pail — pcntl does not exist on Windows: %q", args)
+		}
+		if strings.Contains(args, "artisan serve") {
+			t.Errorf("laravel-dev must not run artisan serve — the proxy already serves the site: %q", args)
+		}
+		if spec.BinName != "npx" {
+			t.Errorf("laravel-dev on Windows runs concurrently through npx, got %q", spec.BinName)
+		}
+		// No readiness probe: Vite's port comes from the project's own config, and
+		// the manager kills whatever fails to become ready on a port we guessed.
+		if spec.Port != 0 || spec.ReadyKind != "" {
+			t.Errorf("laravel-dev on Windows must not probe a fixed port (port=%d kind=%q)", spec.Port, spec.ReadyKind)
+		}
+		return
+	}
+
 	env := spec.Env(t.TempDir(), 8127)
 	joined := strings.Join(env, " ")
 

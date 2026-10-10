@@ -695,10 +695,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	// exactly the previous behaviour.
 	var rr atomic.Uint64
 	rp.Director = func(r *http.Request) {
-		p := ports[0]
-		if len(ports) > 1 {
-			p = ports[int(rr.Add(1)%uint64(len(ports)))]
-		}
+		p := pickWorker(ports, &rr)
 		r.URL.Scheme = target.Scheme
 		r.URL.Host = fmt.Sprintf("127.0.0.1:%d", p)
 		upstreamHost(r, host, s.isTunnelHost(r.Host))
@@ -779,6 +776,46 @@ func (s *Server) isTunnelHost(h string) bool {
 	defer s.mu.Unlock()
 	_, ok := s.tunnelHosts[h]
 	return ok
+}
+
+// pickWorker chooses a PHP worker port, skipping any that are not listening.
+//
+// Round-robin is what spreads concurrent requests — the built-in server answers
+// one request per process, so a single child looks frozen the moment a page
+// fires an XHR while it is still rendering. Liveness is checked first because a
+// worker can die without anyone noticing (memory pressure, a fatal error, or an
+// app update that killed its parent without cleanup): the proxy would then send
+// one request in len(ports) to a dead port, and the browser shows that as a
+// blank page until a refresh happens to land on a live worker.
+//
+// A loopback dial costs microseconds and turns that into a non-event. If no port
+// answers, the last choice is returned so the error the user sees is the real
+// one rather than a silent hang.
+func pickWorker(ports []int, rr *atomic.Uint64) int {
+	if len(ports) == 0 {
+		return 0
+	}
+	n := len(ports)
+	start := int(rr.Add(1)-1) % n
+	if workerAlive(ports[start]) {
+		return ports[start]
+	}
+	for i := 1; i < n; i++ {
+		if p := ports[(start+i)%n]; workerAlive(p) {
+			return p
+		}
+	}
+	return ports[start]
+}
+
+// workerAlive reports whether a PHP worker is accepting connections.
+func workerAlive(port int) bool {
+	c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 250*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = c.Close()
+	return true
 }
 
 // allocPorts reserves n free, unreserved ports starting at portNext.
