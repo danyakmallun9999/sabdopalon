@@ -334,10 +334,11 @@ func (a *App) serve() int {
 	}
 	_ = os.MkdirAll(a.Cfg.Root, 0o755)
 	prepareBinDir(a.Cfg)
-	// Full-bundle installs ship phpMyAdmin in bin/ — deploy it as a site.
-	if err := bootstrap.DeployBundled(a.Cfg); err != nil {
-		fmt.Fprintf(os.Stderr, "✗ bundled deploy: %v\n", err)
-	}
+	// Full-bundle installs ship phpMyAdmin in bin/ and bootstrap.DeployBundled
+	// deploys it as a site — but from startDaemons, i.e. once the dashboard is
+	// listening. On a fresh install that copy is thousands of small files and it
+	// used to sit on the path to the bind, where nothing on screen could explain
+	// the wait.
 
 	// Apply profile overlay (--profile name) before anything starts.
 	if a.Profile != "" && a.Profile != "default" {
@@ -564,6 +565,15 @@ func (a *App) serve() int {
 // stopped is polled between engines so a shutdown arriving mid-start cannot race
 // the StopAll calls into leaving an orphaned daemon holding its port.
 func (a *App) startDaemons(dbMgr *database.Manager, svcMgr *services.Manager, stopped *atomic.Bool) {
+	if stopped.Load() {
+		return
+	}
+	// Bundled web apps (phpMyAdmin) deploy into sites/ here too. On a fresh
+	// install that is thousands of small files, so it belongs on this side of the
+	// dashboard bind, not in front of it.
+	if err := bootstrap.DeployBundled(a.Cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "✗ bundled deploy: %v\n", err)
+	}
 	if stopped.Load() {
 		return
 	}

@@ -326,8 +326,18 @@ func runSetup(rootDir string, req setupRequest, write func(string, ...any)) erro
 	// Deploy phpMyAdmin as a site with pre-wired config. A failed deploy is
 	// a real error — silently continuing used to leave a broken
 	// phpmyadmin.localhost behind while the wizard claimed success.
+	//
+	// The step announces itself and then reports the running file count: it
+	// copies thousands of small files, and on a fresh machine real-time
+	// antivirus makes that slow while writing nothing. Without these lines the
+	// panel kept showing the previous step's output and looked frozen — reported
+	// from a fresh install whose log ended at "postgresql installed".
 	if dbEngine == "mariadb" || req.InstallMariaDB {
-		if err := deploy.PHPMyAdmin(cfg); err != nil {
+		write("\nDeploying phpMyAdmin to sites/phpmyadmin …\n")
+		write("  (thousands of files; a fresh machine with real-time antivirus can take a few minutes)\n")
+		if err := deploy.PHPMyAdminWithProgress(cfg, func(copied int) {
+			write("  … %d files copied\n", copied)
+		}); err != nil {
 			return fmt.Errorf("deploy phpMyAdmin: %w", err)
 		}
 		write("✓ phpMyAdmin ready → http://phpmyadmin.localhost\n")

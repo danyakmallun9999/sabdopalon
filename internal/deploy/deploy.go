@@ -52,12 +52,28 @@ func PHPMyAdminComplete(public string) bool {
 // sites/phpmyadmin/public and writes a config.inc.php pre-wired to the local
 // MariaDB (root, no password, cookie auth).
 func PHPMyAdmin(cfg *config.Engine) error {
-	return PHPMyAdminFrom(filepath.Join(cfg.RootDir, "bin", "phpmyadmin"), cfg)
+	return PHPMyAdminWithProgress(cfg, nil)
+}
+
+// PHPMyAdminWithProgress is PHPMyAdmin with a copy-progress callback, invoked
+// every few hundred files with the running total.
+//
+// The callback exists because this is thousands of small files, and on a fresh
+// Windows machine real-time antivirus inspects every one of them: the copy can
+// take minutes while writing NOTHING to any log. The setup wizard's panel is the
+// only signal a user has, so it sat on its last line ("postgresql installed")
+// looking frozen — reported from a fresh install that was in fact still working.
+func PHPMyAdminWithProgress(cfg *config.Engine, onProgress func(copied int)) error {
+	return phpMyAdminFrom(filepath.Join(cfg.RootDir, "bin", "phpmyadmin"), cfg, onProgress)
 }
 
 // PHPMyAdminFrom deploys phpMyAdmin from an explicit source dir (writable
 // bin/ or read-only resource dir in desktop mode).
 func PHPMyAdminFrom(src string, cfg *config.Engine) error {
+	return phpMyAdminFrom(src, cfg, nil)
+}
+
+func phpMyAdminFrom(src string, cfg *config.Engine, onProgress func(copied int)) error {
 	if _, err := os.Stat(src); err != nil {
 		return fmt.Errorf("phpMyAdmin not found (run 'sabdopalon add phpmyadmin' first)")
 	}
@@ -72,7 +88,7 @@ func PHPMyAdminFrom(src string, cfg *config.Engine) error {
 	if err := os.RemoveAll(staging); err != nil {
 		return fmt.Errorf("clear staging dir: %w", err)
 	}
-	if err := copyTree(src, staging); err != nil {
+	if err := copyTreeProgress(src, staging, onProgress); err != nil {
 		_ = os.RemoveAll(staging)
 		return fmt.Errorf("copy phpMyAdmin: %w", err)
 	}
@@ -224,13 +240,29 @@ require __DIR__ . '/adminer.php';
 // turn an internal (possibly broken) link into a copy failure in practice; the
 // depth guard keeps a link cycle from looping forever.
 func copyTree(src, dst string) error {
-	return copyTreeDepth(src, dst, 0)
+	return copyTreeProgress(src, dst, nil)
+}
+
+// progressEveryFiles is how many files are copied between progress callbacks:
+// often enough to show life, rare enough not to flood the wizard's log.
+const progressEveryFiles = 250
+
+// copyTreeProgress copies a tree, reporting the running file count every
+// progressEveryFiles files (nil callback = no reporting).
+func copyTreeProgress(src, dst string, onProgress func(copied int)) error {
+	copied := 0
+	return copyTreeDepth(src, dst, 0, func() {
+		copied++
+		if onProgress != nil && copied%progressEveryFiles == 0 {
+			onProgress(copied)
+		}
+	})
 }
 
 // maxCopyDepth bounds recursion so a symbolic-link cycle cannot loop forever.
 const maxCopyDepth = 64
 
-func copyTreeDepth(src, dst string, depth int) error {
+func copyTreeDepth(src, dst string, depth int, onFile func()) error {
 	if depth > maxCopyDepth {
 		return fmt.Errorf("directory tree too deep at %s (symbolic link cycle?)", src)
 	}
@@ -241,7 +273,13 @@ func copyTreeDepth(src, dst string, depth int) error {
 		return err
 	}
 	if !info.IsDir() {
-		return copyTreeFile(src, dst, info.Mode().Perm())
+		if err := copyTreeFile(src, dst, info.Mode().Perm()); err != nil {
+			return err
+		}
+		if onFile != nil {
+			onFile()
+		}
+		return nil
 	}
 	// Creates the destination and every missing parent — including when dst is
 	// the staging root, which the walk below never visits as a directory.
@@ -253,7 +291,7 @@ func copyTreeDepth(src, dst string, depth int) error {
 		return err
 	}
 	for _, e := range entries {
-		if err := copyTreeDepth(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), depth+1); err != nil {
+		if err := copyTreeDepth(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name()), depth+1, onFile); err != nil {
 			return err
 		}
 	}

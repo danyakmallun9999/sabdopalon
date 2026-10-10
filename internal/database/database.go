@@ -158,6 +158,7 @@ func (m *Manager) Start(engine string) (err error) {
 	_ = os.MkdirAll(m.cfg.Logs, 0o755)
 
 	// initialize data dir on first run
+	initializedNow := false
 	if !dirHasFiles(dataDir) {
 		fmt.Printf("  •  initializing %s data dir at %s\n", engine, dataDir)
 		if err := initialize(binary, dataDir, engine); err != nil {
@@ -166,6 +167,27 @@ func (m *Manager) Start(engine string) (err error) {
 		if err := writeInitMarker(engine, dataDir); err != nil {
 			return fmt.Errorf("write init marker: %w", err)
 		}
+		initializedNow = true
+	} else if needsReinit(engine, dataDir) {
+		// A first initialization that was interrupted (the app was closed while
+		// it ran — what a stuck setup leads to) leaves a NON-EMPTY directory with
+		// no system schema, and dirHasFiles then skips initialization forever:
+		// the daemon can never start and every retry fails identically. Rebuild
+		// it instead of reporting the same dead end again.
+		fmt.Printf("  •  %s data dir at %s has no system schema — half-initialized, rebuilding\n", engine, dataDir)
+		if err := os.RemoveAll(dataDir); err != nil {
+			return fmt.Errorf("clear half-initialized data dir: %w", err)
+		}
+		if err := os.MkdirAll(dataDir, 0o755); err != nil {
+			return fmt.Errorf("recreate data dir: %w", err)
+		}
+		if err := initialize(binary, dataDir, engine); err != nil {
+			return fmt.Errorf("init db: %w", err)
+		}
+		if err := writeInitMarker(engine, dataDir); err != nil {
+			return fmt.Errorf("write init marker: %w", err)
+		}
+		initializedNow = true
 	}
 
 	logPath := filepath.Join(m.cfg.Logs, engine+".log")
@@ -230,16 +252,26 @@ func (m *Manager) Start(engine string) (err error) {
 
 	// wait for readiness. Windows daemons never create the unix socket, so
 	// TCP is the only reliable readiness signal there.
+	//
+	// A FIRST start gets a much longer budget: it has to create the InnoDB/aria
+	// system tables and write them through, and on a fresh machine antivirus
+	// inspects every byte of that. 30s is not enough there, and killing the
+	// daemon at that point is both wrong and destructive — the half-initialised
+	// data directory it leaves behind then fails every later start.
+	timeout := 30 * time.Second
+	if initializedNow {
+		timeout = 3 * time.Minute
+	}
 	var ready bool
 	if engine == "postgresql" || runtime.GOOS == "windows" {
-		ready = waitTCPPort(port, 30*time.Second)
+		ready = waitTCPPort(port, timeout)
 	} else {
-		ready = waitForSocket(socket, 30*time.Second)
+		ready = waitForSocket(socket, timeout)
 	}
 	if !ready {
-		tail := logTail(logPath, 5)
+		err := m.startupFailure(engine, dataDir, logPath, cmd, p.done, timeout, initializedNow)
 		_ = m.Stop(engine)
-		return fmt.Errorf("%s did not start: %s (see logs/%s.log)", engine, nonEmpty(tail, "no output captured"), engine)
+		return err
 	}
 	// Readiness must be OUR daemon's, not any listener that happens to hold
 	// the port: compare the daemon's pidfile against the pid we spawned.
@@ -752,6 +784,83 @@ func nonEmpty(s, fallback string) string {
 	return s
 }
 
+// startupFailure explains a daemon that never answered.
+//
+// The captured stdout/stderr is legitimately EMPTY in exactly the case a user
+// needs it most: MariaDB and MySQL write their startup errors to
+// <datadir>/<host>.err, not to the console. "no output captured (see
+// logs/mariadb.log)" therefore pointed at the wrong file and hid the reason — a
+// fresh Windows install reported exactly that while the real error sat unread in
+// the data directory. Everything that can explain the failure is gathered here:
+// both logs, the engine's own error log, and whether the process is still alive
+// or already gone (with its exit status).
+func (m *Manager) startupFailure(engine, dataDir, logPath string, cmd *exec.Cmd, done <-chan struct{}, timeout time.Duration, initializedNow bool) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s did not start within %s", engine, timeout)
+
+	if tail := logTail(logPath, 5); tail != "" {
+		fmt.Fprintf(&b, "\n  %s: %s", filepath.Base(logPath), tail)
+	} else {
+		fmt.Fprintf(&b, "\n  %s is empty — %s logs its startup errors to its own file, below",
+			filepath.Base(logPath), engine)
+	}
+
+	if errFile, tail := newestErrTail(dataDir); errFile != "" {
+		if tail != "" {
+			fmt.Fprintf(&b, "\n  %s: %s", filepath.Base(errFile), tail)
+		} else {
+			fmt.Fprintf(&b, "\n  %s exists but is empty", filepath.Base(errFile))
+		}
+	} else {
+		fmt.Fprintf(&b, "\n  no *.err log in %s", dataDir)
+	}
+
+	select {
+	case <-done:
+		if st := cmd.ProcessState; st != nil {
+			fmt.Fprintf(&b, "\n  the daemon exited: %s", st)
+		} else {
+			b.WriteString("\n  the daemon exited")
+		}
+	default:
+		b.WriteString("\n  the daemon was still running and has been stopped")
+	}
+
+	if initializedNow {
+		b.WriteString("\n  this was the FIRST start — the data directory had just been created")
+	}
+	fmt.Fprintf(&b, "\n  inspect: %s and %s", logPath, dataDir)
+	return fmt.Errorf("%s", b.String())
+}
+
+// newestErrTail returns the newest *.err file in dir — MariaDB/MySQL's own error
+// log, which is NOT the file the daemon's stdout is redirected to — together with
+// the last lines it holds.
+func newestErrTail(dir string) (string, string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", ""
+	}
+	newest := ""
+	var newestTime time.Time
+	for _, e := range entries {
+		if e.IsDir() || !strings.EqualFold(filepath.Ext(e.Name()), ".err") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if newest == "" || info.ModTime().After(newestTime) {
+			newest, newestTime = filepath.Join(dir, e.Name()), info.ModTime()
+		}
+	}
+	if newest == "" {
+		return "", ""
+	}
+	return newest, logTail(newest, 5)
+}
+
 func serverBinary(engine string) string {
 	switch engine {
 	case "mariadb":
@@ -783,6 +892,28 @@ func writeInitMarker(engine, dataDir string) error {
 func dirHasFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	return err == nil && len(entries) > 0
+}
+
+// needsReinit reports whether a NON-EMPTY data dir was left half-initialized by
+// an interrupted first run, and therefore has to be rebuilt instead of used.
+//
+// The engine's own system schema is the test: a real MariaDB/MySQL data dir
+// always contains mysql/ (the grant tables) and a PostgreSQL cluster always has
+// base/, while a partial one has neither. Genuine databases are never touched —
+// and a dir we previously marked as initialized is left alone whatever it looks
+// like, because the user's data outranks our guess.
+func needsReinit(engine, dataDir string) bool {
+	if fileExists(filepath.Join(dataDir, initMarkerName)) {
+		return false
+	}
+	switch engine {
+	case "mariadb", "mysql":
+		return !dirHasFiles(filepath.Join(dataDir, "mysql"))
+	case "postgresql":
+		return !dirHasFiles(filepath.Join(dataDir, "base"))
+	default:
+		return false
+	}
 }
 
 // rotateLog renames path to path.old once it exceeds maxBytes, so appending
