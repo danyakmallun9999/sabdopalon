@@ -5,6 +5,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.3] — 2026-10-10
+
+Both fixes come from a fresh Windows laptop with PostgreSQL selected, and both
+are about the same kind of silence: work happening with nothing on screen to say
+so, and a failure message that names the wrong file.
+
+### Fixed
+- **The wizard looked frozen at 95% while it was still working.** Its log ended
+  at "postgresql installed" because the step after the downloads — deploying
+  phpMyAdmin into `sites/` — copied thousands of small files without a word, and
+  a fresh machine's antivirus inspects every one of them. The step now announces
+  itself and reports the running file count, and the same copy at startup (a
+  bundled phpMyAdmin that is not deployed yet) moved behind the dashboard bind,
+  together with the databases: nothing depends on it being finished, and it was
+  another multi-minute wait in front of a window that could not explain itself.
+- **"mariadb did not start: no output captured (see logs/mariadb.log)"** pointed
+  at the wrong file. MariaDB and MySQL write their startup errors to
+  `<datadir>/<host>.err`, not to the console, so the captured log is legitimately
+  empty in exactly the case a user needs it most — the real error was sitting
+  unread in the data directory. The failure now reports both logs, the engine's
+  own error file and its last lines, whether the daemon is still alive or already
+  exited (with its status), and whether this was a first start.
+- **A first start gets 3 minutes instead of 30s.** It has to create the
+  InnoDB/aria system tables and write them through, and antivirus inspects all of
+  it. Killing the daemon at 30s was both wrong and destructive: the
+  half-initialised data directory it left behind then failed every later start.
+- **A half-initialised data directory is rebuilt instead of failing forever.**
+  When a first initialization is interrupted — the app closed while it ran, which
+  is what a stuck setup leads to — the directory is non-empty but has no system
+  schema, and the old "has files, so skip init" rule left the database
+  permanently unable to start. Rebuilding requires the *absence* of that schema
+  (`mysql/`, `base/`) and of our own init marker, so a real database is never
+  touched.
+
 ## [0.11.2] — 2026-10-10
 
 Everything here was found by using 0.11.1 on a real Windows machine rather than
