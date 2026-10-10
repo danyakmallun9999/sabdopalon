@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.8] — 2026-10-10
+
+### Fixed
+- **The dashboard is canonical at `/dashboard` now.** The desktop shell navigates
+  the window to the bare origin, so the address bar sat on `/` while the app was
+  showing the dashboard — and the URL is what anyone quotes when something looks
+  wrong. `/` now redirects to `/dashboard`.
+- **A path that is not a route no longer renders an empty page.** Anything else —
+  a stale bookmark, a mistyped URL, a link from an older build — used to match no
+  route at all, which rendered the sidebar and header around a blank content area
+  and read as "the dashboard is broken". There is a catch-all redirect to the
+  dashboard now, so a stray URL lands somewhere useful.
+
+  The links on the Go-served start page (the one shown for a host with no site)
+  and the desktop shell's own navigation point at `/dashboard` too, so all three
+  entry points agree on the canonical URL.
+
 ## [0.11.7] — 2026-10-10
 
 ### Added
