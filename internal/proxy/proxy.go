@@ -44,7 +44,12 @@ type Server struct {
 	portNext int
 	stopCh   chan struct{}
 	aliases  map[string]string // alias hostname -> canonical site name
-	Verbose  bool              // print per-site start/stop events
+	// tunnelHosts maps a public tunnel hostname (assigned at runtime by
+	// cloudflared) to a site. Kept apart from aliases so RebuildAliases — which
+	// re-reads .sabdopalon.yml whenever a site's config changes — cannot wipe a
+	// tunnel that is currently up.
+	tunnelHosts map[string]string
+	Verbose     bool // print per-site start/stop events
 
 	// EnvProvider optionally supplies extra env vars for PHP processes
 	// (used to expose running optional services, e.g. Redis/MinIO).
@@ -101,12 +106,13 @@ type siteServer struct {
 // New creates a proxy Server.
 func New(cfg *config.Engine) *Server {
 	return &Server{
-		cfg:      cfg,
-		sites:    map[string]*siteServer{},
-		disabled: map[string]bool{},
-		aliases:  map[string]string{},
-		portNext: 9001,
-		stopCh:   make(chan struct{}),
+		cfg:         cfg,
+		sites:       map[string]*siteServer{},
+		disabled:    map[string]bool{},
+		aliases:     map[string]string{},
+		tunnelHosts: map[string]string{},
+		portNext:    9001,
+		stopCh:      make(chan struct{}),
 	}
 }
 
@@ -424,6 +430,14 @@ func (s *Server) hostToSite(host string) (string, bool) {
 	if host == "localhost" || host == "127.0.0.1" || host == "::1" {
 		return "", false
 	}
+	// A public tunnel hostname wins: it maps to exactly one site, and it only
+	// exists while that site is being shared.
+	s.mu.Lock()
+	if name, ok := s.tunnelHosts[host]; ok {
+		s.mu.Unlock()
+		return name, true
+	}
+	s.mu.Unlock()
 	// per-site aliases (.sabdopalon.yml) take precedence
 	s.mu.Lock()
 	if name, ok := s.aliases[host]; ok {
@@ -466,6 +480,37 @@ func validSiteName(name string) bool {
 // RebuildAliases re-scans per-site .sabdopalon.yml files so alias changes
 // made from the dashboard take effect without restarting Sabdopalon.
 func (s *Server) RebuildAliases() { s.buildAliases() }
+
+// AddTunnelHost points a public tunnel hostname at a site for as long as the
+// tunnel lives.
+//
+// Why the proxy has to learn this: a Quick Tunnel's hostname is random and only
+// exists after cloudflared starts, and the origin request that arrives through
+// it carries that hostname — not the site's *.localhost name. Teaching the proxy
+// the mapping keeps the real public Host visible to PHP, which is what makes a
+// framework generate links that work for the visitor. Overriding the Host header
+// on the cloudflared side instead would make the app emit http://myapp.localhost
+// URLs, which are dead outside this machine.
+func (s *Server) AddTunnelHost(host, site string) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" || site == "" {
+		return
+	}
+	s.mu.Lock()
+	s.tunnelHosts[host] = site
+	s.mu.Unlock()
+}
+
+// RemoveTunnelHost forgets a hostname when its tunnel stops.
+func (s *Server) RemoveTunnelHost(host string) {
+	host = strings.ToLower(strings.TrimSpace(host))
+	if host == "" {
+		return
+	}
+	s.mu.Lock()
+	delete(s.tunnelHosts, host)
+	s.mu.Unlock()
+}
 
 // buildAliases pre-scans all sites for .sabdopalon.yml aliases so extra
 // domains can route to a project without editing /etc/hosts.

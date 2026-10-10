@@ -15,6 +15,8 @@ export type Status = {
   sites_count: number
   services: boolean
   php_version?: string
+  /** Live public-tunnel state per site, keyed by site name. */
+  tunnels?: Record<string, TunnelState>
 }
 
 export type ServiceStatus = {
@@ -191,6 +193,17 @@ export type SiteDetail = {
   logs: string[]
 }
 
+export type TunnelStatus = "off" | "starting" | "online" | "error"
+
+export type TunnelState = {
+  enabled: boolean
+  status: TunnelStatus
+  url: string
+  allowed_mail: string[]
+  error: string
+  started_at: string
+}
+
 export type SetupComponent = {
   key: string
   label: string
@@ -347,6 +360,14 @@ const api = {
       `/api/sites/${encodeURIComponent(name)}/devtools`,
       { tool, action },
     ),
+
+  // Public sharing via a Cloudflare quick tunnel: one endpoint, three verbs.
+  siteTunnel: (name: string) =>
+    request<TunnelState>(`/api/sites/${encodeURIComponent(name)}/tunnel`),
+  startSiteTunnel: (name: string, allowedMail: string[]) =>
+    post<TunnelState>(`/api/sites/${encodeURIComponent(name)}/tunnel`, { allowed_mail: allowedMail }),
+  stopSiteTunnel: (name: string) =>
+    request<TunnelState>(`/api/sites/${encodeURIComponent(name)}/tunnel`, { method: "DELETE" }),
 
   setupStatus: () => request<SetupStatus>("/api/setup/status"),
   runSetup: (payload: Record<string, unknown>) =>

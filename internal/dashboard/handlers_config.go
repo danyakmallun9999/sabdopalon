@@ -13,6 +13,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/services"
+	"github.com/sabdopalon/sabdopalon/internal/tunnel"
 )
 
 // handleAPIStatus reports overall system state for the header/status card.
@@ -46,6 +47,14 @@ func (s *Server) statusSnapshot() map[string]any {
 		"db_running":  dbRunning,
 		"sites_count": len(s.proxy.RunningSites()),
 		"services":    s.svcRunning(),
+	}
+	// Tunnel state rides the existing status feed: the SSE handler only pushes
+	// the snapshot when it changes, so a public URL shows up in the UI the
+	// moment cloudflared prints it, with no polling and no second channel.
+	if s.tn != nil {
+		resp["tunnels"] = s.tn.Snapshot()
+	} else {
+		resp["tunnels"] = map[string]tunnel.State{}
 	}
 	if s.db != nil {
 		resp["db_states"] = s.db.States()

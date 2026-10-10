@@ -17,6 +17,7 @@ import {
   ScrollText,
   Search,
   Settings2,
+  Share2,
   Square,
   TerminalSquare,
   Trash2,
@@ -274,6 +275,22 @@ export default function SitesPage() {
     load()
   }
 
+  // No email field on this page, so a tunnel started from the row menu is
+  // open to anyone; the site page is where an allow-list can be set.
+  async function toggleShare(s: Site) {
+    const shared = !!status?.tunnels?.[s.name]?.enabled
+    setBusy(s.name + "tunnel")
+    try {
+      const r = shared
+        ? await api.stopSiteTunnel(s.name)
+        : await api.startSiteTunnel(s.name, [])
+      if (r.error) toast.error(r.error)
+      else if (r.url) toast.success(r.url)
+    } finally {
+      setBusy(null)
+    }
+  }
+
   function openTerminalFor(site: Site | null) {
     setTermSite(site)
     setDock((d) => ({ ...d, open: true }))
@@ -348,6 +365,17 @@ export default function SitesPage() {
     </ToneBadge>
   )
 
+  // Sharing is a live fact, not something this page asked for, so the badge is
+  // driven entirely by the snapshot from /api/events.
+  const tunnelBadge = (s: Site) => {
+    const t = status?.tunnels?.[s.name]
+    if (!t) return null
+    if (t.status === "online") return <ToneBadge tone="success">public</ToneBadge>
+    if (t.status === "starting") return <ToneBadge tone="warning">starting…</ToneBadge>
+    if (t.status === "error") return <ToneBadge tone="danger">share failed</ToneBadge>
+    return null
+  }
+
   const startStopBtn = (s: Site) => (
     <Button
       size="sm"
@@ -382,6 +410,13 @@ export default function SitesPage() {
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => openTerminalFor(s)}>
           <TerminalSquare /> Open in terminal
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => toggleShare(s)}
+          disabled={busy === s.name + "tunnel"}
+        >
+          {status?.tunnels?.[s.name]?.enabled ? <Square /> : <Share2 />}
+          {status?.tunnels?.[s.name]?.enabled ? "Stop sharing" : "Share publicly…"}
         </DropdownMenuItem>
         <DropdownMenuItem render={<Link to={`/logs?site=${s.name}`} />}>
           <ScrollText /> Logs
@@ -435,9 +470,12 @@ export default function SitesPage() {
                       users no way in. A link also gives the row a middle-click
                       and copy-link target. */}
                   <TableCell className="font-medium">
-                    <Link to={`/sites/${s.name}`} className="hover:underline">
-                      {s.name}
-                    </Link>
+                    <span className="inline-flex items-center gap-2">
+                      <Link to={`/sites/${s.name}`} className="hover:underline">
+                        {s.name}
+                      </Link>
+                      {tunnelBadge(s)}
+                    </span>
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{urlCell(s)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{phpBadge(s)}</TableCell>
@@ -464,7 +502,7 @@ export default function SitesPage() {
           <div key={s.name} className="bg-card flex flex-col gap-3 rounded-xl border p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-2 font-medium">
-                {runBadge(s)} {s.name}
+                {runBadge(s)} {s.name} {tunnelBadge(s)}
               </span>
               {phpBadge(s)}
             </div>

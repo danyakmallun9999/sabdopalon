@@ -32,12 +32,13 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/sysinstall"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/trust"
+	"github.com/sabdopalon/sabdopalon/internal/tunnel"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
 	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.4"
+var Version = "0.11.5"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -168,6 +169,8 @@ func (a *App) Run(args []string) int {
 		return a.phpList()
 	case "enable-ports", "ports:enable":
 		return a.enablePorts()
+	case "share":
+		return a.share(args[1:])
 	case "ssl:ca":
 		return a.sslCA()
 	case "ssl:issue":
@@ -227,6 +230,11 @@ Usage:
   Database:
   sabdopalon backup             Create a database backup now
   sabdopalon backup:list        List existing backups
+
+  Sites:
+  sabdopalon sites              List your sites
+  sabdopalon share <site>       Share a site on a public trycloudflare.com URL
+  sabdopalon share stop <site>  Stop sharing (the URL stops working)
 
   Advanced:
   sabdopalon enable-ports       Allow binding :80/:443 for clean URLs
@@ -422,6 +430,31 @@ func (a *App) serve() int {
 	// Kill dev-tools when a site is stopped so Vite/artisan don't linger.
 	srv.OnStopSite = dtMgr.StopAllForSite
 
+	// Cloudflare Quick Tunnels ("share this site publicly"). The manager lives
+	// in this process because a tunnel has to point at the proxy it belongs to
+	// and teach it the public hostname; it never starts anything by itself —
+	// exposing a site to the internet is always an explicit action.
+	tnMgr := tunnel.New(tunnel.Options{
+		RootDir: a.Cfg.RootDir,
+		LogsDir: a.Cfg.Logs,
+		Aliaser: srv,
+		ProxyURL: func() string {
+			// Ask for the bound port at launch time: the low-port attempt
+			// (:80/:443) may have succeeded, in which case the configured port
+			// is not the one to point at.
+			p, _ := srv.Ports()
+			if p <= 0 {
+				p = a.Cfg.Proxy.HTTPPort
+			}
+			return fmt.Sprintf("http://127.0.0.1:%d", p)
+		},
+		Logf: func(format string, args ...any) {
+			if a.Verbose {
+				fmt.Printf("  ✦  "+format+"\n", args...)
+			}
+		},
+	})
+
 	// Handle Ctrl+C / SIGTERM gracefully. Installed as early as possible —
 	// before the dashboard starts — so a signal during startup still shuts
 	// down whatever daemons have already started instead of leaving them
@@ -447,6 +480,9 @@ func (a *App) serve() int {
 		shutdownOnce.Do(func() {
 			fmt.Println("\n\nStopping Sabdopalon...")
 			n := srv.Stop()
+			// Close public tunnels first: while they are up, a request can still
+			// arrive and be routed to a site whose PHP is being torn down.
+			tnMgr.StopAll()
 			dtMgr.StopAll()
 			// The database/service daemons may still be coming up in the
 			// background (startDaemons). Flag the stop and give that goroutine a
@@ -492,6 +528,7 @@ func (a *App) serve() int {
 	if a.Cfg.Dashboard.Enabled {
 		bk := backup.New(a.Cfg, 5)
 		dash := dashboard.New(a.Cfg, srv, bk, svcMgr, dbMgr, dtMgr)
+		dash.SetTunnels(tnMgr)
 		go func() {
 			if err := dash.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠ dashboard: %v\n", err)

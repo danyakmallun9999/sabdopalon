@@ -4,6 +4,7 @@ import { toast } from "sonner"
 import {
   Box,
   Clock,
+  Copy,
   Database,
   ExternalLink,
   FileCode2,
@@ -15,6 +16,7 @@ import {
   ScrollText,
   Server,
   Settings2,
+  Share2,
   Square,
   Terminal as TerminalIcon,
   Zap,
@@ -25,15 +27,19 @@ import api, {
   type LogResponse,
   type SiteConfigPayload,
   type SiteDetail,
+  type TunnelState,
   poll,
 } from "@/lib/api"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
-import { StatusDot } from "@/components/status"
+import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
+import { IconButton } from "@/components/icon-button"
+import { openExternal } from "@/lib/external"
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -267,6 +273,8 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
         </CardContent>
       </Card>
 
+      <PublicAccessCard name={detail.name} />
+
       {/* DevTools summary */}
       {detail.devtools.filter((t) => t.running).length > 0 && (
         <Card>
@@ -286,6 +294,132 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
         </Card>
       )}
     </div>
+  )
+}
+
+/* ------------------------------ Public access ------------------------------ */
+
+function PublicAccessCard({ name }: { name: string }) {
+  const { status } = useLive()
+  const [mail, setMail] = useState("")
+  const [busy, setBusy] = useState(false)
+  // The mutation reply covers the gap before the next /api/events snapshot;
+  // from then on the live entry is the one that wins.
+  const [answer, setAnswer] = useState<TunnelState | null>(null)
+  const tunnel = status?.tunnels?.[name] ?? answer
+
+  const state = tunnel?.status ?? "off"
+  const dot: DotStatus =
+    state === "online"
+      ? "running"
+      : state === "starting"
+        ? "connecting"
+        : state === "error"
+          ? "error"
+          : "stopped"
+  const text =
+    state === "online"
+      ? "Public"
+      : state === "starting"
+        ? "Starting…"
+        : state === "error"
+          ? tunnel?.error || "Error"
+          : "Off"
+
+  const shared = !!tunnel?.enabled
+  const applied = tunnel?.allowed_mail ?? []
+
+  async function toggle(next: boolean) {
+    setBusy(true)
+    try {
+      const r = next
+        ? await api.startSiteTunnel(name, mail.split(",").map((m) => m.trim()).filter(Boolean))
+        : await api.stopSiteTunnel(name)
+      if (r.error) toast.error(r.error)
+      else setAnswer(r)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function copyUrl() {
+    if (!tunnel?.url) return
+    await navigator.clipboard.writeText(tunnel.url).catch(() => {})
+    toast.success("Public URL copied")
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Share2 className="size-4" /> Public access
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor="tunnel-share" className="font-normal">
+            Share this site on a public URL
+          </Label>
+          <Switch
+            id="tunnel-share"
+            checked={shared}
+            disabled={busy}
+            onCheckedChange={(v) => toggle(v === true)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="tunnel-mail">Only these emails (optional)</Label>
+          {/* The allow-list is applied once, at start, so while the tunnel runs
+              we show what it actually uses rather than an input that would only
+              take effect on the next start. */}
+          {shared ? (
+            <div className="flex flex-wrap gap-1.5">
+              {applied.map((m) => (
+                <ToneBadge key={m} tone="muted">
+                  {m}
+                </ToneBadge>
+              ))}
+            </div>
+          ) : (
+            <Input
+              id="tunnel-mail"
+              value={mail}
+              onChange={(e) => setMail(e.target.value)}
+              placeholder="alice@example.com, bob@example.com"
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <StatusDot status={dot} />
+          <span className={state === "error" ? "text-destructive" : "text-muted-foreground"}>{text}</span>
+        </div>
+
+        {tunnel?.url && (
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 truncate font-mono text-xs" title={tunnel.url}>
+              {tunnel.url}
+            </span>
+            <IconButton label="Copy public URL" size="icon-sm" variant="ghost" onClick={copyUrl}>
+              <Copy />
+            </IconButton>
+            <IconButton
+              label="Open public URL"
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => void openExternal(tunnel.url)}
+            >
+              <ExternalLink />
+            </IconButton>
+          </div>
+        )}
+
+        <p className="text-muted-foreground text-xs">
+          Anyone with this link can reach this site. Turn off APP_DEBUG before sharing.
+        </p>
+      </CardContent>
+    </Card>
   )
 }
 

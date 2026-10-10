@@ -129,8 +129,10 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 			s.json(w, map[string]any{"ok": true})
 		case "devtools":
 			s.handleAPISiteDevTools(w, name, r)
+		case "tunnel":
+			s.handleAPISiteTunnelStart(w, name, r)
 		default:
-			s.json(w, map[string]string{"error": "unknown action (start|stop|restart)"})
+			s.json(w, map[string]string{"error": "unknown action (start|stop|restart|tunnel)"})
 		}
 
 	case http.MethodGet:
@@ -143,6 +145,8 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 			s.handleAPISiteDevTools(w, name, r)
 		case "phpini":
 			s.handleAPISitePhpIni(w, name, r)
+		case "tunnel":
+			s.handleAPISiteTunnelState(w, name)
 		case "":
 			s.handleAPISiteDetail(w, name)
 		default:
@@ -165,6 +169,13 @@ func (s *Server) handleAPISiteAction(w http.ResponseWriter, r *http.Request) {
 		s.json(w, map[string]string{"error": "method not allowed"})
 
 	case http.MethodDelete:
+		// Claim "tunnel" before the site-delete branch below: that one moves the
+		// whole site to .trash, so an unhandled DELETE here would delete the site
+		// the user only meant to unshare.
+		if action == "tunnel" {
+			s.handleAPISiteTunnelStop(w, name)
+			return
+		}
 		if err := trashSite(s.cfg.Root, name); err != nil {
 			s.json(w, map[string]string{"error": err.Error()})
 			return

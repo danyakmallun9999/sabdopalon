@@ -30,6 +30,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/netutil"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/services"
+	"github.com/sabdopalon/sabdopalon/internal/tunnel"
 )
 
 // Version is shown in the UI header; set by the app package on startup.
@@ -43,9 +44,15 @@ type Server struct {
 	svc     *services.Manager // nil when no optional service is enabled
 	db      *database.Manager // nil in setup-mode
 	dt      *devtools.Manager // nil in setup-mode
+	tn      *tunnel.Manager   // nil in setup-mode
 	mux     *http.ServeMux
 	started time.Time
 }
+
+// SetTunnels attaches the Cloudflare Tunnel manager. Set rather than passed to
+// New because the manager needs the proxy's bound ports, which exist only after
+// the proxy is serving — and because setup-mode builds no tunnel manager at all.
+func (s *Server) SetTunnels(m *tunnel.Manager) { s.tn = m }
 
 // New creates a dashboard Server. svc, db and dt may be nil (setup mode).
 func New(cfg *config.Engine, px *proxy.Server, bk *backup.Manager, svc *services.Manager, db *database.Manager, dt *devtools.Manager) *Server {
