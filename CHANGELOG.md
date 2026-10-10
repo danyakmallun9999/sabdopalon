@@ -5,6 +5,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.11] — 2026-10-10
+
+### Fixed
+- **A dead PHP worker no longer swallows every Nth request.** Each site runs
+  several `php -S` children behind the proxy, and round-robin handed requests to
+  them without asking whether they were still alive. A worker that died — memory
+  pressure, a fatal error, or a parent killed without cleanup — took one request
+  in `len(workers)` with it, which the browser shows as a blank page until a
+  refresh happens to land on a live one. Worker selection now skips ports that are
+  not accepting connections; the round-robin is otherwise unchanged, so the
+  concurrency several workers exist for is not reduced.
+
+- **Workers left behind by a killed Sabdopalon are cleaned up on startup.** A
+  clean exit stops every worker, but a killed process (an installer replacing the
+  app does exactly that, and the desktop shell hides to the tray rather than
+  quitting) leaves them running: invisible in the app, still holding their ports,
+  still holding their memory. Measured on one machine before the fix: **32 php
+  processes and 1785 MB**, of which 24 workers had a dead parent. The reap is
+  deliberately narrow — the command line must contain `-S 127.0.0.1:`, must name
+  a directory under your sites root, and the parent process must be gone — so a
+  second running instance, an `artisan queue:listen`, or a server you started
+  yourself is never touched. Verified: it stopped those 24 and freed 1314 MB,
+  leaving the running instance's own workers alone.
+
+### Changed
+- **Laravel's dev tool on Windows no longer runs `composer run dev`.** That script
+  ends with `php artisan pail`, pail needs the POSIX-only `pcntl` extension, and
+  the whole `concurrently` tree dies with it — the queue worker and Vite it had
+  just started are killed a second later, which is what made `composer run dev`
+  fail with "The [pcntl] extension is required to run Pail." The other thing that
+  script starts is redundant here anyway: Sabdopalon serves the site through its
+  own proxy, so `artisan serve` only opened a second server nothing outside the
+  machine could reach. On Windows the tool is now "Laravel Dev (queue + Vite)" and
+  starts exactly the two things that need supervising. macOS and Linux keep the
+  project's own script, where pail works.
+
 ## [0.11.10] — 2026-10-10
 
 ### Fixed
