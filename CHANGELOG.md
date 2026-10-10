@@ -5,6 +5,73 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.2] — 2026-09-21
+
+Everything here was found by using 0.11.1 on a real Windows machine rather than
+by reading the code, and two of the numbers below come from measurements taken
+on that machine.
+
+### Fixed
+- **The first launch after setup could not answer the UI for minutes.** The
+  dashboard bound only after every enabled database and service had started, and
+  on a fresh install that means `initdb`/`mariadb-install-db` initialising empty
+  data directories, each engine's 30s TCP probe plus 10s of pidfile waiting, and
+  every optional service's own readiness probe — all in series. The wizard polls
+  that same server, and its progress bar is capped at 95% by design, so a
+  finished install looked frozen at 95% with no "enter dashboard" button
+  (reported on a fresh Windows laptop with PostgreSQL selected; the next launch
+  was instant because the data directories existed by then). The dashboard now
+  binds first and the daemons follow in the background. Measured with MariaDB
+  pointed at a daemon that never answers: reachable after **36.6s** before,
+  **0.7s** after. Databases can therefore be seen still starting for a few seconds
+  after the UI appears — that state is live on the Database page, not hidden.
+- **`composer run dev` was probed on a port Laravel never uses.** `laravel-dev`
+  exported `APP_PORT`, which Laravel does not read; `artisan serve` takes its
+  bind address from `SERVER_HOST`/`SERVER_PORT`. The readiness check therefore
+  timed out after 15s and killed a healthy dev tree. Measured: `SERVER_PORT=8127`
+  makes Laravel bind 8127 and leaves 8000 free, and a start/stop/start cycle now
+  reports 8000 then 8001.
+- **Laravel generated URLs for a dead port.** Nothing exported `APP_URL`, so
+  `url()`/`asset()`/redirects followed .env's `http://localhost:8000` — a port
+  alive only while `composer run dev` happens to run. The proxied PHP process now
+  receives `APP_URL` (and `SABDOPALON_URL`) for the site's real address; a
+  per-site `env: APP_URL=…` still wins.
+- **A transient `SABDOPALON_BIN_DIR` was written to the user's persistent PATH.**
+  Found while taking the measurement above: the harness left its temp bin folder
+  at position 1 of the real user PATH, where it shadowed the real install.
+  `userBinDir`'s own contract forbids exactly that; `prepareBinDir` now skips the
+  persistent write for a transient override.
+
+### Added
+- **Projects outside `sites/` can be served.** `sabdopalon link <name> <path>`
+  links an existing project (a junction on Windows — no admin or Developer Mode —
+  a symlink elsewhere) into `sites/`, and the scanner follows links. `os.ReadDir`
+  reports a *link's* own type and `DirEntry.IsDir()` is false for symlinks and
+  junctions alike, so such a project previously vanished without a word.
+  `bin/php/<X.Y>` links are detected the same way, so a hand-supplied PHP build is
+  no longer reported as "not installed".
+- **`sabdopalon doctor` reports who really owns `php`/`mysql`.** Windows composes
+  the process PATH as machine entries first, then per-user ones, so a tool in the
+  machine PATH cannot be outranked from HKCU. The report names the winner and,
+  when it is beyond reach, prints the elevated fix. Commands Sabdopalon does not
+  provide (composer, node, npm) are never reported.
+- **npm/pnpm/yarn/bun install tools** in the Dev Tools tab, chosen by lockfile
+  exactly the way Laravel's own `NodePackageManager` chooses them, plus a
+  preflight that turns a missing `node_modules` into "run `npm install` first"
+  instead of a tool that reports "ready" while every asset 404s.
+
+### Changed
+- The `bin/` entry is now moved to the **front** of the user PATH instead of
+  being appended. On the machine this was measured on it sat last, so `php` and
+  `mysql` resolved to Herd/Laragon/MySQL builds while Sabdopalon's own shims went
+  unused. (A machine-wide PATH entry still wins over any per-user one — `doctor`
+  says so explicitly.)
+- A Laravel project is no longer offered a second, standalone Vite when its
+  composer `dev` script already starts one: two servers both write `public/hot`.
+- The generated `engine.toml` comment now describes the real `[php]` resolution
+  order — explicit binary → `prefer` (default `system`, i.e. the first `php` on
+  PATH) → bundled — which it previously stated backwards.
+
 ## [0.11.1] — 2026-09-21
 
 Builds on the Windows compatibility work in `5ff9337` and fixes three defects
