@@ -152,7 +152,12 @@ export function App() {
                   <Route path="/terminal" element={<TerminalPage />} />
                 </Route>
                 <Route element={<PageLayout />}>
-                  <Route path="/" element={<DashboardPage />} />
+                  {/* The dashboard is canonical at /dashboard: "/" redirects
+                      instead of rendering it, so the address bar always says
+                      where you are. The desktop shell navigates to the bare
+                      origin, which used to leave the window showing "/" — and
+                      the URL is how anyone reports what they were looking at. */}
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/packages" element={<PackagesPage />} />
                   <Route path="/services" element={<ServicesPage />} />
@@ -160,6 +165,12 @@ export function App() {
                   <Route path="/settings" element={<SettingsLazy />} />
                   <Route path="/logs" element={<LogsPage />} />
                 </Route>
+                {/* A path that is not a route — a stale bookmark, a mistyped
+                    URL, a link from an older build — used to render the app
+                    chrome around an empty page, which reads as "the dashboard
+                    is broken". Send it to the dashboard instead of showing
+                    nothing. */}
+                <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </Suspense>
           </div>

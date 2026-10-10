@@ -621,12 +621,12 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 
     <header class="navbar">
       <div class="nav-left">
-        <a class="brand" href="http://localhost:9900" title="Sabdopalon Dashboard">
+        <a class="brand" href="http://localhost:9900/dashboard" title="Sabdopalon Dashboard">
           <span>&#128042;</span>
           <span>sabdopalon</span>
           <span class="brand-tag">local</span>
         </a>
-        <a class="announcement-pill" href="http://localhost:9900">
+        <a class="announcement-pill" href="http://localhost:9900/dashboard">
           <span class="sparkle">&#10022;</span>
           <span>Active Environment &middot; <?= htmlspecialchars($site) ?>.localhost &rsaquo;</span>
         </a>
@@ -634,7 +634,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 
       <nav class="nav-right">
         <div class="nav-links">
-          <a href="http://localhost:9900">Dashboard</a>
+          <a href="http://localhost:9900/dashboard">Dashboard</a>
           <a href="<?= htmlspecialchars($pmaUrl) ?>">phpMyAdmin</a>
           <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">GitHub</a>
         </div>
@@ -674,7 +674,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 
         <div class="hero-actions">
           <a class="btn-primary" href="<?= htmlspecialchars($pmaUrl) ?>">Open phpMyAdmin &nearr;</a>
-          <a class="btn-secondary" href="http://localhost:9900">Sabdopalon Dashboard</a>
+          <a class="btn-secondary" href="http://localhost:9900/dashboard">Sabdopalon Dashboard</a>
         </div>
       </div>
 
@@ -729,7 +729,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
       <div class="footer-links">
         <a href="https://github.com/danyakmallun9999/sabdopalon" target="_blank" rel="noopener">&#9733; GitHub</a>
         <a href="https://github.com/danyakmallun9999/sabdopalon/releases" target="_blank" rel="noopener">&#8595; Download Releases</a>
-        <a href="http://localhost:9900" target="_blank" rel="noopener">&#9776; Dashboard (:9900)</a>
+        <a href="http://localhost:9900/dashboard" target="_blank" rel="noopener">&#9776; Dashboard (:9900)</a>
       </div>
       <div class="footer-author">
         Created by <a href="https://danyakmallun.dev" target="_blank" rel="noopener">danyakmallun</a> &middot; Sabdopalon

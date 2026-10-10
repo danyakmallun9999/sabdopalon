@@ -650,7 +650,11 @@ pub fn wait_ready(app: AppHandle, win: WebviewWindow) {
                 // the URL even when the webview is sitting on a connection-
                 // refused error page — reload() alone does not re-fetch in
                 // that state on WebKitGTK.
-                let _ = win.eval("window.location.replace('http://localhost:9900')");
+                //
+                // /dashboard, not the bare origin: it is the canonical route, so
+                // the address bar says where the user is (and a report of "it
+                // showed something odd" has a URL to quote).
+                let _ = win.eval("window.location.replace('http://localhost:9900/dashboard')");
                 std::thread::sleep(Duration::from_millis(300));
                 let _ = win.show();
                 let _ = win.set_focus();
