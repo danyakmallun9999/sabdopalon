@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.13"
+var Version = "0.11.14"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -98,11 +98,10 @@ func (a *App) cfgOrBare() *config.Engine {
 	return cfg
 }
 
+// baseDir returns the data root: the environment override when set, otherwise
+// the executable's directory (portable CLI).
 func baseDir() (string, error) {
-	// Desktop mode: the Tauri sidecar overrides the data dir so the app can
-	// live read-only in its install location while data lives in the OS
-	// user-data dir (Herd-style).
-	if d := os.Getenv("SABDOPALON_DIR"); d != "" {
+	if d := dataRootOverride(); d != "" {
 		return d, nil
 	}
 	if exe, err := os.Executable(); err == nil {
@@ -113,6 +112,24 @@ func baseDir() (string, error) {
 		return filepath.Dir(exe), nil
 	}
 	return os.Getwd()
+}
+
+// dataRootOverride returns the data-root override from the environment, if any.
+//
+// SABDOPALON_DIR is what the desktop shell passes to the sidecar it spawns;
+// SABDOPALON_HOME is the one a person sets themselves, for keeping sites outside
+// the home directory (`C:\sabdopalon`) or on another drive. Both are honoured,
+// here and in the shell, so a terminal command and the app never disagree about
+// where the data lives. Quotes and stray whitespace are trimmed: this is set in
+// practice with `setx "SABDOPALON_HOME=C:\sabdopalon"`, and a pasted quoted path
+// is common enough to handle.
+func dataRootOverride() string {
+	for _, key := range []string{"SABDOPALON_DIR", "SABDOPALON_HOME"} {
+		if v := strings.Trim(strings.TrimSpace(os.Getenv(key)), "\""); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // Run dispatches a CLI command. Returns an exit code.

@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.14] - 2026-10-11
+
+### Added
+- **The data root can live outside the home directory.** Set `SABDOPALON_HOME`
+  (for example `C:\sabdopalon`) and the desktop shell, the sidecar and every CLI
+  command use it: sites, bin, config, logs, data, certs, packages and backups all
+  follow. This matters most on Windows, where a deep
+  `<home>\sabdopalon\sites\<project>` path eats into the 260-character limit that
+  `npm install` runs into. Quotes and stray whitespace around the value are
+  trimmed, because `setx "SABDOPALON_HOME=C:\sabdopalon"` is how it gets set in
+  practice.
+
+  Set it before the app starts, and note that a Windows GUI inherits its
+  environment from the Explorer session that launched it - so sign out and back in
+  (or restart Explorer) once after setting it. Existing data is moved by hand;
+  nothing is migrated automatically, and the shell keeps finding the old
+  `~/sabdopalon` when no override is given.
+
 ## [0.11.13] - 2026-10-11
 
 ### Fixed

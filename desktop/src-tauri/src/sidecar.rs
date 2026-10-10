@@ -39,6 +39,14 @@ static SHUTDOWN_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 /// never strand a user's sites. The same rule protects the pre-friendly
 /// default under the OS app-data dir (`~/.local/share/com.sabdopalon.app`).
 pub fn data_dir(app: &AppHandle) -> PathBuf {
+    // An explicit override wins over every convention below. People who put
+    // their sites outside the home directory — `C:\sites`, another drive, a
+    // folder that avoids the Windows path limit — set SABDOPALON_HOME once and
+    // the whole data root follows. The sidecar is told about the result through
+    // SABDOPALON_DIR (see start()), so the Go side needs no separate setting.
+    if let Some(dir) = env_dir("SABDOPALON_HOME") {
+        return dir;
+    }
     let friendly = home_dir().join("sabdopalon");
     let old_name = home_dir().join("Sabdopalon");
     if old_name.join("config").join("engine.toml").is_file()
@@ -54,6 +62,19 @@ pub fn data_dir(app: &AppHandle) -> PathBuf {
         }
     }
     friendly
+}
+
+/// env_dir reads a directory from the environment, ignoring empty values and
+/// surrounding quotes (people set these with `setx "VAR=C:\path"` and paste
+/// paths with quotes surprisingly often).
+fn env_dir(key: &str) -> Option<PathBuf> {
+    let raw = std::env::var_os(key)?;
+    let text = raw.to_string_lossy();
+    let trimmed = text.trim().trim_matches('"').trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(trimmed))
 }
 
 /// The user's home directory (HOME on Unix, USERPROFILE on Windows).

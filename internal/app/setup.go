@@ -266,10 +266,10 @@ func (a *App) serveSetupMode() int {
 	return 0
 }
 
-// installDir returns the folder used for the install: SABDOPALON_DIR when
-// set (desktop app), otherwise the executable's directory (portable CLI).
+// installDir returns the folder used for the install: the environment override
+// when set (desktop app), otherwise the executable's directory (portable CLI).
 func (a *App) installDir() string {
-	if d := os.Getenv("SABDOPALON_DIR"); d != "" {
+	if d := dataRootOverride(); d != "" {
 		return d
 	}
 	if base, err := baseDir(); err == nil {
