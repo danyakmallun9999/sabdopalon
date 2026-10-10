@@ -265,10 +265,10 @@ const api = {
   status: () => request<Status>("/api/status"),
 
   listSites: () => request<Site[]>("/api/sites"),
-  createSite: (name: string, template: string) =>
+  createSite: (name: string, template: string, database?: string, testing?: string) =>
     post<{ ok: boolean; name: string; url: string; message?: string; error?: string }>(
       "/api/sites",
-      { name, template },
+      { name, template, database, testing },
     ),
   siteAction: (name: string, action: "start" | "stop" | "restart") =>
     post<{ ok: boolean; port?: number; was_running?: boolean; error?: string }>(

@@ -62,9 +62,14 @@ func (s *Server) listSites(w http.ResponseWriter) {
 type createSiteReq struct {
 	Name     string `json:"name"`
 	Template string `json:"template"`
+	// Database is "" or "sqlite" (default) or "mariadb"; Testing is "" or
+	// "pest" (default) or "phpunit". Both mirror what `laravel new` asks.
+	Database string `json:"database"`
+	Testing  string `json:"testing"`
 }
 
-// createSite scaffolds a new project from a template {name, template}.
+// createSite scaffolds a new project from a template
+// {name, template, database, testing}.
 func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 	var req createSiteReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -79,7 +84,14 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 	if req.Template == "" {
 		req.Template = "blank"
 	}
-	if err := templates.Create(s.cfg.Root, req.Template, req.Name); err != nil {
+	if err := templates.CreateWith(templates.Options{
+		SitesDir: s.cfg.Root,
+		Template: req.Template,
+		Name:     req.Name,
+		Database: req.Database,
+		Testing:  req.Testing,
+		Cfg:      s.cfg,
+	}); err != nil {
 		s.json(w, map[string]string{"error": err.Error()})
 		return
 	}

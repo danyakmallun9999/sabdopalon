@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.16"
+var Version = "0.11.17"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -1236,16 +1236,48 @@ func (a *App) sslTrust() int {
 	return 0
 }
 
-// newProject creates a new site from a template.
+// newProject creates a new site from a template:
+//
+//	sabdopalon new <template> <name> [--db=sqlite|mariadb] [--pest|--phpunit]
+//
+// The two flags mirror what `laravel new` asks interactively. --db=mariadb is
+// where Sabdopalon can do more than the Laravel installer: it creates the
+// database and writes .env with credentials it already owns, then migrates.
 func (a *App) newProject(args []string) int {
-	if len(args) < 2 {
-		fmt.Fprintf(os.Stderr, "usage: sabdopalon new <template> <name>\n")
+	var tmplName, projectName, db, testing string
+	for _, arg := range args {
+		switch {
+		case strings.HasPrefix(arg, "--db="):
+			db = strings.TrimPrefix(arg, "--db=")
+		case arg == "--pest":
+			testing = templates.TestingPest
+		case arg == "--phpunit":
+			testing = templates.TestingPHPUnit
+		case strings.HasPrefix(arg, "-"):
+			fmt.Fprintf(os.Stderr, "✗ unknown flag: %s\n", arg)
+			return 1
+		default:
+			if tmplName == "" {
+				tmplName = arg
+			} else if projectName == "" {
+				projectName = arg
+			}
+		}
+	}
+	if tmplName == "" || projectName == "" {
+		fmt.Fprintf(os.Stderr, "usage: sabdopalon new <template> <name> [--db=sqlite|mariadb] [--pest|--phpunit]\n")
 		fmt.Fprintf(os.Stderr, "templates: %s\n", templates.ListNames())
 		return 1
 	}
-	tmplName := args[0]
-	projectName := args[1]
-	if err := templates.Create(a.Cfg.Root, tmplName, projectName); err != nil {
+	if err := templates.CreateWith(templates.Options{
+		SitesDir: a.Cfg.Root,
+		Template: tmplName,
+		Name:     projectName,
+		Database: db,
+		Testing:  testing,
+		Cfg:      a.Cfg,
+		Logf:     func(format string, args ...any) { fmt.Printf("  →  "+format+"\n", args...) },
+	}); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1
 	}

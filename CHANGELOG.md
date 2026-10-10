@@ -5,6 +5,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.17] - 2026-10-11
+
+### Added
+- **Choosing the database and the testing framework when creating a site.** Both
+  are what `laravel new` asks about, available in the New site dialog and on the
+  command line:
+
+      sabdopalon new <template> <name> [--db=sqlite|mariadb] [--pest|--phpunit]
+
+  - **SQLite** stays the default, as it is for `laravel new`.
+  - **MariaDB** is where Sabdopalon can do what the Laravel installer cannot: it
+    creates the database, writes DB_CONNECTION/DB_HOST/DB_PORT/DB_DATABASE/
+    DB_USERNAME/DB_PASSWORD into both .env and .env.example, and then migrates.
+    Nothing is asked of the user, because Sabdopalon already knows the port its
+    server bound and the credentials. Verified on a real project: the schema was
+    created and nine tables appeared in it (cache, cache_locks, failed_jobs,
+    job_batches, jobs, migrations, password_reset_tokens, sessions, users).
+  - **Pest** is the default testing framework, exactly as `laravel new` treats it,
+    installed with the installer's own command sequence (remove phpunit, require
+    pest + pest-plugin-laravel, update, `pest --init`). Verified by running the
+    suite in the created project: two tests passed. `--phpunit` leaves the
+    skeleton's testing setup alone.
+
+  The database and testing choices are offered for Laravel templates only, and
+  are skipped with a note for a project that has no artisan to run.
+
+### Fixed
+- **Scaffolding resolves its tools itself instead of trusting PATH.** Three
+  separate failures came out of verifying this feature on Windows, all of the same
+  kind: a GUI app cannot assume the environment it was launched with.
+  - `composer create-project` shells out to `php`, so bin/ is prepended to the
+    child's PATH ("'php' is not recognized as an internal or external command").
+  - PHP fell back to C:\WINDOWS as its temp directory when TMP/TEMP were absent
+    and Composer refused to run there; missing or empty temp variables are now
+    filled from a folder Sabdopalon owns.
+  - `exec.Command` searches the CURRENT process's PATH, not cmd.Env, so
+    `php artisan migrate` failed with `exec: "php": executable file not found in
+    %PATH%` even with the child's PATH fixed. Every tool is now resolved
+    explicitly, with bin/ first — which also means a Composer installed through
+    the Packages page takes precedence over an older system one.
+
 ## [0.11.16] - 2026-10-11
 
 ### Added

@@ -159,6 +159,10 @@ export default function SitesPage() {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState("")
   const [template, setTemplate] = useState("blank")
+  // The same two choices `laravel new` asks about. MariaDB is worth offering
+  // because Sabdopalon creates the database and writes the credentials itself.
+  const [database, setDatabase] = useState("sqlite")
+  const [testing, setTesting] = useState("pest")
   const [creating, setCreating] = useState(false)
 
   const filtered = sites.filter((s) =>
@@ -260,7 +264,7 @@ export default function SitesPage() {
     if (!name.trim()) return
     setCreating(true)
     try {
-      const r = await api.createSite(name.trim().toLowerCase(), template)
+      const r = await api.createSite(name.trim().toLowerCase(), template, database, testing)
       if (r.error) toast.error(r.error)
       else {
         toast.success(`Site "${r.name}" created — opening wizard done`, {
@@ -597,6 +601,36 @@ export default function SitesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Laravel only: a blank or WordPress template has no database to
+                    point anywhere and no tests to convert. */}
+                {template.startsWith("laravel") && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label>Database</Label>
+                      <Select value={database} onValueChange={(v) => setDatabase(v ?? "sqlite")}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sqlite">SQLite (default)</SelectItem>
+                          <SelectItem value="mariadb">MariaDB — created for you</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Testing</Label>
+                      <Select value={testing} onValueChange={(v) => setTesting(v ?? "pest")}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pest">Pest (default)</SelectItem>
+                          <SelectItem value="phpunit">PHPUnit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button onClick={create} disabled={creating || !name.trim()}>

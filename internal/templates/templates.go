@@ -824,7 +824,11 @@ func setupCodeIgniter(sitesDir, name string) error {
 }
 
 func runCommand(dir, name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	bin, err := resolveTool(name)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(bin, args...)
 	winproc.Quiet(cmd)
 	cmd.Dir = dir
 	// `composer create-project` shells out to `php`, so the child needs our bin/

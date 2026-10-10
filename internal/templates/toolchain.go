@@ -20,7 +20,9 @@
 package templates
 
 import (
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -132,4 +134,37 @@ func hasNonEmpty(env []string, key string) bool {
 		}
 	}
 	return false
+}
+
+// resolveTool finds a tool the way a user's shell would, with Sabdopalon's bin/
+// searched first, and returns the absolute path to run.
+//
+// This exists because exec.Command resolves its binary from the CURRENT process's
+// PATH, not from the PATH placed in cmd.Env — so prepending bin/ to the child's
+// environment is not enough on its own. Measured while verifying the database
+// choice:
+//
+//	php artisan migrate failed (exec: "php": executable file not found in %PATH%)
+//
+// bin/ wins over PATH on purpose: it is where the versions Sabdopalon manages
+// live, and a managed Composer is newer than the one most machines have.
+func resolveTool(name string) (string, error) {
+	if dir := binDir(); dir != "" {
+		for _, cand := range []string{name + ".cmd", name + ".exe", name} {
+			if p := filepath.Join(dir, cand); fileExistsAt(p) {
+				return p, nil
+			}
+		}
+		// PHP also lives under a versioned folder; its shim is normally present,
+		// and this is only a fallback for when it is not.
+		if name == "php" {
+			if matches, _ := filepath.Glob(filepath.Join(dir, "php", "*", "php.exe")); len(matches) > 0 {
+				return matches[len(matches)-1], nil
+			}
+		}
+	}
+	if p, err := exec.LookPath(name); err == nil {
+		return p, nil
+	}
+	return "", fmt.Errorf("%s was not found — install it from the Packages page, or check your PATH", name)
 }
