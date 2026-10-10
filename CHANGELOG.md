@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.15] - 2026-10-11
+
+### Changed
+- **Fresh installs on Windows now live in `C:\sabdopalon`.** The data root was
+  always `~/sabdopalon`, which is one level deeper than the convention this is
+  modelled on (`C:\laragon`, `C:\xampp`) and spends ~33 characters of the
+  260-character path limit a process gets before the project name is even
+  appended — the limit `node_modules` trees run into. A new install therefore
+  creates `C:\sabdopalon` when that volume root accepts a new folder and a new
+  file, and falls back to `~/sabdopalon` when it does not (a hardened machine can
+  withhold even the default "create folders" grant), so the app never fails to
+  start over a path it cannot write.
+
+  Nothing moves by itself. An existing install in `~/sabdopalon`,
+  `~/Sabdopalon` or the old OS app-data folder is still used as-is, and
+  `SABDOPALON_HOME` still overrides everything, so upgrading never strands a
+  user's sites. To move an existing install, quit Sabdopalon and move the folder
+  to `C:\sabdopalon` — it is picked up there on the next start, with no setting
+  to change.
+
 ## [0.11.14] - 2026-10-11
 
 ### Added

@@ -2,7 +2,7 @@
 // SABDOPALON_DIR pointing at the user-facing install root (~/sabdopalon),
 // wait for the dashboard HTTP endpoint, then point the window at it.
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Mutex;
@@ -39,29 +39,75 @@ static SHUTDOWN_TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 /// never strand a user's sites. The same rule protects the pre-friendly
 /// default under the OS app-data dir (`~/.local/share/com.sabdopalon.app`).
 pub fn data_dir(app: &AppHandle) -> PathBuf {
-    // An explicit override wins over every convention below. People who put
-    // their sites outside the home directory — `C:\sites`, another drive, a
-    // folder that avoids the Windows path limit — set SABDOPALON_HOME once and
-    // the whole data root follows. The sidecar is told about the result through
-    // SABDOPALON_DIR (see start()), so the Go side needs no separate setting.
+    // 1. An explicit override wins over every convention below. People who put
+    //    their sites on another drive set SABDOPALON_HOME once and the whole
+    //    data root follows. The sidecar is told the result through
+    //    SABDOPALON_DIR (see start()), so the Go side needs no separate setting.
     if let Some(dir) = env_dir("SABDOPALON_HOME") {
         return dir;
     }
+
     let friendly = home_dir().join("sabdopalon");
     let old_name = home_dir().join("Sabdopalon");
-    if old_name.join("config").join("engine.toml").is_file()
-        && !friendly.join("config").join("engine.toml").is_file()
-    {
+
+    // 2. An install that already lives in the home directory keeps it. On a
+    //    case-SENSITIVE filesystem (Linux, macOS) the pre-rename `Sabdopalon`
+    //    folder genuinely still exists, and the pre-friendly default lives under
+    //    the OS app-data dir. An upgrade must never strand a user's sites, so
+    //    the new default below is for FRESH installs only.
+    if has_install(&old_name) && !has_install(&friendly) {
         return old_name;
     }
     if let Ok(legacy) = app.path().app_data_dir() {
-        if legacy.join("config").join("engine.toml").is_file()
-            && !friendly.join("config").join("engine.toml").is_file()
-        {
+        if has_install(&legacy) && !has_install(&friendly) {
             return legacy;
         }
     }
+    if has_install(&friendly) {
+        return friendly;
+    }
+
+    // 3. Fresh install on Windows: C:\sabdopalon, matching the sibling
+    //    conventions users already know (C:\laragon, C:\xampp) and keeping
+    //    project paths short — a site under the home directory starts life with
+    //    ~33 characters of its path already spent, and Windows gives a process
+    //    260, which node_modules trees reach. Only when the drive root is
+    //    actually writable: C:\ normally grants standard users "create folders",
+    //    but a hardened machine may not, and that must not stop the app working.
+    #[cfg(windows)]
+    if let Some(dir) = writable_root_dir() {
+        return dir;
+    }
+
     friendly
+}
+
+/// has_install reports whether a folder is an existing Sabdopalon install.
+fn has_install(dir: &Path) -> bool {
+    dir.join("config").join("engine.toml").is_file()
+}
+
+/// writable_root_dir returns C:\sabdopalon when that volume root accepts a new
+/// folder and a new file, creating the folder if needed. "Create folders" is
+/// granted more generously than "write files", so both are tried before this
+/// path is trusted with the user's sites.
+#[cfg(windows)]
+fn writable_root_dir() -> Option<PathBuf> {
+    let dir = PathBuf::from(r"C:\sabdopalon");
+    if has_install(&dir) {
+        return Some(dir); // already ours — never move an existing install
+    }
+    if std::fs::create_dir_all(&dir).is_err() {
+        return None;
+    }
+    let probe = dir.join(".write-test");
+    match std::fs::write(&probe, b"") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe);
+            Some(dir)
+        }
+        Err(_) => None,
+    }
 }
 
 /// env_dir reads a directory from the environment, ignoring empty values and
