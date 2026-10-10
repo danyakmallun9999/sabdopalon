@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.10] — 2026-10-10
+
+### Fixed
+- **The command line ignored `config/php.ini`.** Sites receive that file through
+  PHPRC; the `php` shim in `bin/` passed nothing at all, so `php -i` reported
+  `Loaded Configuration File => (none)` while the site happily read the file. A
+  setting — or an `extension=` line — added from the dashboard therefore looked
+  like it worked for the site and was ignored in the terminal, and every
+  deprecation notice from every tool running on PHP was printed raw. The shim
+  sets PHPRC now, guarded so a missing ini still leaves PHP on its defaults: one
+  PHP install, one php.ini, whichever way you reach it.
+
+- **`sabdopalon doctor` never mentioned Composer.** It reports the tools whose
+  shim loses the PATH to another installation, and it skipped Composer, Node and
+  npm as "system tools" — true until Sabdopalon installs them, misleading
+  afterwards. A machine-wide Composer 2.8.9 from Composer-Setup sits in the
+  MACHINE PATH ahead of everything per-user, wins over the managed 2.10.2, and
+  prints deprecation warnings of its own on a modern PHP, which reads as "the PHP
+  Sabdopalon ships is broken". The check was also blind to `.bat` launchers, so
+  the managed `composer.bat` was invisible to it; both are fixed, and doctor now
+  names the Composer it manages plus the one command that updates the winner.
+
 ## [0.11.9] — 2026-10-10
 
 ### Fixed
