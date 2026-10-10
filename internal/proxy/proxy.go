@@ -584,7 +584,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	staticOnly := IsStaticOnly(siteDir)
 	framework := DetectFramework(siteDir)
 	routerPath := filepath.Join(s.cfg.Root, name, ".sabdopalon-router.php")
-	if !staticOnly && !fileExists(routerPath) {
+	if !staticOnly && routerNeedsRewrite(routerPath) {
 		_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
 	}
 	if staticOnly {
@@ -701,7 +701,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		}
 		r.URL.Scheme = target.Scheme
 		r.URL.Host = fmt.Sprintf("127.0.0.1:%d", p)
-		r.Host = host
+		upstreamHost(r, host, s.isTunnelHost(r.Host))
 	}
 
 	ss := &siteServer{
@@ -724,6 +724,61 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 		}
 	}
 	return ss, nil
+}
+
+// upstreamHost decides which Host header the site's PHP process sees, and is
+// the difference between a shared site that works and one that renders blank.
+//
+// Local traffic keeps being rewritten to the site's canonical hostname: that is
+// what the generated router, framework detection and the per-site logs all
+// assume, and it has always been that way.
+//
+// A request that arrived on a public tunnel hostname keeps the hostname the
+// visitor used. The canonical one is not resolvable outside this machine, so
+// rewriting it made every absolute URL the framework generates — asset URLs,
+// redirects, form actions — point at a host the visitor cannot reach. For an app
+// that ships HTML and then loads its JavaScript, that is an empty page while the
+// same site works locally.
+//
+// The forwarded headers are set at the same time because Cloudflare terminated
+// TLS before the request reached us: the router uses them to tell PHP the
+// visitor is on HTTPS, without which the framework would emit http:// asset URLs
+// into an https:// page and the browser would block them as mixed content.
+func upstreamHost(r *http.Request, canonical string, viaTunnel bool) {
+	if !viaTunnel {
+		r.Host = canonical
+		return
+	}
+	public := hostOnly(r.Host)
+	if public == "" {
+		r.Host = canonical
+		return
+	}
+	r.Header.Set("X-Forwarded-Host", public)
+	r.Header.Set("X-Forwarded-Proto", "https")
+}
+
+// hostOnly lower-cases a Host header value and drops its port.
+func hostOnly(h string) string {
+	h = strings.ToLower(strings.TrimSpace(h))
+	if i := strings.IndexByte(h, ':'); i >= 0 {
+		h = h[:i]
+	}
+	return h
+}
+
+// isTunnelHost reports whether a request host is one of the public hostnames a
+// tunnel is currently using. Only those keep their Host header and are told they
+// arrived over HTTPS.
+func (s *Server) isTunnelHost(h string) bool {
+	h = hostOnly(h)
+	if h == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.tunnelHosts[h]
+	return ok
 }
 
 // allocPorts reserves n free, unreserved ports starting at portNext.
@@ -921,30 +976,14 @@ func (s *Server) ensureRouters() {
 			continue
 		}
 		routerPath := filepath.Join(siteDir, ".sabdopalon-router.php")
-		if !fileExists(routerPath) {
+		if routerNeedsRewrite(routerPath) {
 			framework := DetectFramework(siteDir)
 			_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
 		}
 	}
 }
 
-const defaultRouter = `<?php
-// Sabdopalon default PHP router — serves static files, falls back to index.php.
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$docroot = $_SERVER['DOCUMENT_ROOT'];
-$file = $docroot . $uri;
-if ($uri !== '/' && is_file($file)) {
-    return false; // let PHP's built-in server serve the static file
-}
-$index = $docroot . '/index.php';
-if (is_file($index)) {
-    require $index;
-    return true;
-}
-http_response_code(404);
-echo "404 Not Found — create index.php or the requested file in " . $docroot;
-return true;
-`
+// defaultRouter lives in routers.go with the other generated router content.
 
 // dashboardFallback routes bare localhost traffic to the real dashboard.
 // When the dashboard is disabled a minimal site index is rendered instead.
