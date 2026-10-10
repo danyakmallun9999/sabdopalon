@@ -5,6 +5,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.5] — 2026-10-10
+
+### Added
+- **Share a site publicly, through a Cloudflare Quick Tunnel.** "Share publicly…"
+  in the Sites menu (and a Public access card on the site page) puts a site on a
+  temporary `https://<random>.trycloudflare.com` URL, optionally restricted with
+  `--allowed-mail` so only named email addresses can open it. The same thing from
+  the CLI: `sabdopalon share <site>`, `sabdopalon share list`,
+  `sabdopalon share stop <site>`.
+
+  How it is wired is why this is more than a spawned process:
+  - The tunnel points at **Sabdopalon's proxy**, not at PHP, so a shared site keeps
+    its document root, its per-site env and its PHP version.
+  - The random public hostname is registered with the proxy **at runtime**, so the
+    origin sees the real public Host header. Forcing the internal hostname through
+    cloudflared's `httpHostHeader` would have made the app emit
+    `http://myapp.localhost/...` links — dead for anyone outside this machine.
+  - Sharing a stopped site starts it first; a tunnel to a stopped site only
+    answers 503.
+  - The URL is taken from cloudflared's own log by matching the *hostname*, not the
+    sentence around it, so a reworded banner cannot break it. Failures retry where a
+    different flag would actually help: an unknown `--no-autoupdate` is dropped, and
+    an unreachable edge is retried over http/2 (QUIC on UDP 7844 is blocked on
+    plenty of networks). A tunnel that keeps dropping is restarted three times and
+    then reports it.
+  - cloudflared is detected, never installed behind your back: PATH, winget's Links
+    shim and the winget package directory, plus `<root>/bin/cloudflared` for a copy
+    you manage yourself. When it is missing, the message quotes the command that
+    fixes it on your platform (`winget install Cloudflare.cloudflared`,
+    `brew install cloudflared`, or the release URL on Linux).
+  - Nothing shares itself. A tunnel is never started because an earlier run had
+    one: publishing a site is an explicit act, and a quick tunnel gets a new
+    hostname every time, so an automatic restart would only produce a fresh public
+    URL nobody asked for. Tunnels die with Sabdopalon, and `Stop`/shutdown removes
+    the hostname from the proxy so a stale URL cannot resolve to a site again.
+
+  Limits are shown in the UI instead of hidden: quick tunnels are for testing (no
+  uptime guarantee, 200 concurrent requests and then 429, and **no SSE**), the
+  hostname changes on every share, and anyone with the link can reach the site —
+  turn `APP_DEBUG` off first. The dashboard itself is deliberately not shareable.
+
+### Changed
+- The sidebar's brand block is gone. The desktop title bar already draws the logo
+  and the name two rows above it, so one screen showed both twice. Version and
+  uptime moved to the app bar beside the DB/PHP badges.
+
+### Fixed
+- Setup announced success twice, in the same words: "Sabdopalon Is Ready! / All
+  core components and selected tools were configured successfully." in the status
+  card, and "Everything is installed and configured. / Your local server is ready
+  for app development." in a panel below the log with a "Go to Dashboard" button.
+  The panel is gone and the card now reads "Setup complete / Opening the
+  dashboard…", which is what is actually happening while the sidecar restarts.
+- The handover after setup replaces the location with `/dashboard` instead of
+  reloading whatever URL the wizard happened to be on, so a finished setup always
+  lands on the dashboard.
+
 ## [0.11.4] — 2026-10-10
 
 A design-system pass, because the dashboard had grown a status colour per page,
