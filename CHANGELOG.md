@@ -5,6 +5,67 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.4] — 2026-10-11
+
+A design-system pass, because the dashboard had grown a status colour per page,
+five different corner radii among its own form controls, and three ways to name
+an icon-only button. Two of the entries below are plain bugs that the pass
+turned up.
+
+### Fixed
+- **Links in the desktop app did nothing.** Every site URL looked like dead text.
+  The Tauri opener plugin does intercept those clicks — it even calls
+  `preventDefault()` — and then invokes `plugin:opener|open_url`, which
+  `capabilities/default.json` did not grant, so the invoke was rejected after the
+  default had already been prevented. The permission is granted now, and the
+  click interceptor was rewritten: it tested `window.__TAURI__.shell.open`, which
+  does not exist in Tauri v2 (the global carries the CORE api; plugin apis arrive
+  with their own injected script), so that check had quietly matched nothing.
+- **A second Sabdopalon could not start at all.** The low-port preference asked
+  `canBind(80)` — a *wildcard* bind — while the listeners that actually serve bind
+  127.0.0.1 and ::1 one address at a time. Where 127.0.0.1:80 was already taken the
+  probe passed, the real bind failed, and that error shut the whole app down
+  instead of falling back to the configured port, which is what the code promises.
+  The port is now chosen by binding it (`netutil.ServeListeners`).
+- **The Sites table's right-hand side did not line up.** The Actions header was
+  48px wide while its cell holds a button plus a menu (~126px), and the PHP and
+  Status columns rendered a Badge in one case and a plain `<span>` in the other,
+  giving them different font sizes and heights. Columns have explicit widths now,
+  every state is a Badge, and the table's right edge matches the toolbar above it
+  (the content column carried `lg:pr-4` that the toolbar did not).
+- **Corner radius had three sources of truth:** `--radius` was 0, the code chips
+  used a hard-coded 4px, and the sidebar set a self-referential
+  `[--radius:var(--radius-xl)]` that resolved to nothing. One token now, with a
+  linear scale, and the form controls that disagreed about their own corners
+  (input 10px, select 14px, textarea 12px, checkbox 6px) share it.
+
+### Changed
+- **One status vocabulary.** `--success`/`--warning` with `StatusDot`/`ToneBadge`
+  replace forty hard-coded palette classes: the same state used to be
+  emerald-500 on one page and emerald-400 behind a `dark:` variant on another, at
+  three different dot sizes. Two meanings came out clearer — a chip saying
+  "default"/"installed"/"active" no longer borrows the primary *button* colour,
+  and an alternative PHP version is muted rather than amber (a warning).
+- **Icon-only buttons always have a label and a tooltip** (`IconButton`), instead
+  of a raw `title=` on some and nothing at all on others.
+- **Validation belongs to the field.** The wizard answered an invalid port with a
+  toast that floats far from the input and expires on its own; errors are inline
+  now, with `aria-invalid` and `aria-describedby`.
+- **One empty state, one spinner**, instead of four shapes of "nothing here" and
+  a mix of plain "Loading…" text and skeletons.
+- **Layout by route, not by pathname string.** Which pages scroll internally was
+  decided by a hard-coded array of route names in `App.tsx`; it is a layout route
+  now, and the frame height is defined once (`--app-h`). The wizard's loading
+  state is a skeleton instead of a blank window.
+- **Fewer words.** Sentences that only restated the heading, the label or the
+  table beside them are gone from every page; text that carries a constraint, a
+  consequence or a format (the LAN exposure warning, backup retention, php.ini
+  scope, alias/env formats, "needs composer") stayed.
+- Five unused shadcn primitives deleted (avatar, breadcrumb, drawer, toggle,
+  toggle-group); arbitrary 10/11px type sizes replaced with the scale; the sidebar
+  groups its pages by what you came to do (Manage / Tools / System); and the site
+  name in the Sites table is a real link, so the row is reachable by keyboard.
+
 ## [0.11.3] — 2026-10-10
 
 Both fixes come from a fresh Windows laptop with PostgreSQL selected, and both
