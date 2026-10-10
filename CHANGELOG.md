@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.13] - 2026-10-11
+
+### Fixed
+- **A stopped dev server no longer leaves the site blank.** `composer run dev` (or
+  `npm run dev`) writes `public/hot`, and Ctrl+C leaves it behind. Laravel then
+  points every asset at the address inside it, so the page returns its HTML while
+  the browser gets no JavaScript: on a fresh Laravel 13 project all assets pointed
+  at `http://[::1]:5173` with nothing listening, and the Inertia root stayed
+  empty. Sabdopalon now removes a `public/hot` whose server is no longer
+  listening - when it stops a dev-tool itself, when a site stops, and on a slow
+  background sweep so a dev server it never started heals too. A hot file naming
+  a live server is left untouched, because that is a user at work.
+
 ## [0.11.12] — 2026-10-10
 
 ### Fixed

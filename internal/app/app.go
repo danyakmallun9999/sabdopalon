@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.12"
+var Version = "0.11.13"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -429,6 +429,20 @@ func (a *App) serve() int {
 	}
 	// Kill dev-tools when a site is stopped so Vite/artisan don't linger.
 	srv.OnStopSite = dtMgr.StopAllForSite
+
+	// A dev server the user started themselves (`composer run dev`, `npm run dev`)
+	// writes public/hot, and stopping it leaves that file behind. Laravel then
+	// points every asset at a port nothing listens on: the page returns its HTML
+	// and the browser gets no JavaScript, so it renders blank — which reads as
+	// "Sabdopalon broke my app". Sweep once now, then slowly in the background.
+	if n := dtMgr.CleanStaleHotFiles(); n > 0 {
+		fmt.Printf("  ✔  cleared %d stale Vite hot file(s)\n", n)
+	}
+	go func() {
+		for range time.Tick(30 * time.Second) {
+			dtMgr.CleanStaleHotFiles()
+		}
+	}()
 
 	// Workers left behind by a run that was killed rather than stopped — an
 	// installer replacing the app does exactly that — are invisible in the UI and

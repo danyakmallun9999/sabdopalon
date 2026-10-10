@@ -9,11 +9,13 @@ package devtools
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -59,6 +61,7 @@ func (p *runningProc) stop() {
 type Manager struct {
 	binRoot   string // bundle root (cfg.BinDir) for bundled-binary lookup
 	phpBinary string // resolved global PHP binary ("" when none)
+	siteRoot  string // sites root (cfg.Root), for hot-file sweeps
 	mu        sync.Mutex
 	procs     map[string]map[string]*runningProc // site → tool → proc
 	ports     map[string]int                     // site → next candidate port
@@ -76,6 +79,7 @@ func New(cfg *config.Engine) *Manager {
 	if cfg != nil {
 		m.binRoot = cfg.BinDir()
 		m.phpBinary = cfg.PHP.Binary
+		m.siteRoot = cfg.Root
 	}
 	return m
 }
@@ -209,6 +213,9 @@ func (m *Manager) Stop(siteName, toolName string) error {
 	}
 	p.stop()
 	m.clearErr(siteName, toolName)
+	// A stopped Vite leaves public/hot behind unless someone removes it, and
+	// Laravel keeps pointing every asset at the address in that file.
+	m.ClearStaleHotFile(siteName)
 	return nil
 }
 
@@ -220,12 +227,93 @@ func (m *Manager) StopAllForSite(siteName string) {
 	delete(m.errs, siteName)
 	delete(m.ports, siteName)
 	m.mu.Unlock()
-	if siteProcs == nil {
-		return
-	}
 	for _, p := range siteProcs {
 		p.stop()
 	}
+	// Nothing of ours is running for this site any more, so a hot file can only
+	// be pointing at a dead dev server now.
+	m.ClearStaleHotFile(siteName)
+}
+
+// hotFileRel is where Laravel's Vite plugin records a running dev server. While
+// it exists, Laravel points every asset at that address instead of the built
+// ones — so a hot file left behind by a dev server that has since stopped makes
+// the site render its HTML and then fetch nothing: a blank page.
+const hotFileRel = "public/hot"
+
+// staleHotFile reports whether a site's hot file names a server that is no
+// longer listening.
+func (m *Manager) staleHotFile(siteName string) (string, bool) {
+	path := filepath.Join(m.siteRoot, siteName, hotFileRel)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", false // no hot file: the built assets are in use
+	}
+	port := portFromHotURL(strings.TrimSpace(string(data)))
+	if port == 0 {
+		return path, true // unreadable target: worse than useless
+	}
+	if !portFree(port) {
+		return path, false // a dev server is really there — leave it alone
+	}
+	return path, true
+}
+
+// ClearStaleHotFile removes a site's hot file when it points at a server that is
+// no longer running, so the site falls back to its built assets instead of
+// rendering blank. Safe to call at any time and for any site.
+func (m *Manager) ClearStaleHotFile(siteName string) bool {
+	path, stale := m.staleHotFile(siteName)
+	if !stale {
+		return false
+	}
+	return os.Remove(path) == nil
+}
+
+// CleanStaleHotFiles sweeps every site and returns how many hot files it removed.
+//
+// This is what covers a dev server Sabdopalon never started: a user running
+// `composer run dev` (or `npm run dev`) in a terminal writes public/hot, and
+// Ctrl+C leaves it behind. The site then keeps asking the browser for assets on
+// a port that is closed, which looks like "Sabdopalon broke my Laravel app".
+func (m *Manager) CleanStaleHotFiles() int {
+	entries, err := os.ReadDir(m.siteRoot)
+	if err != nil {
+		return 0
+	}
+	cleaned := 0
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		if m.ClearStaleHotFile(e.Name()) {
+			cleaned++
+		}
+	}
+	return cleaned
+}
+
+// portFromHotURL reads the port out of a hot file's contents ("http://[::1]:5173",
+// "http://localhost:5173/"). Vite writes the address the browser should use, and
+// without a port there is nothing we can verify.
+func portFromHotURL(raw string) int {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return 0
+	}
+	if p := u.Port(); p != "" {
+		n, err := strconv.Atoi(p)
+		if err == nil {
+			return n
+		}
+	}
+	if u.Scheme == "https" {
+		return 443
+	}
+	if u.Scheme == "http" {
+		return 80
+	}
+	return 0
 }
 
 // StopAll terminates every running dev-tool (called on Sabdopalon shutdown).
