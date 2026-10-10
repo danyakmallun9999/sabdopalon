@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
-## [0.11.2] — 2026-09-21
+## [0.11.2] — 2026-10-10
 
 Everything here was found by using 0.11.1 on a real Windows machine rather than
 by reading the code, and two of the numbers below come from measurements taken
