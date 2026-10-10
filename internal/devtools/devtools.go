@@ -89,6 +89,17 @@ func (m *Manager) Start(siteName, siteDir, toolName string) (int, error) {
 		return 0, fmt.Errorf("unknown dev-tool: %s", toolName)
 	}
 
+	// Check the project's preconditions first. A missing node_modules, for
+	// instance, kills Vite inside the child while `composer run dev`'s serve and
+	// queue processes still come up — so the probe would report success and the
+	// user would be left with a "ready" tool and no assets.
+	if spec.preflight != nil {
+		if err := spec.preflight(siteDir); err != nil {
+			m.setErr(siteName, toolName, err.Error())
+			return 0, err
+		}
+	}
+
 	// Don't double-start.
 	m.mu.Lock()
 	if _, ok := m.procs[siteName]; ok {

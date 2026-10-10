@@ -610,7 +610,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 
 	phpProcs := make([]*managedPHP, 0, len(ports))
 	for _, p := range ports {
-		ph, err := startPHP(phpBin, p, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(name+"."+s.cfg.TLD))
+		ph, err := startPHP(phpBin, p, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(host), siteURL(name, s.cfg.TLD, s.httpPortActual))
 		if err != nil {
 			for _, started := range phpProcs {
 				_ = started.stop()
@@ -906,10 +906,18 @@ func (s *Server) dashboardFallback(w http.ResponseWriter, r *http.Request, reque
 <body style="font-family:system-ui;padding:2rem;background:#0d1117;color:#e6edf3">
 <h1 style="color:#58a6ff">🐫 Sabdopalon</h1><p style="color:#8b949e">Dashboard is disabled in config.</p><ul>`)
 	for _, name := range sites {
-		fmt.Fprintf(w, `<li><a href="http://%s.%s:%d/">%s.%s</a></li>`,
-			name, s.cfg.TLD, s.httpPortActual, name, s.cfg.TLD)
+		fmt.Fprintf(w, `<li><a href="%s/">%s.%s</a></li>`,
+			siteURL(name, s.cfg.TLD, s.httpPortActual), name, s.cfg.TLD)
 	}
 	fmt.Fprintf(w, "</ul></body></html>")
+}
+
+// siteURL is the canonical URL a site is reached at through the proxy — the same
+// one the dashboard, `sabdopalon sites` and this fallback page print. PHP gets
+// it as APP_URL so the framework's own url()/asset()/redirects agree with the
+// address the user is actually browsing.
+func siteURL(name, tld string, httpPort int) string {
+	return fmt.Sprintf("http://%s.%s:%d", name, tld, httpPort)
 }
 
 // discoverSites lists site folder names via the shared scanner.

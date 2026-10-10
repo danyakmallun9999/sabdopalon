@@ -157,8 +157,12 @@ https_port = %d
 lan = %t
 
 [php]
-# empty = auto-detect (bundled → PATH → system)
+# binary = "" means auto-detect. The order is: this binary -> [php] prefer ->
+# the first php on PATH (that is what "system" means, and it is the default),
+# then the bundled bin/php/X.Y. Set prefer = "bundled" to use the bundled PHP
+# even when another php.exe comes first on PATH.
 binary = "%s"
+# prefer = "system"   # or "bundled"
 
 [database]
 engine = "%s"

@@ -62,7 +62,15 @@ func ensurePHPIni(rootDir string) string {
 // phpIniOverride is set (a per-site php.ini path from .sabdopalon.yml).
 // vitePort (>0) injects SABDOPALON_VITE_PORT/HOST so Laravel's vite.config.js
 // can wire HMR to the Sabdopalon-managed Vite dev server.
-func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int) (*managedPHP, error) {
+//
+// appURL, when set, is exported as APP_URL. Laravel builds url(), asset() and
+// redirects from it, and left to .env it points at http://localhost:8000 — a
+// port that is only alive while `composer run dev` happens to be running, so
+// browsing the site through Sabdopalon handed out links to a dead port. The
+// process environment wins over .env (Laravel loads Dotenv immutably), and a
+// per-site `env: APP_URL=...` in .sabdopalon.yml is appended afterwards, so it
+// still overrides this.
+func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int, appURL string) (*managedPHP, error) {
 	router := docroot + "/../.sabdopalon-router.php"
 	args := []string{
 		"-S", fmt.Sprintf("127.0.0.1:%d", port),
@@ -104,6 +112,10 @@ func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngin
 			fmt.Sprintf("SABDOPALON_VITE_PORT=%d", vitePort),
 			"SABDOPALON_VITE_HOST=127.0.0.1",
 		)
+	}
+	// APP_URL last-but-one: the per-site overrides below still win.
+	if appURL != "" {
+		env = append(env, "APP_URL="+appURL, "SABDOPALON_URL="+appURL)
 	}
 	env = append(env, extraEnv...)
 	cmd.Env = env
