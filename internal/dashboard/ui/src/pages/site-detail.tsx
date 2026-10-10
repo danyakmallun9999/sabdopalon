@@ -28,6 +28,7 @@ import api, {
   poll,
 } from "@/lib/api"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
+import { StatusDot } from "@/components/status"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -121,9 +122,7 @@ export default function SiteDetailPage() {
               <Badge variant="secondary">{detail.framework}</Badge>
             )}
             <span className="inline-flex items-center gap-1.5 text-sm">
-              <span
-                className={`size-2 rounded-full ${detail.running ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"}`}
-              />
+              <StatusDot status={detail.running ? "running" : "stopped"} />
               <span className="text-muted-foreground">{detail.running ? "running" : "stopped"}</span>
             </span>
           </div>
@@ -134,7 +133,7 @@ export default function SiteDetailPage() {
             </a>
             <span className="opacity-30">·</span>
             <a href={detail.https} target="_blank" rel="noreferrer" className="text-muted-foreground inline-flex items-center gap-1 hover:underline">
-              <Lock className="size-3 text-emerald-500" /> {detail.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+              <Lock className="size-3 text-success" /> {detail.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
             {detail.port ? (
               <>
@@ -255,7 +254,7 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
             <Globe className="size-3.5" /> {detail.url} <ExternalLink className="size-3 opacity-60" />
           </a>
           <a href={detail.https} target="_blank" rel="noreferrer" className="text-muted-foreground inline-flex items-center gap-2 text-sm hover:underline">
-            <Lock className="size-3.5 text-emerald-500" /> {detail.https}
+            <Lock className="size-3.5 text-success" /> {detail.https}
           </a>
           {detail.config.aliases?.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -276,7 +275,7 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
           <CardContent className="flex flex-col gap-2">
             {detail.devtools.filter((t) => t.running).map((t) => (
               <div key={t.tool} className="flex items-center gap-2 text-sm">
-                <span className="size-2 rounded-full bg-emerald-500" />
+                <StatusDot status="running" />
                 <span className="font-medium">{t.label}</span>
                 {t.port ? <Badge variant="secondary" className="font-mono">:{t.port}</Badge> : null}
                 <span className="text-muted-foreground text-xs">PID {t.pid}</span>
@@ -507,7 +506,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolS
   return (
     <div className="flex flex-col gap-4 pb-6">
       <div className="flex items-center gap-2 text-sm">
-        <Zap className="size-4 text-amber-500" />
+        <Zap className="size-4 text-warning" />
         <p className="text-muted-foreground">
           Vite is auto-proxied, so <code className="bg-muted rounded-sm px-1">{name}.localhost</code> serves HMR assets.
         </p>
@@ -521,7 +520,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolS
         <Card key={t.tool}>
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="flex items-center gap-2 text-sm">
-              <span className={`size-2.5 rounded-full ${t.running ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"}`} />
+              <StatusDot status={t.running ? "running" : "stopped"} />
               {t.label}
             </CardTitle>
             <Button
@@ -547,7 +546,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolS
                 <span>stopped</span>
               )}
               {t.last_error && t.running === false && (
-                <span className="text-amber-500 dark:text-amber-400">{t.last_error}</span>
+                <span className="text-warning">{t.last_error}</span>
               )}
             </div>
             {t.running && (
@@ -598,7 +597,15 @@ function TerminalTab({ name, dir }: { name: string; dir: string }) {
       <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
         <TerminalIcon className="size-4 shrink-0" />
         <span className="text-sm font-medium">{name}</span>
-        <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
+        <StatusDot
+          status={
+            termStatus === "connected"
+              ? "running"
+              : termStatus === "connecting"
+                ? "connecting"
+                : "error"
+          }
+        />
         <span className="text-muted-foreground text-xs">{termStatus}</span>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">

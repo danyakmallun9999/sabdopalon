@@ -41,6 +41,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
+import { IconButton } from "@/components/icon-button"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -759,9 +760,14 @@ export default function DashboardPage() {
                             <Play /> Start
                           </Button>
                         )}
-                        <Button size="icon-sm" variant="ghost" onClick={() => setLogFor(svc.name)} title="Logs">
+                        <IconButton
+                          label="Logs"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setLogFor(svc.name)}
+                        >
                           <ScrollText />
-                        </Button>
+                        </IconButton>
                       </div>
                     </TableCell>
                   </TableRow>

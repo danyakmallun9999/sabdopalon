@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Progress } from "@/components/ui/progress"
+import { ToneBadge } from "@/components/status"
 
 const TOOL_ICONS: Record<string, typeof Database> = {
   postgresql: Database,
@@ -211,13 +212,13 @@ export default function SetupPage() {
                           </div>
                         </div>
                         {c.installed ? (
-                          <Badge className="shrink-0 gap-1 bg-emerald-500/15 text-[11px] text-emerald-600 dark:text-emerald-400" variant="secondary">
+                          <ToneBadge tone="success" className="shrink-0 text-[11px]">
                             <CheckCircle2 className="size-3" /> Installed
-                          </Badge>
+                          </ToneBadge>
                         ) : (
-                          <Badge variant="outline" className="shrink-0 text-[11px] text-muted-foreground">
+                          <ToneBadge tone="muted" className="shrink-0 text-[11px]">
                             Included
-                          </Badge>
+                          </ToneBadge>
                         )}
                       </div>
                     ))}
@@ -342,9 +343,9 @@ export default function SetupPage() {
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {activeTools.map((t) => (
-                            <Badge key={t.key} variant="secondary" className="gap-1 bg-emerald-500/15 text-[11px] text-emerald-600 dark:text-emerald-400">
+                            <ToneBadge key={t.key} tone="success" className="text-[11px]">
                               <CheckCircle2 className="size-3" /> {t.label}
-                            </Badge>
+                            </ToneBadge>
                           ))}
                         </div>
                       </div>
@@ -470,7 +471,7 @@ function InstallPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             {success ? (
-              <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <div className="bg-success/15 text-success flex size-8 items-center justify-center rounded-lg">
                 <CheckCircle2 className="size-4.5" />
               </div>
             ) : (
@@ -538,7 +539,7 @@ function InstallPanel({
       )}
 
       {success && (
-        <div className="bg-emerald-500/10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 p-3.5">
+        <div className="bg-success/10 border-success/30 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5">
           <div className="flex flex-col gap-0.5">
             <p className="font-medium text-xs text-foreground sm:text-sm">Everything is installed and configured.</p>
             <p className="text-xs text-muted-foreground">Your local server is ready for app development.</p>

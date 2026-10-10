@@ -5,6 +5,7 @@ import { Copy, KeyRound, Lock, ShieldCheck } from "lucide-react"
 import api, { poll, type SslAction, type SslStatus } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
+import { ToneBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -98,7 +99,7 @@ export default function SslPage() {
   function stepBadge(s: Step) {
     if (s.stateKey === "trusted") {
       if (!st?.installed) return <Badge variant="outline">not trusted</Badge>
-      if (staleTrust) return <Badge className="bg-amber-500 text-black">stale — re-trust</Badge>
+      if (staleTrust) return <ToneBadge tone="warning">stale — re-trust</ToneBadge>
       return <Badge>trusted ✓</Badge>
     }
     const ok = s.stateKey === "ca_exists" ? st?.ca_exists : st?.wildcard_cert
@@ -193,7 +194,7 @@ export default function SslPage() {
               {st?.detail && (
                 <TableRow>
                   <TableCell>Detail</TableCell>
-                  <TableCell className="text-amber-500">{st.detail}</TableCell>
+                  <TableCell className="text-warning">{st.detail}</TableCell>
                 </TableRow>
               )}
             </TableBody>

@@ -45,7 +45,7 @@ function ControlButton({
       onClick={onClick}
       className={cn(
         "text-muted-foreground hover:bg-muted hover:text-foreground flex h-full w-12 items-center justify-center transition-colors",
-        danger && "hover:bg-red-500 hover:text-white",
+        danger && "hover:bg-destructive hover:text-white",
       )}
     >
       {children}

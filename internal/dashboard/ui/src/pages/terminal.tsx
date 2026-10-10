@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus, X } from "lucide-react"
 
+import { IconButton } from "@/components/icon-button"
 import TerminalPanel, { type TerminalPanelHandle } from "@/components/terminal-panel"
-import { Button } from "@/components/ui/button"
 
 type ShellTab = { id: number; title: string; sk: string }
 
@@ -104,9 +104,9 @@ export default function TerminalPage() {
             </span>
           </button>
         ))}
-        <Button variant="ghost" size="icon-sm" onClick={addTab} title="New shell">
+        <IconButton label="New shell" variant="ghost" size="icon-sm" onClick={addTab}>
           <Plus />
-        </Button>
+        </IconButton>
       </div>
 
       {/* Panels — kept mounted so background sessions survive tab switches. */}

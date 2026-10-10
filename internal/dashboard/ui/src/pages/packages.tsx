@@ -10,7 +10,7 @@ import api, {
   type SysTool,
   type SysToolJob,
 } from "@/lib/api"
-import { Badge } from "@/components/ui/badge"
+import { ToneBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -19,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+
 
 const LABELS: Record<string, string> = {
   php: "Default PHP (auto-used by all sites)",
@@ -58,11 +59,11 @@ function SystemPHPCard() {
               <div key={c.path} className="flex items-center justify-between gap-2 text-sm">
                 <span className="font-mono text-xs break-all">{c.path}</span>
                 {c.active ? (
-                  <Badge>default</Badge>
+                  <ToneBadge tone="success">default</ToneBadge>
                 ) : (
-                  <Badge variant="outline" className="text-amber-500 dark:text-amber-400">
+                  <ToneBadge tone="muted">
                     PHP {c.version}
-                  </Badge>
+                  </ToneBadge>
                 )}
               </div>
             ))}
@@ -144,9 +145,9 @@ function SystemToolsCard() {
                   )}
                 </div>
                 {t.installed ? (
-                  <Badge variant="default" className="border-emerald-500/40 text-emerald-600 dark:text-emerald-400">
+                  <ToneBadge tone="success">
                     installed
-                  </Badge>
+                  </ToneBadge>
                 ) : (
                   <Button size="sm" disabled={!!job?.running} onClick={() => install(t.name)}>
                     <Download className="size-4" />
@@ -165,7 +166,7 @@ function SystemToolsCard() {
               ) : job.error ? (
                 <XCircle className="size-4 text-destructive" />
               ) : (
-                <CheckCircle2 className="size-4 text-emerald-500" />
+                <CheckCircle2 className="size-4 text-success" />
               )}
               <span>
                 {job.running
@@ -333,12 +334,9 @@ export default function PackagesPage() {
                       {p.license ? ` · ${p.license}` : ""}
                     </CardDescription>
                   </div>
-                  <Badge
-                    variant={status === "available" ? "outline" : "default"}
-                    className={status === "active" ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400" : ""}
-                  >
+                  <ToneBadge tone={status === "active" ? "success" : "muted"}>
                     {status === "active" ? "active" : status === "installed" ? "installed" : "not installed"}
-                  </Badge>
+                  </ToneBadge>
                 </div>
                 <Button
                   className="mt-3 w-fit"
@@ -365,7 +363,7 @@ export default function PackagesPage() {
                 ) : job.error ? (
                   <XCircle className="size-4 text-destructive" />
                 ) : (
-                  <CheckCircle2 className="size-4 text-emerald-500" />
+                  <CheckCircle2 className="size-4 text-success" />
                 )}
                 <CardTitle className="text-base">
                   {job.running

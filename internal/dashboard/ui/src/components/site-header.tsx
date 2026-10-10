@@ -1,11 +1,11 @@
 import { Link, useLocation } from "react-router-dom"
-import { ExternalLink, Boxes, ChevronRight } from "lucide-react"
+import { Boxes, ChevronRight } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Badge } from "@/components/ui/badge"
+import { StatusDot, ToneBadge } from "@/components/status"
 import { useLive } from "@/lib/live"
 import { dbEngineRunning } from "@/lib/dbstatus"
 import { NAV_ITEMS } from "@/components/app-sidebar"
@@ -51,33 +51,28 @@ export default function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-2">
           {status?.database ? (
-            <Badge
-              variant="outline"
-              className={
-                dbEngineRunning(status) ? "text-emerald-600 dark:text-emerald-400" : "text-amber-500 dark:text-amber-400"
-              }
-            >
+            <ToneBadge tone={dbEngineRunning(status) ? "success" : "warning"}>
               DB {status.database}
               {status.database !== "sqlite" ? (dbEngineRunning(status) ? " ✓" : " ✗") : ""}
-            </Badge>
+            </ToneBadge>
           ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              DB —
-            </Badge>
+            <ToneBadge tone="muted">DB —</ToneBadge>
           )}
           {(status?.php_version || status?.php) && (
-            <Badge variant="outline" className="text-muted-foreground">
-              PHP {status?.php_version ?? status?.php}
-            </Badge>
+            <ToneBadge tone="muted">PHP {status?.php_version ?? status?.php}</ToneBadge>
           )}
           {status?.services && (
-            <Badge variant="secondary" render={<a href="/services" />}>
-              <Boxes /> Active services <ExternalLink />
-            </Badge>
+            /* A link, not a status: outline weight so it sits level with the
+               badges beside it (it used to be the one solid, double-icon chip
+               in the row), and the variant already styles anchor hover. The
+               external-link icon went with it — this opens an in-app page. */
+            <ToneBadge tone="muted" render={<a href="/services" />}>
+              <Boxes /> Active services
+            </ToneBadge>
           )}
-          <span
-            aria-label={status ? "connected" : "disconnected"}
-            className={`size-2 rounded-full ${status ? "bg-emerald-500" : "bg-destructive"}`}
+          <StatusDot
+            status={status ? "running" : "error"}
+            aria-label={status ? "Dashboard connected" : "Dashboard disconnected"}
           />
         </div>
       </div>

@@ -33,6 +33,8 @@ import TerminalPanel, {
 } from "@/components/terminal-panel"
 import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
+import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
+import { IconButton } from "@/components/icon-button"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -104,16 +106,12 @@ function loadDock(): DockState {
   return { open: false, width: 480 }
 }
 
-function StatusDot({ s }: { s: TermStatus }) {
-  const color =
-    s === "connected"
-      ? "bg-emerald-500"
-      : s === "connecting"
-        ? "bg-amber-500 animate-pulse"
-        : "bg-red-400"
+function TermStatusLabel({ s }: { s: TermStatus }) {
+  const dot: DotStatus =
+    s === "connected" ? "running" : s === "connecting" ? "connecting" : "error"
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-      <span className={`size-2 rounded-full ${color}`} />
+    <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+      <StatusDot status={dot} />
       {s}
     </span>
   )
@@ -300,7 +298,7 @@ export default function SitesPage() {
         rel="noreferrer"
         className="text-muted-foreground inline-flex items-center gap-1.5 text-sm hover:underline"
       >
-        <Lock className="size-3.5 shrink-0 text-emerald-500" />
+        <Lock className="size-3.5 shrink-0 text-success" />
         {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
         <ExternalLink className="size-3 opacity-60" />
       </a>
@@ -337,31 +335,16 @@ export default function SitesPage() {
   // right-hand side of the table look ragged rather than aligned.
   const phpBadge = (s: Site) =>
     s.php ? (
-      <Badge variant="secondary" className="text-amber-500 dark:text-amber-400">
-        PHP {s.php}
-      </Badge>
+      <ToneBadge tone="warning">PHP {s.php}</ToneBadge>
     ) : (
-      <Badge variant="outline" className="text-muted-foreground">
-        PHP default
-      </Badge>
+      <ToneBadge tone="muted">PHP default</ToneBadge>
     )
 
   const runBadge = (s: Site) => (
-    <Badge
-      variant="outline"
-      className={
-        s.running
-          ? "gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-          : "gap-1.5 text-muted-foreground"
-      }
-    >
-      <span
-        className={`size-1.5 rounded-full ${
-          s.running ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"
-        }`}
-      />
+    <ToneBadge tone={s.running ? "success" : "muted"}>
+      <StatusDot status={s.running ? "running" : "stopped"} />
       {s.running ? "running" : "stopped"}
-    </Badge>
+    </ToneBadge>
   )
 
   const startStopBtn = (s: Site) => (
@@ -638,33 +621,33 @@ export default function SitesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <StatusDot s={termStatus} />
+                <TermStatusLabel s={termStatus} />
                 <div className="ml-auto flex items-center gap-1">
-                  <Button
+                  <IconButton
+                    label="Clear"
                     size="icon-sm"
                     variant="ghost"
-                    title="Clear"
                     onClick={() => panelRef.current?.clear()}
                   >
                     <Eraser />
-                  </Button>
-                  <Button
+                  </IconButton>
+                  <IconButton
+                    label="Restart shell"
                     size="icon-sm"
                     variant="ghost"
-                    title="Restart shell"
                     onClick={() => panelRef.current?.restart()}
                   >
                     <RotateCw />
-                  </Button>
-                  <Button
+                  </IconButton>
+                  <IconButton
+                    label="Hide terminal"
                     size="icon-sm"
                     variant="ghost"
-                    title="Hide terminal"
                     className="max-lg:hidden"
                     onClick={() => setDock((d) => ({ ...d, open: false }))}
                   >
                     <PanelRight />
-                  </Button>
+                  </IconButton>
                 </div>
               </div>
               <div className="relative min-h-0 flex-1 overflow-hidden">

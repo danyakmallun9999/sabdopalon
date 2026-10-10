@@ -6,6 +6,7 @@ import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
 import { useLive } from "@/lib/live"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { Badge } from "@/components/ui/badge"
+import { StatusDot } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -493,7 +494,7 @@ function TerminalTab({
                   active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <span className={`size-1.5 rounded-full ${dRunning ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"}`} />
+                <StatusDot status={dRunning ? "running" : "stopped"} />
                 {d.label}
               </button>
             )
@@ -504,7 +505,15 @@ function TerminalTab({
             <span>{card.label} — terminal feature not available yet</span>
           ) : running ? (
             <>
-              <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
+              <StatusDot
+                status={
+                  termStatus === "connected"
+                    ? "running"
+                    : termStatus === "connecting"
+                      ? "connecting"
+                      : "error"
+                }
+              />
               {termStatus}
             </>
           ) : (
