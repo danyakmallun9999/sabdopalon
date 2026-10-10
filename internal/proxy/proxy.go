@@ -116,12 +116,20 @@ func (s *Server) Start() error {
 	s.ensureRouters()
 	s.buildAliases()
 
-	// Try low ports (:80/:443) first for clean URLs; fall back to the
-	// configured ports if not permitted (needs root or setcap).
+	// Try low ports (:80) first for clean URLs, and DECIDE BY BINDING: canBind
+	// probed the wildcard address (":80") while these listeners bind 127.0.0.1
+	// and ::1 one at a time, so the probe could pass where the bind then failed.
+	// That failure returned from Start(), and serve() treats it as fatal — the
+	// whole app shut down instead of using the configured port, which is exactly
+	// what the fallback here promises. Reproduced on this machine: a second
+	// instance could not start at all while the first held 127.0.0.1:80.
 	httpPort := s.cfg.Proxy.HTTPPort
-	if canBind(80) {
+	httpListeners, lerr := netutil.Listen(80, s.cfg.Proxy.LAN)
+	if lerr == nil {
 		httpPort = 80
 		s.lowPortsBound = true
+	} else if httpListeners, lerr = netutil.Listen(httpPort, s.cfg.Proxy.LAN); lerr != nil {
+		return lerr
 	}
 	s.httpPortActual = httpPort
 
@@ -150,7 +158,7 @@ func (s *Server) Start() error {
 	}
 
 	go func() {
-		errCh <- netutil.Serve(srv, httpPort, s.cfg.Proxy.LAN)
+		errCh <- netutil.ServeListeners(srv, httpListeners, "", "")
 	}()
 
 	select {

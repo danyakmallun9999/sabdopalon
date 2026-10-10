@@ -72,6 +72,21 @@ func serve(srv *http.Server, port int, lan bool, certFile, keyFile string) error
 	if err != nil {
 		return err
 	}
+	return ServeListeners(srv, lns, certFile, keyFile)
+}
+
+// ServeListeners serves srv on listeners that were already created (see Listen)
+// and blocks until they all stop, with the same error semantics as Serve.
+//
+// It exists so a caller can DECIDE about a port by binding it. A probe cannot
+// answer that question here: a wildcard test (":80") behaves differently from
+// these listeners, which bind 127.0.0.1 and ::1 one address at a time — the
+// probe passed on a machine where 127.0.0.1:80 was already taken, and the bind
+// that followed failed and shut the whole app down.
+func ServeListeners(srv *http.Server, lns []net.Listener, certFile, keyFile string) error {
+	if len(lns) == 0 {
+		return errors.New("netutil: no listeners to serve on")
+	}
 	errc := make(chan error, len(lns))
 	for _, ln := range lns {
 		go func(l net.Listener) {
