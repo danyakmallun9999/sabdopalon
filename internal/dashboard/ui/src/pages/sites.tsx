@@ -331,24 +331,37 @@ export default function SitesPage() {
     </div>
   )
 
+  // Both state cells render a Badge, every time. A bare <span> for the
+  // "default"/"stopped" case and a Badge for the other gave the two columns
+  // different font sizes and heights — that mismatch is what made the
+  // right-hand side of the table look ragged rather than aligned.
   const phpBadge = (s: Site) =>
     s.php ? (
       <Badge variant="secondary" className="text-amber-500 dark:text-amber-400">
         PHP {s.php}
       </Badge>
     ) : (
-      <span className="text-muted-foreground">default</span>
+      <Badge variant="outline" className="text-muted-foreground">
+        PHP default
+      </Badge>
     )
 
   const runBadge = (s: Site) => (
-    <span className="inline-flex items-center gap-1.5 text-sm">
+    <Badge
+      variant="outline"
+      className={
+        s.running
+          ? "gap-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+          : "gap-1.5 text-muted-foreground"
+      }
+    >
       <span
-        className={`size-2 rounded-full ${
+        className={`size-1.5 rounded-full ${
           s.running ? "bg-emerald-500" : "bg-zinc-400 dark:bg-zinc-600"
         }`}
       />
       {s.running ? "running" : "stopped"}
-    </span>
+    </Badge>
   )
 
   const startStopBtn = (s: Site) => (
@@ -399,7 +412,7 @@ export default function SitesPage() {
   const emptyRow = (
     <div className="text-muted-foreground flex h-40 flex-col items-center justify-center gap-2">
       <Globe className="size-6 opacity-50" />
-      No sites yet — click “New Site” or create a folder under sites/.
+      No sites yet.
     </div>
   )
 
@@ -415,9 +428,14 @@ export default function SitesPage() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>Site</TableHead>
                 <TableHead>URLs</TableHead>
-                <TableHead>PHP</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-12 text-right">Actions</TableHead>
+                {/* Fixed widths for the right-hand columns: the site name and
+                    the two URL lines are the only flexible content, so the
+                    badges and buttons line up across every row instead of
+                    drifting with whatever text each cell happens to hold. The
+                    Actions column has to fit a sm button plus the kebab menu. */}
+                <TableHead className="w-28">PHP</TableHead>
+                <TableHead className="w-32">Status</TableHead>
+                <TableHead className="w-40 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -433,7 +451,7 @@ export default function SitesPage() {
                   <TableCell onClick={(e) => e.stopPropagation()}>{phpBadge(s)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{runBadge(s)}</TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="inline-flex items-center gap-1">
+                    <div className="flex items-center justify-end gap-1">
                       {startStopBtn(s)}
                       {rowMenu(s)}
                     </div>
@@ -480,13 +498,12 @@ export default function SitesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col px-4 lg:px-6">
-      {/* Page header: description + search + actions */}
-      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-muted-foreground text-sm">
-          Every folder in <code className="bg-muted rounded px-1.5 py-0.5">sites/</code> is
-          automatically served at{" "}
-          <code className="bg-muted rounded px-1.5 py-0.5">name.localhost</code>.
-        </p>
+      {/* Toolbar: filter + actions, all on one control height (h-8) so nothing
+          in the row stands a few pixels taller than its neighbour. The sentence
+          that used to explain that every folder in sites/ is served at
+          name.localhost is gone: the URLs column below shows exactly that, per
+          site, and repeating it pushed the table down for no information. */}
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-end">
         <div className="flex items-center gap-2">
           <div className="relative">
             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
@@ -494,7 +511,7 @@ export default function SitesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter sites…"
-              className="h-9 w-44 pl-8"
+              className="h-8 w-44 pl-8"
             />
           </div>
           <Button
@@ -513,10 +530,6 @@ export default function SitesPage() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Create a new site</DialogTitle>
-                <DialogDescription>
-                  The name becomes the local domain (e.g. <code>my-app</code> →{" "}
-                  <code>my-app.localhost</code>).
-                </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-2">
@@ -567,7 +580,7 @@ export default function SitesPage() {
           <>
             {/* Divider: vertical on desktop (drag width), horizontal on mobile */}
             <div
-              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
+              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded-full lg:my-0 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
               onPointerDown={(e) => {
                 draggingRef.current = true
                 e.currentTarget.setPointerCapture(e.pointerId)
@@ -670,8 +683,7 @@ export default function SitesPage() {
           <DialogHeader>
             <DialogTitle>Configure “{cfgSite?.name}”</DialogTitle>
             <DialogDescription>
-              Stored in <code>.sabdopalon.yml</code>. Saving applies changes immediately — a running
-              site is restarted automatically.
+              Changes apply immediately; a running site restarts.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4">

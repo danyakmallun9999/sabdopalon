@@ -240,7 +240,7 @@ export default function SetupPage() {
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-xs font-medium text-foreground sm:text-sm">Create sample site</span>
                         <span className="text-[11px] text-muted-foreground sm:text-xs">
-                          The <code className="bg-muted rounded px-1 py-0.5 font-mono text-[11px]">myapp</code> site will be ready to open once setup finishes
+                          The <code className="bg-muted rounded-sm px-1 py-0.5 font-mono text-[11px]">myapp</code> site will be ready to open once setup finishes
                         </span>
                       </span>
                       <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5 shrink-0" />

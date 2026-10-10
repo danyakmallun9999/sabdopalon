@@ -520,14 +520,14 @@ export default function DashboardPage() {
             <p className="text-sm font-medium">Some services failed to start</p>
             {Object.entries(errors).map(([name, msg]) => (
               <p key={name} className="text-muted-foreground text-xs">
-                <code className="bg-muted rounded px-1 py-0.5">{name}</code>: {msg}
+                <code className="bg-muted rounded-sm px-1 py-0.5">{name}</code>: {msg}
               </p>
             ))}
             {installed
               .filter((s) => s.last_error)
               .map((s) => (
                 <p key={s.name} className="text-muted-foreground text-xs">
-                  <code className="bg-muted rounded px-1 py-0.5">{s.name}</code>: {s.last_error}
+                  <code className="bg-muted rounded-sm px-1 py-0.5">{s.name}</code>: {s.last_error}
                 </p>
               ))}
           </div>

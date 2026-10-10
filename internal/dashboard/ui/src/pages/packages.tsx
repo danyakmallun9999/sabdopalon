@@ -125,9 +125,8 @@ function SystemToolsCard() {
         <div className="flex flex-col gap-1.5">
           <CardTitle className="text-base">System tools (Node.js &amp; Composer)</CardTitle>
           <CardDescription>
-            Installed onto your system (not <code className="bg-muted rounded px-1 py-0.5">bin/</code>) — available
-            for <code>composer create-project</code>, <code>npm install</code>, and <code>vite</code>. Installed
-            per-user (no sudo).
+            Installed per-user onto your system (not <code className="bg-muted rounded-sm px-1 py-0.5">bin/</code>), for
+            Composer, npm and Vite.
           </CardDescription>
         </div>
         {tools.length === 0 ? (
@@ -288,9 +287,11 @@ export default function PackagesPage() {
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
+      {/* One line, no repetition: the two paragraphs that used to sit here said
+          the same thing twice (system-wide vs bin/) — the Packages page shows
+          which is which per section. */}
       <p className="text-muted-foreground text-sm">
-        Optional components, downloaded and managed inside{" "}
-        <code className="bg-muted rounded px-1.5 py-0.5">bin/</code> — nothing touches your OS.
+        Installed inside <code className="bg-muted rounded-sm px-1.5 py-0.5">bin/</code> — nothing touches your OS.
       </p>
 
       <SystemPHPCard />
