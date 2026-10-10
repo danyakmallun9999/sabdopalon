@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.6] — 2026-10-10
+
+### Fixed
+- **Sharing a site opened an external console window that had to stay open.** The
+  desktop sidecar has no console of its own (`-H windowsgui`), so Windows handed
+  the console-subsystem `cloudflared` a brand-new window — and that window *is*
+  cloudflared's console, so closing it killed the tunnel. cloudflared is now
+  spawned console-free, the way every other child process already was
+  (`HideWindow` + `CREATE_NO_WINDOW` through the `winproc.Quiet` helper), and a
+  Windows-only test pins the flag so the regression cannot come back silently.
+  The bug was invisible to a normal local `go build` (a console-linked sidecar
+  lets the child inherit its console), which is why it slipped past the first pass.
+- **The URLs in the Sites table did nothing when clicked.** The URL cell stops
+  propagation so the row does not navigate, and React's synthetic
+  `stopPropagation()` also calls the native one — so the click died before either
+  the app's external-link handler or Tauri's own opener could see it. The handler
+  now listens in the **capture** phase, which runs before any bubble-phase
+  `stopPropagation`, so the link opens in the browser regardless; it calls
+  `preventDefault()` first, so the opener plugin stands down and nothing opens
+  twice.
+
 ## [0.11.5] — 2026-10-10
 
 ### Added
