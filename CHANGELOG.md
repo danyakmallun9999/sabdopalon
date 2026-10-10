@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
-## [0.11.4] — 2026-10-11
+## [0.11.4] — 2026-10-10
 
 A design-system pass, because the dashboard had grown a status colour per page,
 five different corner radii among its own form controls, and three ways to name
