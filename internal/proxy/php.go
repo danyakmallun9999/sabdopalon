@@ -31,6 +31,13 @@ date.timezone = UTC
 ; display_errors = On
 ; error_reporting = E_ALL
 
+; yac (compiled into the bundled PHP) has a shared-memory allocator that can fail
+; to start on Windows — "Shared memory allocator startup failed at 'fopen'" once
+; per server start. It is off for the servers Sabdopalon runs, and for the php on
+; your PATH through its shim. Uncomment to let it try anyway.
+; yac.enable = 0
+; yac.enable_cli = 0
+
 ; Optional: extension examples (bundled PHP already includes these).
 ; extension = pdo_mysql
 ; extension = mbstring
@@ -73,6 +80,18 @@ func ensurePHPIni(rootDir string) string {
 func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int, appURL string) (*managedPHP, error) {
 	router := docroot + "/../.sabdopalon-router.php"
 	args := []string{
+		// yac is compiled into the static PHP we ship (static-php-cli's
+		// --enable-yac) and its shared-memory allocator is fragile on Windows: a
+		// user's `php artisan serve` printed
+		//   Fatal error: Shared memory allocator startup failed at 'fopen':
+		//   No such file or directory ... Unable to start yac module
+		// once per server start. It cannot have been verified here (this binary
+		// starts clean in -v, -m, -r and -S), so the failure depends on the child
+		// environment — which is exactly why it is turned off explicitly rather
+		// than left to chance. Nothing is lost: every request is a fresh process,
+		// so there is no long-lived process for a shared-memory cache to serve.
+		"-d", "yac.enable=0",
+		"-d", "yac.enable_cli=0",
 		"-S", fmt.Sprintf("127.0.0.1:%d", port),
 		"-t", docroot,
 	}

@@ -63,13 +63,20 @@ func TestEnsureShimsPointsPHPAtTheInstallIni(t *testing.T) {
 	if !contains(got, "if exist") {
 		t.Errorf("php.cmd = %q, want the PHPRC line guarded so a missing ini is not an error", got)
 	}
+	// yac's shared-memory allocator can fail to start on Windows ("Unable to
+	// start yac module"), which reads as a broken PHP and derails tooling that
+	// inspects output. It is switched off for everything this shim launches, and
+	// a later -d on the command line still wins for anyone who wants it.
+	if !contains(got, "-d yac.enable=0") {
+		t.Errorf("php.cmd = %q, want yac disabled", got)
+	}
 	// php.ini is a PHP concern: every other shim stays a one-liner.
 	other, err := os.ReadFile(filepath.Join(bin, "redis-server.cmd"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if contains(string(other), "PHPRC") {
-		t.Errorf("redis-server.cmd = %q, want no PHPRC outside the php shim", other)
+	if contains(string(other), "PHPRC") || contains(string(other), "yac") {
+		t.Errorf("redis-server.cmd = %q, want no php-specific flags outside the php shim", other)
 	}
 }
 

@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.12] — 2026-10-10
+
+### Fixed
+- **`yac` is switched off explicitly, so it can never print a startup fatal error
+  again.** The bundled PHP is a static build that includes `yac`, an optional
+  shared-memory cache whose allocator is fragile on Windows. A fresh Laravel 13
+  project running `composer run dev` printed this once per server start:
+
+  ```
+  Fatal error: Shared memory allocator startup failed at 'fopen': No such file or directory
+  Fatal error: Unable to start yac module
+  ```
+
+  It reads as a broken PHP, and tooling that inspects a child's output treats it
+  as one. The bundled binary could not be made to reproduce it here — `php -v`,
+  `-m`, `-r` and `-S` all start clean, with or without the flag — so the failure
+  depends on the environment a child is given, which is exactly why it is now
+  turned off instead of left to chance: passed as `-d yac.enable=0
+  -d yac.enable_cli=0` both to every site worker Sabdopalon starts and through the
+  `php` shim on PATH. Nothing is lost — every request is a fresh process, so there
+  is no long-lived process for a shared-memory cache to serve — and a later `-d`
+  on the command line still wins for anyone who wants it back.
+
 ## [0.11.11] — 2026-10-10
 
 ### Fixed
