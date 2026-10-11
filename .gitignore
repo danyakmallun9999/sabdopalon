@@ -69,3 +69,8 @@ desktop.ini
 /sites/phpmyadmin/
 
 /dist/**
+
+# Signing keys - never commit (they sign update packages)
+*.key
+*.key.pub
+**/.tauri/
