@@ -277,11 +277,12 @@ export default function AboutPage() {
             <Badge variant="secondary" className="font-mono text-xs">
               {version}
             </Badge>
-            {info ? (
-              <Badge variant="outline" className="text-xs">
-                {info.app.channel}
-              </Badge>
-            ) : null}
+            {/* The channel you follow, not the channel this build came from. They are
+                different axes, and showing the build's would contradict the Updates card
+                for anyone following beta. */}
+            <Badge variant="outline" className="text-xs">
+              {channel}
+            </Badge>
           </CardTitle>
           <CardDescription>
             A local PHP, database and tunnel environment for Windows, Linux and macOS.
