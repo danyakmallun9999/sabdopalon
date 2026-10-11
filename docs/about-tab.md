@@ -188,7 +188,13 @@ embedded UI.
 - Respect reduced motion: no animated spinner when the user has asked for reduced
   motion, use a static "working…" indicator instead.
 - Channel is a small chip next to the version, never a dropdown inside the identity
-  card — changing it belongs in Settings.
+  card. **Built differently from the first draft:** the channel travels with the check
+  request and is remembered in the browser's localStorage, rather than living in the
+  config file. Following beta is a preference of whoever is using that dashboard, not a
+  property of the installation, so it needs no config key and no migration when it
+  changes. The chip beside the version shows the channel you follow; the handler still
+  reports the channel a build came from, which is a different axis and, today, always
+  the same answer. Moving it into Settings later is a small change if it is ever wanted.
 
 ### 4.3 Copy tone
 
