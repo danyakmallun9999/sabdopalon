@@ -92,6 +92,7 @@ func (s *Server) routes() {
 	// installs anything: applying an update is a separate, user-initiated step.
 	s.mux.HandleFunc("/api/update", s.handleAPIUpdate)
 	s.mux.HandleFunc("/api/update/check", s.handleAPIUpdateCheck)
+	s.mux.HandleFunc("/api/update/download", s.handleAPIUpdateDownload)
 
 	// Graceful remote stop, used by the desktop shell — the bundled sidecar is
 	// a console-less windowsgui process, so Windows has no Ctrl+C to send it.

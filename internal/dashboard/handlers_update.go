@@ -43,6 +43,12 @@ type updatePayload struct {
 	PublishedAt string `json:"published_at,omitempty"`
 	CheckedAt   string `json:"checked_at,omitempty"`
 	Error       string `json:"error,omitempty"`
+
+	// Asset that would be downloaded and the checksum it must match. Kept here so
+	// the download endpoint works from the last check instead of re-asking GitHub.
+	AssetURL    string `json:"asset_url,omitempty"`
+	AssetDigest string `json:"asset_digest,omitempty"`
+	AssetName   string `json:"asset_name,omitempty"`
 }
 
 var versionPattern = regexp.MustCompile(`^v?(\d+)\.(\d+)\.(\d+)`)
@@ -94,9 +100,10 @@ type releaseResponse struct {
 	HTMLURL     string `json:"html_url"`
 	PublishedAt string `json:"published_at"`
 	Assets      []struct {
-		Name   string `json:"name"`
-		Size   int64  `json:"size"`
-		Digest string `json:"digest"`
+		Name               string `json:"name"`
+		Size               int64  `json:"size"`
+		Digest             string `json:"digest"`
+		BrowserDownloadURL string `json:"browser_download_url"`
 	} `json:"assets"`
 }
 
@@ -164,6 +171,9 @@ func checkForUpdate(current string) updatePayload {
 		if strings.Contains(strings.ToLower(a.Name), "sidecar") {
 			out.Kind = "sidecar"
 			out.Size = a.Size
+			out.AssetURL = a.BrowserDownloadURL
+			out.AssetDigest = a.Digest
+			out.AssetName = a.Name
 			break
 		}
 	}
@@ -171,6 +181,9 @@ func checkForUpdate(current string) updatePayload {
 		for _, a := range rel.Assets {
 			if strings.HasSuffix(strings.ToLower(a.Name), ".exe") {
 				out.Size = a.Size
+				out.AssetURL = a.BrowserDownloadURL
+				out.AssetDigest = a.Digest
+				out.AssetName = a.Name
 				break
 			}
 		}
