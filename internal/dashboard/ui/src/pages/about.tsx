@@ -30,6 +30,9 @@ type AboutInfo = {
   privacy: { host: string; why: string }[]
 }
 
+/** The shape the API returns for update checks — derived, so it cannot drift. */
+type UpdateInfo = Awaited<ReturnType<typeof api.update>>
+
 /** Copies a value and says so, because a silent copy button is a guess. */
 function CopyRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
   const [done, setDone] = useState(false)
@@ -63,6 +66,8 @@ export default function AboutPage() {
   const [info, setInfo] = useState<AboutInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [upd, setUpd] = useState<UpdateInfo | null>(null)
+  const [checking, setChecking] = useState(false)
   const { status } = useLive()
 
   const load = useCallback(async () => {
@@ -82,6 +87,19 @@ export default function AboutPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  const check = useCallback(async () => {
+    setChecking(true)
+    try {
+      const r = await api.checkUpdate()
+      setUpd(r)
+      if (r.error) toast.error(r.error)
+      else if (r.available) toast.info(`${r.latest} is available`)
+      else toast.success("You are on the latest version")
+    } finally {
+      setChecking(false)
+    }
+  }, [])
 
   const version = info?.app.version ?? status?.version ?? "—"
   // One source for the repository URL, so a link can never point somewhere else.
@@ -148,6 +166,69 @@ export default function AboutPage() {
             <div className="text-muted-foreground">Interface</div>
             <div>Desktop shell (Tauri) with a Go sidecar</div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Update. Checking is separated from applying on purpose: this tool holds
+          the user's database and running servers, so it says a release exists and
+          never installs one on its own. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <RefreshCw className="size-4 text-muted-foreground" />
+            Updates
+          </CardTitle>
+          <CardDescription>
+            {upd?.available
+              ? `${upd.latest} is available.`
+              : upd
+                ? `You are on the latest version (${upd.current}).`
+                : "Check whether a newer release exists."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 text-sm">
+          {upd?.available ? (
+            <div className="flex flex-col gap-2">
+              <div className="font-medium">
+                {upd.kind === "sidecar"
+                  ? "Updates in about 10 seconds, without closing Sabdopalon: the dashboard, proxy and CLI are replaced."
+                  : "This one includes shell changes, so it installs like a normal update — Sabdopalon closes and reopens, roughly a minute. Sites and databases stop and come back."}
+              </div>
+              {upd.notes ? (
+                <pre className="max-h-40 overflow-auto rounded-md border bg-muted/40 p-2 font-mono text-xs leading-relaxed">
+                  {upd.notes}
+                </pre>
+              ) : null}
+            </div>
+          ) : null}
+
+          {upd?.error ? <div className="text-destructive">{upd.error}</div> : null}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => void check()} disabled={checking}>
+              <RefreshCw className={checking ? "size-3.5 animate-pulse" : "size-3.5"} />
+              {checking ? "Checking…" : "Check for updates"}
+            </Button>
+            {upd?.available && upd.url ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(upd.url, "_blank", "noreferrer")}
+              >
+                Open release page
+              </Button>
+            ) : null}
+            {upd?.checked_at ? (
+              <span className="text-xs text-muted-foreground">
+                Last checked {new Date(upd.checked_at).toLocaleString()}
+              </span>
+            ) : null}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            Sabdopalon never updates itself and never touches your sites, databases or the bundled
+            stack. Only the program is replaced.
+          </p>
         </CardContent>
       </Card>
 

@@ -265,6 +265,34 @@ const api = {
   status: () => request<Status>("/api/status"),
 
   listSites: () => request<Site[]>("/api/sites"),
+  // Update check. Reading the last result never touches the network; checking is
+  // an explicit action, and nothing here installs anything.
+  update: () =>
+    request<{
+      current: string
+      latest?: string
+      available: boolean
+      kind?: string
+      notes?: string
+      url?: string
+      size?: number
+      published_at?: string
+      checked_at?: string
+      error?: string
+    }>("/api/update"),
+  checkUpdate: () =>
+    post<{
+      current: string
+      latest?: string
+      available: boolean
+      kind?: string
+      notes?: string
+      url?: string
+      size?: number
+      published_at?: string
+      checked_at?: string
+      error?: string
+    }>("/api/update/check", {}),
   // About is a snapshot: identity, paths, credits, and the outbound-host list.
   about: () =>
     request<{
