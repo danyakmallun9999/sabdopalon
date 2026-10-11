@@ -156,6 +156,26 @@ export default function AboutPage() {
     }
   }, [channel])
 
+  // On arrival, show what the last check found, and check once if nothing has been
+  // checked in this run. The cache lives in the sidecar's memory, so it is the
+  // once-per-run guard the design asked for — no setting needed to keep GitHub
+  // requests rare, and the read itself never touches the network.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const last = await api.update()
+      if (cancelled) return
+      if (last.checked_at) {
+        setUpd(last)
+        return
+      }
+      await check()
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [check])
+
   const version = info?.app.version ?? status?.version ?? "—"
   // One source for the repository URL, so a link can never point somewhere else.
   const repo = info?.app.repo ?? "https://github.com/danyakmallun9999/sabdopalon"
