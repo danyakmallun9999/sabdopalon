@@ -41,14 +41,14 @@ type DownloadState = Awaited<ReturnType<typeof api.downloadState>>
  * to do it — so the download and its checksum happen here in Go, and the swap is
  * asked for through the Tauri API the shell exposes to this dashboard origin.
  */
-async function invokeApplySidecar(path: string): Promise<string> {
+async function invokeShell<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const tauri = (window as unknown as {
-    __TAURI__?: { core?: { invoke?: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> } }
+    __TAURI__?: { core?: { invoke?: <R>(c: string, a?: Record<string, unknown>) => Promise<R> } }
   }).__TAURI__
   if (!tauri?.core?.invoke) {
     throw new Error("Updating in place needs the desktop app — this is a plain browser.")
   }
-  return tauri.core.invoke<string>("apply_sidecar_update", { path })
+  return tauri.core.invoke<T>(cmd, args)
 }
 
 /** Bytes as something a person reads without counting digits. */
@@ -143,7 +143,9 @@ export default function AboutPage() {
   // One source for the repository URL, so a link can never point somewhere else.
   const repo = info?.app.repo ?? "https://github.com/danyakmallun9999/sabdopalon"
 
-  const startUpdate = useCallback(async () => {
+  // The kind is passed in rather than read from state: this callback outlives a
+  // render, and a stale kind would pick the wrong way to apply an update.
+  const startUpdate = useCallback(async (kind: string) => {
     const first = await api.downloadUpdate()
     if (first.error) {
       toast.error(first.error)
@@ -172,9 +174,14 @@ export default function AboutPage() {
 
     setApplying(true)
     try {
-      await invokeApplySidecar(done.path)
-      toast.success("Update applied — Sabdopalon is restarting")
-      setTimeout(() => window.location.reload(), 3000)
+      if (kind === "installer") {
+        await invokeShell<void>("apply_installer_update", { path: done.path })
+        toast.success("Installer started — Sabdopalon will close and come back")
+      } else {
+        await invokeShell<string>("apply_sidecar_update", { path: done.path })
+        toast.success("Update applied — Sabdopalon is restarting")
+        setTimeout(() => window.location.reload(), 3000)
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e))
     } finally {
@@ -285,26 +292,28 @@ export default function AboutPage() {
 
           {upd?.available ? (
             <div className="flex flex-col gap-2">
-              {upd.kind === "sidecar" ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => void startUpdate()}
-                    disabled={job?.running || applying}
-                  >
-                    {applying ? "Applying…" : job?.running ? "Downloading…" : "Update now"}
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    The file is checked against the checksum the release published before anything is
-                    replaced.
-                  </span>
-                </div>
-              ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => void startUpdate(upd.kind ?? "sidecar")}
+                  disabled={job?.running || applying}
+                >
+                  {applying
+                    ? upd.kind === "installer"
+                      ? "Starting installer…"
+                      : "Applying…"
+                    : job?.running
+                      ? "Downloading…"
+                      : upd.kind === "installer"
+                        ? "Download and install"
+                        : "Update now"}
+                </Button>
                 <span className="text-xs text-muted-foreground">
-                  This release changed the desktop shell, so it needs the installer — updating in place
-                  is not available for it yet.
+                  {upd.kind === "installer"
+                    ? "The file is verified first, then Sabdopalon closes so the installer can replace it — roughly a minute."
+                    : "The file is checked against the checksum the release published before anything is replaced."}
                 </span>
-              )}
+              </div>
 
               {job && (job.running || job.done > 0) ? (
                 <div className="flex flex-col gap-1">

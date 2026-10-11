@@ -19,6 +19,41 @@ fn apply_sidecar_update(app: tauri::AppHandle, path: String) -> Result<String, S
     sidecar::apply_update(&app, std::path::Path::new(&path))
 }
 
+/// Run the downloaded installer and step aside so it can replace the program.
+///
+/// An installer cannot replace files while Sabdopalon runs, so something has to
+/// outlive this process: a detached shell waits for the installer to finish and then
+/// starts the app again. The installer is per-user, so none of this needs elevation.
+///
+/// The installer window stays visible. A silent NSIS run is a flag nobody has verified
+/// here, and a progress bar the user can see beats a silent failure they cannot.
+#[tauri::command]
+fn apply_installer_update(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let installer = std::path::PathBuf::from(&path);
+    if !installer.is_file() {
+        return Err(format!("the downloaded installer is not there: {path}"));
+    }
+    let exe = std::env::current_exe().map_err(|e| format!("cannot find my own path: {e}"))?;
+
+    let script = format!(
+        "start \"\" /wait \"{}\" && start \"\" \"{}\"",
+        installer.display(),
+        exe.display()
+    );
+    std::process::Command::new("cmd")
+        .args(["/C", &script])
+        .spawn()
+        .map_err(|e| format!("could not start the installer: {e}"))?;
+
+    // Let the spawn take hold, then exit so the installer can write over the program
+    // files. The detached shell above brings the app back when it is done.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(900));
+        app.exit(0);
+    });
+    Ok(())
+}
+
 fn main() {
     tauri::Builder::default()
         // Exactly one instance: a second launch focuses the running window
@@ -37,10 +72,13 @@ fn main() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_opener::init())
-        // One command, because exactly one action cannot be done from Go: replacing
-        // the sidecar binary while it is running. Everything else the dashboard needs
-        // it already does over HTTP.
-        .invoke_handler(tauri::generate_handler![apply_sidecar_update])
+        // Two commands, because exactly two actions cannot be done from Go: replacing
+        // the sidecar binary while it runs, and running an installer that has to
+        // outlive this process. Everything else the dashboard needs, it does over HTTP.
+        .invoke_handler(tauri::generate_handler![
+            apply_sidecar_update,
+            apply_installer_update
+        ])
         .setup(|app| {
             // Start the Go sidecar right away (it boots in setup mode when
             // the install has no config yet, so the GUI wizard works first-run).
