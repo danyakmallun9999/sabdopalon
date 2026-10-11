@@ -54,6 +54,7 @@ type updatePayload struct {
 	Size        int64  `json:"size,omitempty"`
 	PublishedAt string `json:"published_at,omitempty"`
 	CheckedAt   string `json:"checked_at,omitempty"`
+	Channel     string `json:"channel,omitempty"`
 	Error       string `json:"error,omitempty"`
 
 	// Asset that would be downloaded and the checksum it must match. Kept here so
@@ -328,7 +329,15 @@ func (s *Server) handleAPIUpdateCheck(w http.ResponseWriter, r *http.Request) {
 		s.json(w, map[string]string{"error": "method not allowed"})
 		return
 	}
-	payload := checkForUpdate(Version)
+	// The channel arrives with the request. It is a preference of the person using
+	// this browser rather than a property of the installation, so it does not belong
+	// in the config file, and the check that used it is recorded in the payload.
+	channel := ChannelStable
+	if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("channel")), ChannelBeta) {
+		channel = ChannelBeta
+	}
+	payload := checkForUpdateChannel(Version, channel)
+	payload.Channel = channel
 
 	updateCache.mu.Lock()
 	updateCache.got = payload

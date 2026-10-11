@@ -278,9 +278,12 @@ const api = {
       size?: number
       published_at?: string
       checked_at?: string
+      channel?: string
       error?: string
     }>("/api/update"),
-  checkUpdate: () =>
+  // The channel rides along with the check: it is the browser's preference, and the
+  // endpoint records which one produced the answer.
+  checkUpdate: (channel?: string) =>
     post<{
       current: string
       latest?: string
@@ -291,8 +294,9 @@ const api = {
       size?: number
       published_at?: string
       checked_at?: string
+      channel?: string
       error?: string
-    }>("/api/update/check", {}),
+    }>(`/api/update/check${channel === "beta" ? "?channel=beta" : ""}`, {}),
   // The download job: POST starts it, GET reports progress. Same shape as the
   // Packages page's job, so polling is already a familiar pattern here.
   downloadUpdate: () =>

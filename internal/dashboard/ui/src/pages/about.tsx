@@ -95,6 +95,23 @@ export default function AboutPage() {
   const [pkgs, setPkgs] = useState<Package[]>([])
   const [job, setJob] = useState<DownloadState | null>(null)
   const [applying, setApplying] = useState(false)
+  // Remembered in the browser: the channel is a preference of whoever is using this
+  // dashboard, not a property of the installation, so it does not belong in config.
+  const [channel, setChannel] = useState<string>(() => {
+    try {
+      return localStorage.getItem("sabdopalon.updateChannel") === "beta" ? "beta" : "stable"
+    } catch {
+      return "stable"
+    }
+  })
+  const chooseChannel = useCallback((next: string) => {
+    setChannel(next)
+    try {
+      localStorage.setItem("sabdopalon.updateChannel", next)
+    } catch {
+      // Storage refused: the choice still applies to this session.
+    }
+  }, [])
   const { status } = useLive()
 
   const load = useCallback(async () => {
@@ -129,7 +146,7 @@ export default function AboutPage() {
   const check = useCallback(async () => {
     setChecking(true)
     try {
-      const r = await api.checkUpdate()
+      const r = await api.checkUpdate(channel)
       setUpd(r)
       if (r.error) toast.error(r.error)
       else if (r.available) toast.info(`${r.latest} is available`)
@@ -137,7 +154,7 @@ export default function AboutPage() {
     } finally {
       setChecking(false)
     }
-  }, [])
+  }, [channel])
 
   const version = info?.app.version ?? status?.version ?? "—"
   // One source for the repository URL, so a link can never point somewhere else.
@@ -363,9 +380,26 @@ export default function AboutPage() {
             ) : null}
             {upd?.checked_at ? (
               <span className="text-xs text-muted-foreground">
-                Last checked {new Date(upd.checked_at).toLocaleString()}
+                Last checked {new Date(upd.checked_at).toLocaleString()} on{" "}
+                {upd.channel ?? channel}
               </span>
             ) : null}
+            {/* Stable follows /releases/latest, which GitHub keeps free of
+                pre-releases; beta reads the list, pre-releases included. */}
+            <div className="ml-auto inline-flex rounded-md border p-0.5">
+              {["stable", "beta"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => chooseChannel(c)}
+                  className={`rounded px-2 py-0.5 text-xs capitalize transition ${
+                    channel === c ? "bg-background shadow-sm" : "text-muted-foreground"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
           </div>
 
           <p className="text-xs text-muted-foreground">
