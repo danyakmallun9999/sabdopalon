@@ -265,6 +265,22 @@ const api = {
   status: () => request<Status>("/api/status"),
 
   listSites: () => request<Site[]>("/api/sites"),
+  // About is a snapshot: identity, paths, credits, and the outbound-host list.
+  about: () =>
+    request<{
+      app: {
+        version: string
+        channel: string
+        platform: string
+        arch: string
+        runtime: string
+        author: string
+        repo: string
+      }
+      paths: Record<string, string>
+      privacy: { host: string; why: string }[]
+      error?: string
+    }>("/api/about"),
   createSite: (name: string, template: string, database?: string, testing?: string) =>
     post<{ ok: boolean; name: string; url: string; message?: string; error?: string }>(
       "/api/sites",

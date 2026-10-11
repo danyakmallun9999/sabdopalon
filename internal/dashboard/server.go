@@ -84,6 +84,10 @@ func (s *Server) routes() {
 	// JSON API (used by the React SPA and handy for scripting).
 	s.mux.HandleFunc("/api/status", s.handleAPIStatus)
 
+	// API: about — identity, paths, credits and the outbound-host list for the
+	// About page. Deliberately a snapshot: nothing here changes second to second.
+	s.mux.HandleFunc("/api/about", s.handleAPIAbout)
+
 	// Graceful remote stop, used by the desktop shell — the bundled sidecar is
 	// a console-less windowsgui process, so Windows has no Ctrl+C to send it.
 	// Inert unless the shell supplied a token (see handlers_shutdown.go).

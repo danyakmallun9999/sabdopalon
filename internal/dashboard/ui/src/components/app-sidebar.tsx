@@ -4,6 +4,7 @@ import {
   Boxes,
   Database,
   Globe,
+  Info,
   LayoutDashboard,
   Package,
   ScrollText,
@@ -54,6 +55,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
       { title: "Settings", url: "/settings", icon: Settings },
+      { title: "About", url: "/about", icon: Info },
     ],
   },
 ]

@@ -24,6 +24,7 @@ const SiteDetailPage = lazy(() => import("@/pages/site-detail"))
 const SslPage = lazy(() => import("@/pages/ssl"))
 const TerminalPage = lazy(() => import("@/pages/terminal"))
 const SettingsLazy = lazy(() => import("@/pages/settings"))
+const AboutPage = lazy(() => import("@/pages/about"))
 
 function PageSkeleton() {
   return (
@@ -160,6 +161,7 @@ export function App() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/packages" element={<PackagesPage />} />
+                  <Route path="/about" element={<AboutPage />} />
                   <Route path="/services" element={<ServicesPage />} />
                   <Route path="/ssl" element={<SslPage />} />
                   <Route path="/settings" element={<SettingsLazy />} />
