@@ -9,6 +9,7 @@ package dashboard
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -18,8 +19,19 @@ import (
 )
 
 // releasesAPI is a variable so tests can point it at their own server instead of
-// the real GitHub.
-var releasesAPI = "https://api.github.com/repos/danyakmallun9999/sabdopalon/releases/latest"
+// the real GitHub. The list endpoint is what a beta channel needs: /releases/latest
+// deliberately excludes pre-releases, so a beta user would never be offered one.
+var (
+	releasesAPI     = "https://api.github.com/repos/danyakmallun9999/sabdopalon/releases/latest"
+	releasesListAPI = "https://api.github.com/repos/danyakmallun9999/sabdopalon/releases"
+)
+
+// Channels a user can follow. Stable is the default and the only one that ignores
+// pre-releases.
+const (
+	ChannelStable = "stable"
+	ChannelBeta   = "beta"
+)
 
 // updateCache holds the last check. One process serves one dashboard, so a package
 // level value is equivalent to a server field without widening the Server struct.
@@ -107,65 +119,146 @@ type releaseResponse struct {
 	} `json:"assets"`
 }
 
-// checkForUpdate asks GitHub for the latest release and decides which path an
-// update would take.
-//
-// The path is decided by the release itself: the workflow publishes a bare sidecar
-// binary only when the desktop shell did not change, so the presence of that asset
-// is the signal, and no extra metadata file has to be kept in step. Until the
-// workflow does that, every release reports the installer path, which is honest.
+// checkForUpdate asks for the latest stable release.
 func checkForUpdate(current string) updatePayload {
-	out := updatePayload{
-		Current:   current,
-		CheckedAt: time.Now().UTC().Format(time.RFC3339),
+	return checkForUpdateChannel(current, ChannelStable)
+}
+
+// checkForUpdateChannel asks for the release a channel should offer.
+//
+// Stable reads /releases/latest, which GitHub keeps free of pre-releases. Beta reads
+// the list and takes the highest version on it, pre-releases included — which is the
+// whole point of following beta, so it cannot be done with the "latest" shortcut.
+func checkForUpdateChannel(current, channel string) updatePayload {
+	if channel != ChannelBeta {
+		rel, err := fetchRelease(releasesAPI)
+		if err != "" {
+			return updatePayload{Current: current, CheckedAt: time.Now().UTC().Format(time.RFC3339), Error: err}
+		}
+		return payloadFromRelease(rel, current)
 	}
 
-	req, err := http.NewRequest(http.MethodGet, releasesAPI, nil)
+	list, errMsg := fetchReleaseList(releasesListAPI)
+	if errMsg != "" {
+		return updatePayload{Current: current, CheckedAt: time.Now().UTC().Format(time.RFC3339), Error: errMsg}
+	}
+	// Highest version wins, not the first entry: the list is ordered by publication
+	// time, and a patch to an older line can be published after a newer pre-release.
+	var best *releaseResponse
+	bestParts := [3]int{}
+	for i := range list {
+		parts, ok := parseVersion(list[i].TagName)
+		if !ok {
+			continue
+		}
+		if best == nil || versionGreater(parts, bestParts) {
+			best = &list[i]
+			bestParts = parts
+		}
+	}
+	if best == nil {
+		return updatePayload{
+			Current:   current,
+			CheckedAt: time.Now().UTC().Format(time.RFC3339),
+			Error:     "No releases were found on the beta channel.",
+		}
+	}
+	return payloadFromRelease(*best, current)
+}
+
+// versionGreater reports whether a is a later version than b.
+func versionGreater(a, b [3]int) bool {
+	for i := 0; i < 3; i++ {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
+}
+
+// fetchRelease fetches and decodes one release, returning an actionable sentence
+// rather than an HTTP status.
+func fetchRelease(url string) (releaseResponse, string) {
+	body, status, errMsg := getJSON(url)
+	if errMsg != "" {
+		return releaseResponse{}, errMsg
+	}
+	if status != http.StatusOK {
+		if status == http.StatusForbidden || status == http.StatusTooManyRequests {
+			return releaseResponse{}, "GitHub is rate-limiting release checks. Try again later."
+		}
+		return releaseResponse{}, fmt.Sprintf("GitHub answered %d.", status)
+	}
+	var rel releaseResponse
+	if err := json.Unmarshal(body, &rel); err != nil {
+		return releaseResponse{}, "Could not read the release information."
+	}
+	return rel, ""
+}
+
+// fetchReleaseList fetches and decodes the release list.
+func fetchReleaseList(url string) ([]releaseResponse, string) {
+	body, status, errMsg := getJSON(url)
+	if errMsg != "" {
+		return nil, errMsg
+	}
+	if status != http.StatusOK {
+		if status == http.StatusForbidden || status == http.StatusTooManyRequests {
+			return nil, "GitHub is rate-limiting release checks. Try again later."
+		}
+		return nil, fmt.Sprintf("GitHub answered %d.", status)
+	}
+	var list []releaseResponse
+	if err := json.Unmarshal(body, &list); err != nil {
+		return nil, "Could not read the release list."
+	}
+	return list, ""
+}
+
+// getJSON performs the one kind of network call this file makes.
+func getJSON(url string) ([]byte, int, string) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		out.Error = err.Error()
-		return out
+		return nil, 0, err.Error()
 	}
 	// GitHub rejects requests without a User-Agent, and the Accept header selects
 	// the stable v3 JSON shape.
-	req.Header.Set("User-Agent", "sabdopalon/"+current)
+	req.Header.Set("User-Agent", "sabdopalon/"+Version)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	client := &http.Client{Timeout: 12 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		out.Error = "Could not reach GitHub — check your connection."
-		return out
+		return nil, 0, "Could not reach GitHub — check your connection."
 	}
 	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
-		out.Error = "GitHub is rate-limiting release checks. Try again later."
-		return out
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, resp.StatusCode, "Could not read GitHub's answer."
 	}
-	if resp.StatusCode != http.StatusOK {
-		out.Error = fmt.Sprintf("GitHub answered %s.", resp.Status)
-		return out
-	}
+	return body, resp.StatusCode, ""
+}
 
-	var rel releaseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
-		out.Error = "Could not read the release information."
-		return out
+// payloadFromRelease turns a release into what the About page renders.
+//
+// The path an update would take is decided by the release itself: the workflow
+// publishes a bare sidecar binary only when the desktop shell did not change, so the
+// presence of that asset is the signal, and no extra metadata has to be kept in step.
+func payloadFromRelease(rel releaseResponse, current string) updatePayload {
+	out := updatePayload{
+		Current:     current,
+		CheckedAt:   time.Now().UTC().Format(time.RFC3339),
+		Latest:      strings.TrimPrefix(strings.TrimSpace(rel.TagName), "v"),
+		PublishedAt: rel.PublishedAt,
+		Notes:       firstLines(rel.Body, 12),
+		URL:         rel.HTMLURL,
 	}
-
-	out.Latest = strings.TrimPrefix(strings.TrimSpace(rel.TagName), "v")
-	out.PublishedAt = rel.PublishedAt
-	out.Notes = firstLines(rel.Body, 12)
-	out.URL = rel.HTMLURL
 	out.Available = newerRelease(rel.TagName, current)
 	out.Kind = "none"
 	if !out.Available {
 		return out
 	}
 
-	// A sidecar asset means the shell is unchanged, so the update can be applied
-	// in place. Otherwise the release includes shell changes and needs the
-	// installer.
 	out.Kind = "installer"
 	for _, a := range rel.Assets {
 		if strings.Contains(strings.ToLower(a.Name), "sidecar") {

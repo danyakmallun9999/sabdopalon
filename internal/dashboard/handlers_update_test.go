@@ -199,7 +199,58 @@ func seedCheck(t *testing.T, p updatePayload) {
 	})
 }
 
-// TestDownloadEndpointVerifiesTheAsset covers the wiring the update package's own
+// TestBetaChannelSeesPreReleases: /releases/latest deliberately excludes
+// pre-releases, so following beta cannot use that shortcut. It must also pick the
+// highest version rather than the first entry — the list is ordered by publication
+// time, and a patch to an older line can be published after a newer pre-release.
+func TestBetaChannelSeesPreReleases(t *testing.T) {
+	list := `[
+	  {"tag_name":"v0.99.2","body":"older line, published later","assets":[]},
+	  {"tag_name":"v1.0.0-beta.1","body":"pre-release","assets":[
+	     {"name":"sabdopalon_sidecar_windows_x64.exe","size":7,"digest":"sha256:dd","browser_download_url":"https://example.test/sidecar"}
+	  ]}
+	]`
+	srv := releaseServer(t, http.StatusOK, list)
+	defer srv.Close()
+
+	oldLatest, oldList := releasesAPI, releasesListAPI
+	releasesAPI, releasesListAPI = srv.URL+"/latest", srv.URL+"/list"
+	t.Cleanup(func() { releasesAPI, releasesListAPI = oldLatest, oldList })
+
+	got := checkForUpdateChannel("0.11.19", ChannelBeta)
+	if got.Error != "" {
+		t.Fatalf("beta check reported: %s", got.Error)
+	}
+	if got.Latest != "1.0.0-beta.1" {
+		t.Errorf("beta latest = %q, want the pre-release 1.0.0-beta.1 (highest version wins)", got.Latest)
+	}
+	if got.Kind != "sidecar" {
+		t.Errorf("kind = %q, want sidecar", got.Kind)
+	}
+	if !got.Available {
+		t.Error("a pre-release newer than the current version must be offered on beta")
+	}
+}
+
+// TestBetaChannelRejectsEmptiness: a list with nothing parseable is a sentence, not
+// a crash and not a silent "up to date".
+func TestBetaChannelRejectsEmptiness(t *testing.T) {
+	srv := releaseServer(t, http.StatusOK, `[{"tag_name":"not-a-version"}]`)
+	defer srv.Close()
+
+	old := releasesListAPI
+	releasesListAPI = srv.URL
+	t.Cleanup(func() { releasesListAPI = old })
+
+	got := checkForUpdateChannel("0.11.19", ChannelBeta)
+	if got.Error == "" {
+		t.Error("a list with no usable version must be reported")
+	}
+	if got.Available {
+		t.Error("nothing usable on the list must not report an update")
+	}
+}
+
 // tests cannot reach: that the endpoint starts a download from the last check, that
 // the job reports finishing, and that the verified file lands under <data>/updates.
 func TestDownloadEndpointVerifiesTheAsset(t *testing.T) {
