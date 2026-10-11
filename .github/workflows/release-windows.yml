@@ -176,11 +176,69 @@ jobs:
           ls -lh "$installer"
           echo "path=$installer" >> "$GITHUB_OUTPUT"
 
-      - name: Publish release (single asset)
+      # A release that did not touch the desktop shell also publishes the bare
+      # sidecar binary. The updater reads its presence as the signal: with it, an
+      # update replaces the Go program in about ten seconds without closing the app;
+      # without it, the installer path applies, because the shell changed too.
+      #
+      # The decision is made here rather than by a human so it cannot drift:
+      # anything under desktop/src-tauri since the previous release tag means the
+      # shell changed. target/ is excluded — that is build output, not source.
+      - name: Decide whether to publish a sidecar asset
+        id: sidecar
+        shell: bash
+        run: |
+          set -euo pipefail
+          installer='${{ steps.find.outputs.path }}'
+          # Missing sidecar must never fail a release: the installer alone is a
+          # complete, correct release.
+          sidecar=$(find desktop/src-tauri desktop/resources -type f -name 'sabdopalon*.exe' \
+            -not -path '*/target/*' -print -quit 2>/dev/null || true)
+          if [ -z "$sidecar" ]; then
+            echo "No sidecar binary found — publishing the installer only."
+            echo "kind=installer" >> "$GITHUB_OUTPUT"
+            {
+              echo "files<<EOF"
+              echo "$installer"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          prev=$(git describe --tags --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)
+          if [ -n "$prev" ]; then
+            changed=$(git diff --name-only "$prev" "$GITHUB_SHA" -- desktop/src-tauri | grep -v '^target/' || true)
+            if [ -n "$changed" ]; then
+              echo "Desktop shell changed since $prev — installer only:"
+              echo "$changed"
+              echo "kind=installer" >> "$GITHUB_OUTPUT"
+              {
+                echo "files<<EOF"
+                echo "$installer"
+                echo "EOF"
+              } >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "Desktop shell unchanged since $prev — publishing the sidecar asset too."
+          fi
+
+          case "$sidecar" in
+            /?*) echo "::error::refusing an absolute path for action-gh-release: $sidecar"; exit 1 ;;
+          esac
+          ls -lh "$sidecar"
+          echo "kind=sidecar" >> "$GITHUB_OUTPUT"
+          {
+            echo "files<<EOF"
+            echo "$installer"
+            echo "$sidecar"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Sabdopalon ${{ steps.ver.outputs.version }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: ${{ steps.find.outputs.path }}
+          files: ${{ steps.sidecar.outputs.files }}
