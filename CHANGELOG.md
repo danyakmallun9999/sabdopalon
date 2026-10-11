@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.19] - 2026-10-11
+
+### Fixed
+- **The PostgreSQL terminal no longer hangs.** psql was launched without the
+  directory holding libpq on its PATH, and Windows reports a missing DLL as a modal
+  dialog that leaves the process waiting forever — a session that never showed a
+  prompt. The client tools are now self-contained: the archive's DLLs are installed
+  beside the executables (14 DLLs, 42.8 MB in total), so nothing depends on how the
+  child's PATH was assembled. Verified with the server's directory removed from PATH
+  entirely: `psql (PostgreSQL) 17.10`, connecting as sabdopalon.
+
+  Reinstalling the package is enough to pick this up; the registry entry itself
+  decides which files are kept.
+
 ## [0.11.18] - 2026-10-11
 
 ### Added
