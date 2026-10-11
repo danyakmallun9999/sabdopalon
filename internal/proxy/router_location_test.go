@@ -72,7 +72,22 @@ func TestSharedRouterPathsComeFromDocumentRoot(t *testing.T) {
 	}
 }
 
-// TestRemoveStaleSiteRouter: clean up what older versions wrote inside site
+// TestDumpRouterForLiveCheck materialises the generated router so it can be run
+// against a real site with `php -S`, which is the only way to check that the
+// request-time framework detection behaves. Skipped unless SABDOPALON_DUMP_ROUTER
+// names the file to write, so an ordinary test run leaves nothing behind.
+func TestDumpRouterForLiveCheck(t *testing.T) {
+	path := os.Getenv("SABDOPALON_DUMP_ROUTER")
+	if path == "" {
+		t.Skip("set SABDOPALON_DUMP_ROUTER=<path> to write the router for a live check")
+	}
+	body := sharedRouter()
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("router written to %s (%d bytes, version %d)", path, len(body), routerVersionOf(body))
+}
+
 // folders, and never touch a file that is not ours.
 func TestRemoveStaleSiteRouter(t *testing.T) {
 	dir := t.TempDir()

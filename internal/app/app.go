@@ -1302,7 +1302,16 @@ func (a *App) linkProject(args []string) int {
 		return 1
 	}
 	fmt.Printf("  ✓  linked %s\n", link)
-	fmt.Printf("     served at http://%s.%s:%d/\n", args[0], a.Cfg.TLD, a.Cfg.Proxy.HTTPPort)
+	// The configured port is a preference: the proxy moves on when something holds
+	// it, so ask the running instance what it actually bound. Port 80 needs no
+	// mention — naming it every time was both noisy and, once the proxy had moved,
+	// wrong.
+	port := runningHTTPPort(a.Cfg.Dashboard.Port, a.Cfg.Proxy.HTTPPort)
+	if port == 80 {
+		fmt.Printf("     served at http://%s.%s/\n", args[0], a.Cfg.TLD)
+	} else {
+		fmt.Printf("     served at http://%s.%s:%d/\n", args[0], a.Cfg.TLD, port)
+	}
 	fmt.Printf("     the project itself stays where it is; remove the link (not the project) to undo this.\n")
 	return 0
 }

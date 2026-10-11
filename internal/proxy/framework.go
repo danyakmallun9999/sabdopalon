@@ -72,6 +72,16 @@ func DetectFramework(siteDir string) Framework {
 // never re-classifies a static site as PHP. The walk is bounded so a huge
 // asset tree can't stall startup.
 func IsStaticOnly(siteDir string) bool {
+	// A linked site is reached through a junction, and filepath.WalkDir does not
+	// descend into one. Without resolving the link first, every linked project
+	// looked static — so a project whose PHP lives only in a subfolder
+	// (public/index.php) was served as a directory listing instead of through PHP.
+	// The marker check below was unaffected because os.Stat follows the junction,
+	// which is why linked Laravel and WordPress sites kept working and only
+	// subfolder-docroot projects broke.
+	if resolved, err := filepath.EvalSymlinks(siteDir); err == nil {
+		siteDir = resolved
+	}
 	for _, marker := range []string{"artisan", "wp-config.php", "wp-config-sample.php", "index.php"} {
 		if fileExists(filepath.Join(siteDir, marker)) {
 			return false
