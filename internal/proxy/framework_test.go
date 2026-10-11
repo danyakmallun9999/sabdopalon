@@ -57,21 +57,19 @@ func TestPickRouter(t *testing.T) {
 	// Which template is chosen, not what is stamped into it: pickRouter adds the
 	// version marker, so comparing against the raw constants would only be
 	// testing the stamp (TestRouterCarriesSchemeFixAndVersion covers that).
-	if r := pickRouter(FrameworkLaravel); !strings.Contains(r, "Laravel front controller") {
-		t.Error("laravel should get its dedicated router")
+	// Every framework now gets the same shared router: what to forward to is
+	// decided at request time from the docroot, so one file serves every site.
+	shared := pickRouter(FrameworkLaravel)
+	if !strings.Contains(shared, "artisan") || !strings.Contains(shared, "SCRIPT_NAME") {
+		t.Error("the shared router must carry Laravel's front controller wiring")
 	}
-	if got := pickRouter(FrameworkLaravel); !strings.HasPrefix(got, "<?php") {
-		t.Errorf("router does not start with <?php: %q", got)
+	if !strings.HasPrefix(shared, "<?php") {
+		t.Errorf("router does not start with <?php: %q", shared)
 	}
-
-	// Unknown → defaultRouter.
-	if got := pickRouter(FrameworkUnknown); !strings.Contains(got, "Sabdopalon default PHP router") {
-		t.Error("unknown framework should get the default router")
-	}
-
-	// WordPress → defaultRouter (WP ships its own index.php).
-	if got := pickRouter(FrameworkWordPress); !strings.Contains(got, "Sabdopalon default PHP router") {
-		t.Error("wordpress should get the default router")
+	for _, f := range []Framework{FrameworkUnknown, FrameworkWordPress, FrameworkCodeIgniter, FrameworkSymfony} {
+		if pickRouter(f) != shared {
+			t.Errorf("%s must get the same shared router as every other site", f)
+		}
 	}
 }
 

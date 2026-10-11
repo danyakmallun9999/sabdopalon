@@ -580,12 +580,17 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 	// the detected framework so Laravel (and similar) get the right front
 	// controller wiring. Pure-static sites skip PHP entirely: no router file
 	// and no php -S child — Go serves their files directly.
+	//
+	// The router lives in the data root, never in the site folder: for a linked
+	// site that folder is the user's own project. Plain PHP needs no router at
+	// all, and any router this program previously wrote inside the site folder is
+	// removed.
 	siteDir := filepath.Join(s.cfg.Root, name)
 	staticOnly := IsStaticOnly(siteDir)
 	framework := DetectFramework(siteDir)
-	routerPath := filepath.Join(s.cfg.Root, name, ".sabdopalon-router.php")
-	if !staticOnly && routerNeedsRewrite(routerPath) {
-		_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
+	removeStaleSiteRouter(siteDir)
+	if !staticOnly && needsRouter(framework) {
+		s.ensureRouterFile()
 	}
 	if staticOnly {
 		if s.Verbose {
@@ -663,7 +668,7 @@ func (s *Server) ensureSite(name string) (*siteServer, error) {
 
 	phpProcs := make([]*managedPHP, 0, len(ports))
 	for _, p := range ports {
-		ph, err := startPHP(phpBin, p, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(host), siteURL(name, s.cfg.TLD, s.httpPortActual))
+		ph, err := startPHP(phpBin, p, docroot, lf, s.cfg.Database.Engine, s.cfg.Database.Path, extraEnv, s.cfg.RootDir, phpIniOverride, s.vitePortLocked(host), siteURL(name, s.cfg.TLD, s.httpPortActual), routerFile(s.cfg.Root))
 		if err != nil {
 			for _, started := range phpProcs {
 				_ = started.stop()
@@ -1012,11 +1017,12 @@ func (s *Server) ensureRouters() {
 		if IsStaticOnly(siteDir) {
 			continue
 		}
-		routerPath := filepath.Join(siteDir, ".sabdopalon-router.php")
-		if routerNeedsRewrite(routerPath) {
-			framework := DetectFramework(siteDir)
-			_ = os.WriteFile(routerPath, []byte(pickRouter(framework)), 0o644)
+		framework := DetectFramework(siteDir)
+		removeStaleSiteRouter(siteDir) // clean up files older versions left behind
+		if !needsRouter(framework) {
+			continue // plain PHP: php -S serves index.php without help
 		}
+		s.ensureRouterFile()
 	}
 }
 

@@ -77,8 +77,11 @@ func ensurePHPIni(rootDir string) string {
 // process environment wins over .env (Laravel loads Dotenv immutably), and a
 // per-site `env: APP_URL=...` in .sabdopalon.yml is appended afterwards, so it
 // still overrides this.
-func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int, appURL string) (*managedPHP, error) {
-	router := docroot + "/../.sabdopalon-router.php"
+func startPHP(binary string, port int, docroot string, logFile *os.File, dbEngine, dbPath string, extraEnv []string, rootDir, phpIniOverride string, vitePort int, appURL string, routerPath string) (*managedPHP, error) {
+	// The router path comes from the caller rather than being derived from the
+	// docroot: it lives in the data root, so no project folder ever contains a
+	// file Sabdopalon wrote.
+	router := routerPath
 	args := []string{
 		// yac is compiled into the static PHP we ship (static-php-cli's
 		// --enable-yac) and its shared-memory allocator is fragile on Windows: a
