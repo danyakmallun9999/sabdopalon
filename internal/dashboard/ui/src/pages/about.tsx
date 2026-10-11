@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { Check, Copy, ExternalLink, Heart, Info, RefreshCw } from "lucide-react"
+import { Check, Copy, ExternalLink, FolderOpen, Heart, Info, RefreshCw } from "lucide-react"
 
 import api, { type Package } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -52,6 +52,25 @@ async function invokeShell<T>(cmd: string, args?: Record<string, unknown>): Prom
   return tauri.core.invoke<T>(cmd, args)
 }
 
+/** True when this dashboard runs inside the desktop shell rather than a browser. */
+function inDesktopShell(): boolean {
+  return Boolean((window as unknown as { __TAURI__?: unknown }).__TAURI__)
+}
+
+/**
+ * Open a folder with the OS file manager.
+ *
+ * Through the shell's own command rather than the opener plugin: that one is scoped to a
+ * static set of paths, and this program's data root is whatever the user configured.
+ */
+async function openPath(path: string): Promise<void> {
+  try {
+    await invokeShell<void>("open_path", { path })
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
 /** Bytes as something a person reads without counting digits. */
 function mb(bytes: number): string {
   if (!bytes) return "0 MB"
@@ -80,9 +99,22 @@ function CopyRow({ label, value, hint }: { label: string; value: string; hint?: 
         </div>
         {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
       </div>
-      <Button variant="ghost" size="sm" onClick={copy} disabled={!value} aria-label={`Copy ${label}`}>
-        {done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-      </Button>
+      <div className="flex shrink-0 items-center">
+        <Button variant="ghost" size="sm" onClick={copy} disabled={!value} aria-label={`Copy ${label}`}>
+          {done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+        </Button>
+        {/* Hidden in a plain browser, where there is nothing to open with. */}
+        {value && inDesktopShell() ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void openPath(value)}
+            aria-label={`Open ${label}`}
+          >
+            <FolderOpen className="size-3.5" />
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }

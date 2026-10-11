@@ -19,6 +19,41 @@ fn apply_sidecar_update(app: tauri::AppHandle, path: String) -> Result<String, S
     sidecar::apply_update(&app, std::path::Path::new(&path))
 }
 
+/// Open a folder from the dashboard with the OS file manager.
+///
+/// A small command rather than the opener plugin's openPath: that one is scoped to a
+/// static set of paths, and this program's data root is whatever the user configured —
+/// `C:\sabdopalon`, or anywhere else via SABDOPALON_HOME. The path always comes from the
+/// dashboard's own about payload, never from user input.
+#[tauri::command]
+fn open_path(path: String) -> Result<(), String> {
+    let target = std::path::PathBuf::from(&path);
+    if !target.exists() {
+        return Err(format!("{path} does not exist"));
+    }
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("explorer");
+        c.arg(&target);
+        c
+    };
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = std::process::Command::new("open");
+        c.arg(&target);
+        c
+    };
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let mut cmd = {
+        let mut c = std::process::Command::new("xdg-open");
+        c.arg(&target);
+        c
+    };
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| format!("could not open {path}: {e}"))
+}
+
 /// Run the downloaded installer and step aside so it can replace the program.
 ///
 /// An installer cannot replace files while Sabdopalon runs, so something has to
@@ -77,7 +112,8 @@ fn main() {
         // outlive this process. Everything else the dashboard needs, it does over HTTP.
         .invoke_handler(tauri::generate_handler![
             apply_sidecar_update,
-            apply_installer_update
+            apply_installer_update,
+            open_path
         ])
         .setup(|app| {
             // Start the Go sidecar right away (it boots in setup mode when
