@@ -31,6 +31,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Full history and tags. The sidecar decision asks git which files changed
+          # under desktop/src-tauri since the previous release tag, and a default
+          # shallow checkout fetches neither that tag nor the history to diff against —
+          # so the check silently found no previous tag and published the sidecar even
+          # when the shell had changed. Measured on the v0.11.20 release.
+          fetch-depth: 0
 
       # A release whose tag disagrees with the app version ships an installer
       # whose file name contradicts the release it hangs off, so check it here
@@ -227,6 +234,22 @@ jobs:
           fi
 
           prev=$(git describe --tags --abbrev=0 "${GITHUB_SHA}^" 2>/dev/null || true)
+          if [ -z "$prev" ]; then
+            # Not being able to tell is not permission to publish the sidecar. The
+            # sidecar asset is a promise that only Go changed, and an update that
+            # replaces the sidecar while the shell stays stale is the one outcome this
+            # whole step exists to prevent. So: no tag, no fast path.
+            echo "::warning::no previous release tag is visible — publishing the installer only, because whether the desktop shell changed cannot be determined."
+            echo "kind=installer" >> "$GITHUB_OUTPUT"
+            sig=$(find desktop/src-tauri/target -path '*bundle/nsis/*-setup.exe.sig' -type f -print -quit 2>/dev/null || true)
+            {
+              echo "files<<EOF"
+              echo "$installer"
+              if [ -n "$sig" ]; then echo "$sig"; fi
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -n "$prev" ]; then
             changed=$(git diff --name-only "$prev" "$GITHUB_SHA" -- desktop/src-tauri | grep -v '^target/' || true)
             if [ -n "$changed" ]; then
