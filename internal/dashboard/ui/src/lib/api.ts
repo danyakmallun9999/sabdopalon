@@ -293,6 +293,17 @@ const api = {
       checked_at?: string
       error?: string
     }>("/api/update/check", {}),
+  // The download job: POST starts it, GET reports progress. Same shape as the
+  // Packages page's job, so polling is already a familiar pattern here.
+  downloadUpdate: () =>
+    post<{ running: boolean; done: number; total: number; path?: string; error?: string }>(
+      "/api/update/download",
+      {},
+    ),
+  downloadState: () =>
+    request<{ running: boolean; done: number; total: number; path?: string; error?: string }>(
+      "/api/update/download",
+    ),
   // About is a snapshot: identity, paths, credits, and the outbound-host list.
   about: () =>
     request<{

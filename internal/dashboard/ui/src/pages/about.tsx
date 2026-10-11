@@ -32,6 +32,30 @@ type AboutInfo = {
 
 /** The shape the API returns for update checks — derived, so it cannot drift. */
 type UpdateInfo = Awaited<ReturnType<typeof api.update>>
+type DownloadState = Awaited<ReturnType<typeof api.downloadState>>
+
+/**
+ * The desktop shell's one command: replace the running sidecar and restart it.
+ *
+ * Only the shell can do this — the process being replaced is the one that would have
+ * to do it — so the download and its checksum happen here in Go, and the swap is
+ * asked for through the Tauri API the shell exposes to this dashboard origin.
+ */
+async function invokeApplySidecar(path: string): Promise<string> {
+  const tauri = (window as unknown as {
+    __TAURI__?: { core?: { invoke?: <T>(cmd: string, args?: Record<string, unknown>) => Promise<T> } }
+  }).__TAURI__
+  if (!tauri?.core?.invoke) {
+    throw new Error("Updating in place needs the desktop app — this is a plain browser.")
+  }
+  return tauri.core.invoke<string>("apply_sidecar_update", { path })
+}
+
+/** Bytes as something a person reads without counting digits. */
+function mb(bytes: number): string {
+  if (!bytes) return "0 MB"
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 /** Copies a value and says so, because a silent copy button is a guess. */
 function CopyRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -69,6 +93,8 @@ export default function AboutPage() {
   const [upd, setUpd] = useState<UpdateInfo | null>(null)
   const [checking, setChecking] = useState(false)
   const [pkgs, setPkgs] = useState<Package[]>([])
+  const [job, setJob] = useState<DownloadState | null>(null)
+  const [applying, setApplying] = useState(false)
   const { status } = useLive()
 
   const load = useCallback(async () => {
@@ -116,6 +142,47 @@ export default function AboutPage() {
   const version = info?.app.version ?? status?.version ?? "—"
   // One source for the repository URL, so a link can never point somewhere else.
   const repo = info?.app.repo ?? "https://github.com/danyakmallun9999/sabdopalon"
+
+  const startUpdate = useCallback(async () => {
+    const first = await api.downloadUpdate()
+    if (first.error) {
+      toast.error(first.error)
+      return
+    }
+    setJob(first)
+
+    // Poll until it stops running, then apply. Downloading and applying are separate
+    // steps on purpose: the bytes are verified before anything is replaced.
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 700))
+      const s = await api.downloadState()
+      setJob(s)
+      if (s.error) {
+        toast.error(s.error)
+        return
+      }
+      if (!s.running) break
+    }
+
+    const done = await api.downloadState()
+    if (!done.path) {
+      toast.error("The download finished without a file to install.")
+      return
+    }
+
+    setApplying(true)
+    try {
+      await invokeApplySidecar(done.path)
+      toast.success("Update applied — Sabdopalon is restarting")
+      setTimeout(() => window.location.reload(), 3000)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setApplying(false)
+    }
+  }, [])
+
+  const pct = job && job.total > 0 ? Math.min(100, Math.round((job.done / job.total) * 100)) : 0
   const diagnostics = [
     `Sabdopalon ${version}${info ? ` (${info.app.channel})` : ""} · ${info?.app.platform ?? "?"} ${info?.app.arch ?? ""}`,
     `Go ${info?.app.runtime ?? "?"}`,
@@ -215,6 +282,52 @@ export default function AboutPage() {
           ) : null}
 
           {upd?.error ? <div className="text-destructive">{upd.error}</div> : null}
+
+          {upd?.available ? (
+            <div className="flex flex-col gap-2">
+              {upd.kind === "sidecar" ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => void startUpdate()}
+                    disabled={job?.running || applying}
+                  >
+                    {applying ? "Applying…" : job?.running ? "Downloading…" : "Update now"}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    The file is checked against the checksum the release published before anything is
+                    replaced.
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  This release changed the desktop shell, so it needs the installer — updating in place
+                  is not available for it yet.
+                </span>
+              )}
+
+              {job && (job.running || job.done > 0) ? (
+                <div className="flex flex-col gap-1">
+                  <div
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                    role="presentation"
+                  >
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    <span aria-live="polite">
+                      {mb(job.done)}
+                      {job.total > 0 ? ` of ${mb(job.total)} (${pct}%)` : ""}
+                    </span>
+                    {applying ? " — applying, Sabdopalon will restart" : ""}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => void check()} disabled={checking}>
