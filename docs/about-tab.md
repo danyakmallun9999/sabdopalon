@@ -1,6 +1,25 @@
 # About tab — design (architecture and UI/UX)
 
-Status: **designed, not implemented.** Nothing here changes behaviour yet.
+Status: **phases 1 to 3 built and merged; phase 4 is three quarters built.** What exists
+now, and what each piece is verified by, is recorded below. Nothing in the design is
+outstanding except the signed updater, which waits on a keypair only the maintainer
+should generate, and the live test that needs two releases.
+
+Implemented, on `main`:
+
+| Piece | Verified by |
+|---|---|
+| `GET /api/about` — identity, paths, credits, outbound hosts, log facts | `handlers_about_test.go` |
+| About page: Identity, Updates, Stack, Paths (Copy **and** Open), Credits, Privacy, Diagnostics | UI type-check, build, and `cargo check` for the Open command |
+| `GET`/`POST /api/update` — check and its result | `handlers_update_test.go` (test server, never GitHub) |
+| Beta channel that sees pre-releases | `TestBetaChannelSeesPreReleases`, `TestBetaChannelRejectsEmptiness` |
+| `POST /api/update/download` + progress, sha256-verified | `internal/update` tests and `TestDownloadEndpoint*` |
+| CI publishes a sidecar asset only when the shell did not change | the `git diff` rule run against real history |
+| Shell commands: `apply_sidecar_update`, `apply_installer_update`, `open_path` | `cargo check` |
+| Prefilled bug report carrying the diagnostics | UI type-check and build |
+
+Not implemented: the signed updater (section 6), and the live application of either
+update path.
 
 An About page is where a local dev tool earns or loses trust: it is the screen a
 user opens when something is wrong. It should therefore answer four questions
