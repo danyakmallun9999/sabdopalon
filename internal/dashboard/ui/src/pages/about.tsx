@@ -201,6 +201,15 @@ export default function AboutPage() {
     `Proxy ports: ${status?.http_port ?? "?"} / ${status?.https_port ?? "?"}`,
   ].join("\n")
 
+  // A bug report is only useful with the details to hand, so the issue opens
+  // prefilled with exactly the diagnostics this page shows — the same value, not a
+  // second copy that could drift from what the user reads.
+  const issueUrl =
+    `${repo}/issues/new?title=${encodeURIComponent(`[${version}] `)}` +
+    `&body=${encodeURIComponent(
+      `What happened:\n\n\nWhat I expected:\n\n\nDiagnostics:\n\`\`\`\n${diagnostics}\n\`\`\`\n`,
+    )}`
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto px-4 py-6 lg:px-6">
       <div className="flex items-start justify-between gap-4">
@@ -434,7 +443,7 @@ export default function AboutPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => window.open(`${repo}/issues/new`, "_blank", "noreferrer")}
+              onClick={() => window.open(issueUrl, "_blank", "noreferrer")}
             >
               Report an issue
             </Button>
