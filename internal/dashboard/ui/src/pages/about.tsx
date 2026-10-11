@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Check, Copy, ExternalLink, Heart, Info, RefreshCw } from "lucide-react"
 
-import api from "@/lib/api"
+import api, { type Package } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -68,6 +68,7 @@ export default function AboutPage() {
   const [busy, setBusy] = useState(false)
   const [upd, setUpd] = useState<UpdateInfo | null>(null)
   const [checking, setChecking] = useState(false)
+  const [pkgs, setPkgs] = useState<Package[]>([])
   const { status } = useLive()
 
   const load = useCallback(async () => {
@@ -87,6 +88,17 @@ export default function AboutPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Versions come from the same registry the Packages page manages, so the two can
+  // never disagree about what is installed.
+  useEffect(() => {
+    void api
+      .listPackages()
+      .then((r) => {
+        if (Array.isArray(r)) setPkgs(r)
+      })
+      .catch(() => {})
+  }, [])
 
   const check = useCallback(async () => {
     setChecking(true)
@@ -229,6 +241,47 @@ export default function AboutPage() {
             Sabdopalon never updates itself and never touches your sites, databases or the bundled
             stack. Only the program is replaced.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Stack — what this installation is actually made of. */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">What it is made of</CardTitle>
+          <CardDescription>
+            Bundled components and what is installed on this machine. Anything missing can be added
+            from the Packages page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-1 text-sm">
+          {pkgs.length === 0 ? (
+            <span className="text-muted-foreground">No components reported yet.</span>
+          ) : (
+            pkgs.map((p) => (
+              <div
+                key={p.name}
+                className="flex items-center justify-between gap-3 border-b py-1.5 last:border-0"
+              >
+                <span className="font-mono text-xs">{p.name}</span>
+                <span className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted-foreground">{p.version}</span>
+                  {p.active ? (
+                    <Badge variant="secondary" className="text-xs">
+                      in use
+                    </Badge>
+                  ) : null}
+                  {p.installed ? (
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Check className="size-3" />
+                      installed
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">not installed</span>
+                  )}
+                </span>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
