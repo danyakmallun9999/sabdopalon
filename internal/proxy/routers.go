@@ -49,64 +49,68 @@ if (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') {
 }
 `
 
-// pickRouter returns the PHP router script for the given framework, stamped with
-// the current router version so an outdated file can be recognised and replaced.
+// sharedRouter returns the one router script used by every site, stamped with the
+// current router version so an outdated file can be recognised and replaced.
+//
+// One file, not one per framework: what to forward to is decided at request time
+// from $_SERVER['DOCUMENT_ROOT'], which keeps the script in one place and removes
+// the per-site version stamping the previous design needed.
+func sharedRouter() string {
+	return strings.Replace(sharedRouterBody, "<?php", "<?php\n"+routerMarker+" "+strconv.Itoa(routerVersion), 1)
+}
+
+// pickRouter is kept for callers that still ask per framework; every framework
+// now gets the same script.
 func pickRouter(f Framework) string {
-	body := defaultRouter
-	if f == FrameworkLaravel {
-		body = laravelRouter
-	}
-	return strings.Replace(body, "<?php", "<?php\n"+routerMarker+" "+strconv.Itoa(routerVersion), 1)
+	return sharedRouter()
 }
 
-// laravelRouter forwards all non-static requests to public/index.php with the
-// correct PATH_INFO and SCRIPT_NAME so Laravel's Request::capture() and
-// Route matching work under the PHP built-in server.
-const laravelRouter = `<?php
-// Sabdopalon Laravel router — forwards all non-static requests to
-// public/index.php (the Laravel front controller) with the correct
-// PATH_INFO and SCRIPT_NAME so routing and asset loading work under
-// php -S.
+// sharedRouterBody forwards a request that is not a file to the application's
+// front controller.
+//
+// Laravel is detected by its artisan file one level above the docroot (Sabdopalon
+// serves Laravel from public/), which is also what tells us to set
+// SCRIPT_NAME/SCRIPT_FILENAME/PATH_INFO — Laravel's Request::createFromGlobals()
+// and Route matching depend on them under php -S. WordPress, CodeIgniter and
+// Symfony keep index.php in the docroot itself and read REQUEST_URI, so they only
+// need the forwarding.
+//
+// Every path comes from $_SERVER['DOCUMENT_ROOT'] and never from __DIR__: the
+// script lives in the data root, so anything relative to its own location would
+// point at the wrong place.
+const sharedRouterBody = `<?php
+// Sabdopalon router — one script for every site.
+// Non-file requests go to the application's front controller.
 ` + routerProxyPrelude + `
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $docroot = $_SERVER['DOCUMENT_ROOT'];
 
-// Serve static files directly from public/ (css, js, images, favicon).
-// This lets the built-in server stream assets without booting Laravel.
-if ($uri !== '/') {
-    $file = $docroot . $uri;
-    if (is_file($file)) {
-        return false; // let PHP's built-in server serve the file
-    }
+// Static files are served by php -S itself, without booting the application.
+if ($uri !== '/' && is_file($docroot . $uri)) {
+    return false;
 }
 
-// Everything else → Laravel front controller.
-// Setting SCRIPT_NAME/SCRIPT_FILENAME lets Laravel's Request::createFromGlobals()
-// compute the correct pathinfo and base URL under php -S.
-$_SERVER['SCRIPT_NAME']     = '/index.php';
-$_SERVER['SCRIPT_FILENAME'] = $docroot . '/index.php';
-$_SERVER['PATH_INFO']       = $uri;
+$laravel = is_file($docroot . '/../artisan');
+$index   = $docroot . '/index.php';
 
-require $docroot . '/index.php';
-return true;
-`
-
-const defaultRouter = `<?php
-// Sabdopalon default PHP router — serves static files, falls back to index.php.
-` + routerProxyPrelude + `
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$docroot = $_SERVER['DOCUMENT_ROOT'];
-$file = $docroot . $uri;
-if ($uri !== '/' && is_file($file)) {
-    return false; // let PHP's built-in server serve the static file
-}
-$index = $docroot . '/index.php';
-if (is_file($index)) {
+if ($laravel && is_file($index)) {
+    // Laravel: SCRIPT_NAME/SCRIPT_FILENAME/PATH_INFO make Request::capture()
+    // compute the right pathinfo and base URL.
+    $_SERVER['SCRIPT_NAME']     = '/index.php';
+    $_SERVER['SCRIPT_FILENAME'] = $index;
+    $_SERVER['PATH_INFO']       = $uri;
     require $index;
     return true;
 }
+
+if (is_file($index)) {
+    // WordPress, CodeIgniter, Symfony and plain apps that route on their own.
+    require $index;
+    return true;
+}
+
 http_response_code(404);
-echo "404 Not Found — create index.php or the requested file in " . $docroot;
+echo "404 Not Found — no index.php in " . $docroot;
 return true;
 `
 
