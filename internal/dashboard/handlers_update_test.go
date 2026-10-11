@@ -1,9 +1,17 @@
 package dashboard
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/sabdopalon/sabdopalon/internal/config"
 )
 
 // TestNewerRelease pins the comparison rules the About page depends on. A wrong
@@ -174,5 +182,114 @@ func TestCheckForUpdateRateLimited(t *testing.T) {
 	}
 	if got.Available {
 		t.Error("a failed check must not claim an update is available")
+	}
+}
+
+// seedCheck puts a completed check into the cache for the duration of one test, so
+// the download endpoint has something to act on without asking GitHub.
+func seedCheck(t *testing.T, p updatePayload) {
+	t.Helper()
+	updateCache.mu.Lock()
+	updateCache.got = p
+	updateCache.mu.Unlock()
+	t.Cleanup(func() {
+		updateCache.mu.Lock()
+		updateCache.got = updatePayload{}
+		updateCache.mu.Unlock()
+	})
+}
+
+// TestDownloadEndpointVerifiesTheAsset covers the wiring the update package's own
+// tests cannot reach: that the endpoint starts a download from the last check, that
+// the job reports finishing, and that the verified file lands under <data>/updates.
+func TestDownloadEndpointVerifiesTheAsset(t *testing.T) {
+	asset := []byte("pretend this is the sidecar binary")
+	sum := sha256.Sum256(asset)
+	assetSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write(asset)
+	}))
+	defer assetSrv.Close()
+
+	seedCheck(t, updatePayload{
+		Current:     Version,
+		Latest:      "0.99.0",
+		Available:   true,
+		Kind:        "sidecar",
+		AssetURL:    assetSrv.URL + "/sabdopalon-sidecar.exe",
+		AssetDigest: "sha256:" + hex.EncodeToString(sum[:]),
+		AssetName:   "sabdopalon-sidecar.exe",
+	})
+
+	root := t.TempDir()
+	srv := New(&config.Engine{RootDir: root, TLD: "localhost"}, nil, nil, nil, nil, nil)
+
+	rec := httptest.NewRecorder()
+	srv.handleAPIUpdateDownload(rec, httptest.NewRequest(http.MethodPost, "/api/update/download", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST status = %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		updateDownload.mu.Lock()
+		running, errStr, path := updateDownload.running, updateDownload.err, updateDownload.path
+		updateDownload.mu.Unlock()
+		if !running {
+			if errStr != "" {
+				t.Fatalf("the download failed: %s", errStr)
+			}
+			body, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("the verified file is not readable: %v", err)
+			}
+			if string(body) != string(asset) {
+				t.Errorf("content = %q, want %q", body, asset)
+			}
+			if got := filepath.Dir(path); got != filepath.Join(root, "updates") {
+				t.Errorf("staged in %s, want <data>/updates", got)
+			}
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the download did not finish")
+}
+
+// TestDownloadEndpointRefusesUnverifiable: a release that published no checksum must
+// not start a download, because unverifiable bytes are not worth the risk.
+func TestDownloadEndpointRefusesUnverifiable(t *testing.T) {
+	seedCheck(t, updatePayload{
+		Current:   Version,
+		Available: true,
+		Kind:      "sidecar",
+		AssetURL:  "http://127.0.0.1:1/never-called",
+	})
+
+	srv := New(&config.Engine{RootDir: t.TempDir(), TLD: "localhost"}, nil, nil, nil, nil, nil)
+	rec := httptest.NewRecorder()
+	srv.handleAPIUpdateDownload(rec, httptest.NewRequest(http.MethodPost, "/api/update/download", nil))
+
+	if !strings.Contains(rec.Body.String(), "checksum") {
+		t.Errorf("body = %s, want it to explain the missing checksum", rec.Body.String())
+	}
+	updateDownload.mu.Lock()
+	running := updateDownload.running
+	updateDownload.mu.Unlock()
+	if running {
+		t.Error("nothing may start without a checksum")
+	}
+}
+
+// TestDownloadEndpointRefusesWhenUpToDate: the endpoint is only useful after a check
+// has found something, and must say so rather than downloading nothing.
+func TestDownloadEndpointRefusesWhenUpToDate(t *testing.T) {
+	seedCheck(t, updatePayload{Current: Version})
+
+	srv := New(&config.Engine{RootDir: t.TempDir(), TLD: "localhost"}, nil, nil, nil, nil, nil)
+	rec := httptest.NewRecorder()
+	srv.handleAPIUpdateDownload(rec, httptest.NewRequest(http.MethodPost, "/api/update/download", nil))
+
+	if !strings.Contains(rec.Body.String(), "check for one first") {
+		t.Errorf("body = %s, want it to send the user to the check", rec.Body.String())
 	}
 }
