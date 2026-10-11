@@ -321,6 +321,7 @@ const api = {
         repo: string
       }
       paths: Record<string, string>
+      logs?: { dir: string; files: number; bytes: number; newest: string }
       privacy: { host: string; why: string }[]
       error?: string
     }>("/api/about"),

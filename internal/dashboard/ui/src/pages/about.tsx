@@ -27,6 +27,7 @@ type AboutInfo = {
     repo: string
   }
   paths: Record<string, string>
+  logs?: { dir: string; files: number; bytes: number; newest: string }
   privacy: { host: string; why: string }[]
 }
 
@@ -236,6 +237,15 @@ export default function AboutPage() {
     `PHP: ${info?.paths.php ?? "?"}`,
     `Dashboard port: ${window.location.port || "80"}`,
     `Proxy ports: ${status?.http_port ?? "?"} / ${status?.https_port ?? "?"}`,
+    // Facts rather than an error count: what a maintainer needs first is whether a log
+    // exists and whether it is recent, and a wrong error count is worse than none.
+    `Logs: ${
+      info?.logs
+        ? `${info.logs.files} files, ${mb(info.logs.bytes)}, newest ${
+            info.logs.newest ? new Date(info.logs.newest).toLocaleString() : "never"
+          }`
+        : "?"
+    }`,
   ].join("\n")
 
   // A bug report is only useful with the details to hand, so the issue opens

@@ -9,7 +9,9 @@ package dashboard
 
 import (
 	"net/http"
+	"os"
 	"runtime"
+	"time"
 
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 )
@@ -41,6 +43,42 @@ func outboundHosts() []map[string]string {
 	}
 }
 
+// logFacts reports what can be counted exactly about the logs directory.
+//
+// Deliberately not an "errors in the last 24 hours" counter: recognising an error line
+// means pattern-matching over formats this program does not own (PHP, MariaDB,
+// cloudflared), and a number that quietly under-counts is worse than no number on a
+// page whose whole job is to be trustworthy. Files, bytes and the newest write are
+// facts, and they are what a maintainer actually needs first: is there a log, and is it
+// recent?
+func logFacts(logDir string) map[string]any {
+	entries, err := os.ReadDir(logDir)
+	if err != nil {
+		return map[string]any{"dir": logDir, "files": 0, "bytes": 0, "newest": ""}
+	}
+	var files, bytes int
+	newest := time.Time{}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		files++
+		bytes += int(info.Size())
+		if info.ModTime().After(newest) {
+			newest = info.ModTime()
+		}
+	}
+	out := map[string]any{"dir": logDir, "files": files, "bytes": bytes, "newest": ""}
+	if !newest.IsZero() {
+		out["newest"] = newest.UTC().Format(time.RFC3339)
+	}
+	return out
+}
+
 // handleAPIAbout serves GET /api/about.
 func (s *Server) handleAPIAbout(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -67,5 +105,6 @@ func (s *Server) handleAPIAbout(w http.ResponseWriter, r *http.Request) {
 			"php":       phpBinary,
 		},
 		"privacy": outboundHosts(),
+		"logs":    logFacts(s.cfg.Logs),
 	})
 }
