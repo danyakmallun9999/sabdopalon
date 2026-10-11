@@ -131,11 +131,32 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
+      # Signing is opt-in on the release itself. With TAURI_SIGNING_PRIVATE_KEY set, the
+      # build also produces .sig files and the updater config is merged; without it, the
+      # release is unsigned and still complete. That way a missing secret can never break
+      # a release, which is the failure this step exists to prevent.
+      - name: Decide whether this release can be signed
+        id: signing
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            echo "Signing key present — updater artifacts will be produced."
+            echo "config=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "No signing key — this release will be unsigned, and still complete."
+            echo "config=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Tauri build (NSIS only)
         working-directory: desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           npm ci
-          npm run build -- --target x86_64-pc-windows-msvc --bundles nsis
+          npm run build -- --target x86_64-pc-windows-msvc --bundles nsis ${{ steps.signing.outputs.config }}
 
       # --target <triple> puts bundles under target/<triple>/release/bundle, so a
       # plain target/release/bundle glob matches nothing and silently publishes
@@ -212,9 +233,11 @@ jobs:
               echo "Desktop shell changed since $prev — installer only:"
               echo "$changed"
               echo "kind=installer" >> "$GITHUB_OUTPUT"
+              sig=$(find desktop/src-tauri/target -path '*bundle/nsis/*-setup.exe.sig' -type f -print -quit 2>/dev/null || true)
               {
                 echo "files<<EOF"
                 echo "$installer"
+                if [ -n "$sig" ]; then echo "$sig"; fi
                 echo "EOF"
               } >> "$GITHUB_OUTPUT"
               exit 0
@@ -227,10 +250,14 @@ jobs:
           esac
           ls -lh "$sidecar"
           echo "kind=sidecar" >> "$GITHUB_OUTPUT"
+          # The installer's signature travels with it: a signed artifact nobody can fetch
+          # proves nothing. It exists only when the build was given a signing key.
+          sig=$(find desktop/src-tauri/target -path '*bundle/nsis/*-setup.exe.sig' -type f -print -quit 2>/dev/null || true)
           {
             echo "files<<EOF"
             echo "$installer"
             echo "$sidecar"
+            if [ -n "$sig" ]; then echo "$sig"; fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
