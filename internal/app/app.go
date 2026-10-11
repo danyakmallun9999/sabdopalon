@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.19"
+var Version = "0.11.20"
 
 // App holds the resolved config and CLI options.
 type App struct {

@@ -5,6 +5,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.20] - 2026-10-11
+
+### Added
+- **An About page** that answers what this installation is, what it does to your machine,
+  and what it talks to: identity and version, the components it is made of, the paths it
+  keeps (each copyable and openable), the credits, a diagnostics block made to be pasted
+  into a bug report, and the complete list of hosts it may contact.
+
+  Built by danyakmallun - https://github.com/danyakmallun9999/sabdopalon
+
+- **Updating from inside the app.** About checks for a new release, says which of the two
+  paths it will take - about ten seconds in place, or the installer with roughly a minute
+  of downtime - downloads it, verifies the checksum against what the release published,
+  applies it, and keeps the previous sidecar so a failed start can be rolled back.
+  Checking and applying stay separate steps, and it never updates itself.
+
+- **A beta channel** that can see pre-releases, remembered per browser, with the highest
+  version winning rather than the first entry on the list.
+
+- **Signed releases** when a signing key is present: the installer's .sig is published
+  beside it. Without the key a release is unsigned and still complete, so a missing secret
+  can never break a release.
+
+### Fixed
+- The PHP router no longer lives in your projects: one shared script in the data root,
+  nothing at all for plain PHP, and files older versions wrote inside site folders are
+  removed on the next start.
+- Linked projects are served: a project whose PHP lives only in a subfolder was treated as
+  static and shown as a directory listing.
+- `sabdopalon link` reports the port actually in use rather than the configured one.
+- PostgreSQL gains its client tools (psql, pg_dump) as a self-contained package, which also
+  gives PostgreSQL backups the pg_dump they were missing.
+
+### Notes
+- The About page and the in-app updater exist from this version on; earlier versions have to
+  be updated manually once.
+- The updater is Windows-only, like this release workflow.
+
 ## [0.11.19] - 2026-10-11
 
 ### Fixed
