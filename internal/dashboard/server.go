@@ -88,6 +88,11 @@ func (s *Server) routes() {
 	// About page. Deliberately a snapshot: nothing here changes second to second.
 	s.mux.HandleFunc("/api/about", s.handleAPIAbout)
 
+	// API: update — the last check's result, and an explicit check. Checking never
+	// installs anything: applying an update is a separate, user-initiated step.
+	s.mux.HandleFunc("/api/update", s.handleAPIUpdate)
+	s.mux.HandleFunc("/api/update/check", s.handleAPIUpdateCheck)
+
 	// Graceful remote stop, used by the desktop shell — the bundled sidecar is
 	// a console-less windowsgui process, so Windows has no Ctrl+C to send it.
 	// Inert unless the shell supplied a token (see handlers_shutdown.go).
