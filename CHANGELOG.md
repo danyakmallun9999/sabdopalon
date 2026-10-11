@@ -5,6 +5,38 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.18] - 2026-10-11
+
+### Added
+- **The PHP router no longer lives in your projects.** Every PHP site used to get
+  its own `.sabdopalon-router.php`, written inside the site folder - and for a
+  linked project that folder is your own repository, so a tool left a foreign file
+  in your code, even for projects that need no router at all. There is now one
+  shared script in the data root (`<root>/routes/router.php`), plain PHP sites get
+  none, and a router this program previously wrote inside a site folder is removed
+  on the next start. A router that is not ours is never touched.
+
+- **PostgreSQL client tools** - `psql` and `pg_dump` - installable from the
+  Packages page. They were never bundled: the PostgreSQL Sabdopalon ships is
+  server-only (zonky's embedded build), which left the Database tab's PostgreSQL
+  terminal with nothing to launch and PostgreSQL backups with no `pg_dump`. The
+  executables come from EnterpriseDB, the same 17.10 version as the server, and a
+  new registry key (`files`) keeps nine executables (2.3 MB) out of the 318 MB
+  archive, because every DLL they link against is already installed beside them.
+
+  The Database tab no longer hides the PostgreSQL terminal, and `psql` connects
+  with no flags: the terminal already injects PGHOST/PGPORT/PGUSER=sabdopalon/
+  PGDATABASE.
+
+### Fixed
+- **Linked projects are served.** `IsStaticOnly` did not follow a junction, so a
+  project linked from outside the data root whose PHP lives only in a subfolder
+  (`public/index.php`) was served as a directory listing instead of through PHP.
+
+- **`sabdopalon link` reports the port actually in use.** It printed `:8080` while
+  the proxy was answering on port 80, because the configured port is only a
+  preference. Port 80 is no longer named at all.
+
 ## [0.11.17] - 2026-10-11
 
 ### Added

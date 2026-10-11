@@ -472,9 +472,12 @@ function TerminalTab({
   const card = cards.find((d) => d.key === engine)!
   const running = status?.db_states?.[engine] ?? cfg.db_states?.[engine] ?? false
   const installed = card.installed
-  // PostgreSQL terminal not yet implemented: show a message instead of
-  // trying to launch psql (which currently fails to resolve / is unsupported).
-  const pgUnsupported = engine === "postgresql"
+  // PostgreSQL used to be excluded here because psql was not bundled, so the
+  // terminal had nothing to launch. The client tools install from the Packages
+  // page into postgresql-client/bin, which the terminal PATH already includes, so
+  // PostgreSQL gets the same terminal as MariaDB. When the tools are absent the
+  // session reports it, which beats a card claiming the feature does not exist.
+  const pgUnsupported = false
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
