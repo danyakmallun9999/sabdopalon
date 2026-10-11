@@ -209,7 +209,46 @@ That "PATH" line is not decoration: it is the exact class of problem this sessio
 spent hours on, and it is the first thing a maintainer would otherwise have to ask
 for.
 
-## 5. Phasing
+## 6. Signed updates — the one step that needs a key
+
+Phase 4's last piece replaces sha256-only verification with a signature: Tauri's own
+updater (`tauri-plugin-updater`) verifies a minisign signature on every artifact, so
+the guarantee no longer rests on TLS to the same origin that served the file.
+
+It is **not switched on yet, deliberately**. Setting `createUpdaterArtifacts: true`
+makes the Tauri build require a signing key, and with no key present that build fails —
+which would take the working release pipeline down to tick a box. So the key comes
+first, and the order below matters.
+
+**What only the maintainer can do (once, on a trusted machine):**
+
+1. `cd desktop && pnpm tauri signer generate -w ~/.tauri/sabdopalon.key`
+   (or `cargo tauri signer generate`). It prints a **public** key and writes a private
+   one. Keep the private key off the repository; treat it like a password, because it
+   is what makes an update trustworthy.
+2. Add two repository secrets:
+   `TAURI_SIGNING_PRIVATE_KEY` (the private key contents) and
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (the password chosen above, if any).
+
+**What I will do once those exist:**
+
+1. `desktop/src-tauri/Cargo.toml`: add `tauri-plugin-updater`.
+2. `main.rs`: register the plugin.
+3. `capabilities/default.json`: add the updater permission for the dashboard origin.
+4. `tauri.conf.json`: `plugins.updater.pubkey` (the public key) and
+   `plugins.updater.endpoints`, plus `bundle.createUpdaterArtifacts: true`.
+5. `release-windows.yml`: pass the two secrets to the Tauri build step, and let the
+   release carry the generated `latest.json` and `.sig` files alongside the installer.
+6. About: prefer the signed path when the release carries a signature, and keep the
+   current sha256 path as the fallback for releases that do not.
+7. Verify by building a test tag and watching an update apply on a machine that has the
+   previous version installed.
+
+Until then the sha256 verification already in place stays the guarantee, and it is a
+real one: the hash comes from the same release metadata that names the file, and a
+mismatch is refused before anything runs.
+
+## 7. Phasing
 
 | Phase | Scope | Value |
 |---|---|---|
