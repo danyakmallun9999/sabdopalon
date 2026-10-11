@@ -52,8 +52,8 @@ var shimTargets = []struct {
 	{"minio", []string{`minio\minio.exe`}},
 	{"mysql", []string{`mariadb\bin\mysql.exe`}},
 	{"mysqldump", []string{`mariadb\bin\mysqldump.exe`}},
-	{"pg_dump", []string{`postgresql\bin\pg_dump.exe`}},
-	{"psql", []string{`postgresql\bin\psql.exe`}},
+	{"pg_dump", []string{`postgresql-client\bin\pg_dump.exe`, `postgresql\bin\pg_dump.exe`}},
+	{"psql", []string{`postgresql-client\bin\psql.exe`, `postgresql\bin\psql.exe`}},
 	{"redis-cli", []string{`redis\redis-cli.exe`}},
 	{"redis-server", []string{`redis\redis-server.exe`}},
 }

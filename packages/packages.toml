@@ -185,6 +185,29 @@ type = "zip-txz"
 verify_path = "bin/postgres.exe bin/postgres"
 license = "PostgreSQL License"
 
+# Client tools only. The zonky build above is server-only, so `psql` and `pg_dump`
+# were missing: the Database tab's PostgreSQL terminal had nothing to launch, and
+# PostgreSQL backups had no pg_dump. EnterpriseDB publishes the same version as the
+# server we bundle, so these executables match the DLLs already installed beside
+# them — same vendor, same build.
+#
+# A separate target on purpose: installing into `postgresql` would promote a new
+# tree over the directory the running server was started from. The DLLs psql needs
+# are found through PATH, which the terminal already puts postgresql/bin on.
+#
+# `files` keeps nine executables (2.3 MB) out of a 318 MB archive. Windows only:
+# there is no equivalent portable archive from the vendor for Linux or macOS.
+[postgresql-client]
+version = "17.10.0"
+url_windows = "https://get.enterprisedb.com/postgresql/postgresql-17.10-1-windows-x64-binaries.zip"
+sha256_windows_x64 = "f9aafca58e7026a1ef2caeee711acf761671e57904d430adc85f468374f5a821"
+target = "postgresql-client"
+type = "zip"
+strip_root = true
+files = "bin/psql.exe bin/pg_dump.exe bin/pg_restore.exe bin/createdb.exe bin/dropdb.exe bin/pg_isready.exe bin/vacuumdb.exe bin/clusterdb.exe bin/reindexdb.exe"
+verify_path = "bin/psql.exe"
+license = "PostgreSQL License"
+
 # MinIO — S3-compatible object storage (single static binary).
 # NOTE: the Windows asset has NO .exe suffix upstream; installBinaryAs adds
 # the local .exe name itself.

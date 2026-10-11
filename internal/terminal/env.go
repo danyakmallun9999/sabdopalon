@@ -81,6 +81,10 @@ func envFor(cfg *config.Engine, extraEnv []string) []string {
 		filepath.Join(binRoot, "php"),
 		filepath.Join(binRoot, "mariadb", "bin"),
 		filepath.Join(binRoot, "postgresql", "bin"),
+		// Client tools, when installed from the Packages page. Kept out of the
+		// server directory so an install can never promote a new tree over a
+		// running server; psql finds the server's DLLs through this PATH.
+		filepath.Join(binRoot, "postgresql-client", "bin"),
 		binRoot,
 	}
 	for _, d := range binDirs {

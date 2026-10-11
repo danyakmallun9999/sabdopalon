@@ -66,6 +66,9 @@ type PackageDef struct {
 	// the install target; at least one must exist for the package to count
 	// as installed. Example: "bin/mariadbd.exe bin/mariadbd".
 	VerifyPath string
+	// Files lists, when set, the only files to keep from the archive (space or
+	// comma separated, relative to the tree after strip_root). See pruneToFiles.
+	Files string
 	// TypeWin overrides Type for Windows artifacts (e.g. MariaDB: zip).
 	TypeWin string
 	// TypeByPlat overrides Type per platform (type_macos, type_linux_x86_64 …)
@@ -176,6 +179,7 @@ func (m *Manager) loadRegistry() error {
 		}
 		p.PlatformSpecific = getBool(kv, "platform_specific")
 		p.VerifyPath = getStr(kv, "verify_path")
+		p.Files = getStr(kv, "files")
 		p.TypeWin = getStr(kv, "type_windows")
 		for k, v := range kv {
 			if str, ok := v.(string); ok && strings.HasPrefix(k, "sha256_") {
@@ -595,6 +599,12 @@ func (m *Manager) Download(name string) error {
 		if err := extractTarGz(tmpFile, staging, p.StripRoot); err != nil {
 			return fmt.Errorf("extract: %w", err)
 		}
+	}
+
+	// Some packages ship a large archive for a handful of files; keep only what
+	// the registry asks for before the completeness check below.
+	if err := pruneToFiles(staging, p.Files); err != nil {
+		return fmt.Errorf("prune to declared files: %w", err)
 	}
 
 	// Guard against silently-empty installs: an archive whose layout does

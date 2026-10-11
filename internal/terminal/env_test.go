@@ -83,9 +83,15 @@ func TestEnvFor_PutsBinDirsFirstOnPath(t *testing.T) {
 
 	// envFor prepends each bin dir with `dir + sep + path`, so the LAST
 	// appended dir ends up FIRST. binRoot (bin) is appended last, so it
-	// leads, followed by postgresql/bin, mariadb/bin, then bin/php.
+	// leads, followed by postgresql-client/bin, postgresql/bin, mariadb/bin,
+	// then bin/php.
+	//
+	// Both PostgreSQL dirs matter: the client tools are installed separately so an
+	// install can never promote a tree over the running server, and psql finds the
+	// server's DLLs (libpq and friends) through the second one.
 	want := []string{
 		cfg.BinDir(),
+		filepath.Join(cfg.BinDir(), "postgresql-client", "bin"),
 		filepath.Join(cfg.BinDir(), "postgresql", "bin"),
 		filepath.Join(cfg.BinDir(), "mariadb", "bin"),
 		filepath.Join(cfg.BinDir(), "php"),
