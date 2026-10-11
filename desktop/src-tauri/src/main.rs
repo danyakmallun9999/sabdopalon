@@ -8,6 +8,17 @@ use tauri::Manager;
 mod sidecar;
 mod tray;
 
+/// Replace the running sidecar with a freshly verified download, then restart it.
+///
+/// The dashboard downloads the file and verifies its checksum in Go, then asks for
+/// this: only the shell can replace the process it is currently running. Returns the
+/// path that was replaced, or a sentence explaining what went wrong — including, on
+/// failure, that the previous sidecar was put back.
+#[tauri::command]
+fn apply_sidecar_update(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    sidecar::apply_update(&app, std::path::Path::new(&path))
+}
+
 fn main() {
     tauri::Builder::default()
         // Exactly one instance: a second launch focuses the running window
@@ -26,6 +37,10 @@ fn main() {
             Some(vec![]),
         ))
         .plugin(tauri_plugin_opener::init())
+        // One command, because exactly one action cannot be done from Go: replacing
+        // the sidecar binary while it is running. Everything else the dashboard needs
+        // it already does over HTTP.
+        .invoke_handler(tauri::generate_handler![apply_sidecar_update])
         .setup(|app| {
             // Start the Go sidecar right away (it boots in setup mode when
             // the install has no config yet, so the GUI wizard works first-run).

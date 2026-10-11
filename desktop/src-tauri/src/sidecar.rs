@@ -168,6 +168,63 @@ fn sidecar_candidates(app: &AppHandle) -> Vec<PathBuf> {
     candidates.into_iter().filter(|p| p.is_file()).collect()
 }
 
+/// Replace the sidecar binary with a freshly verified download and restart it.
+///
+/// This is the half of an update that cannot happen in Go: the process being replaced
+/// is the one that would have to do it. The caller — the dashboard — has already
+/// downloaded the file and verified its checksum against the release.
+///
+/// The binary that is actually in use is the one replaced, because choose_sidecar
+/// probes versions: writing anywhere else could leave the old one winning. The
+/// previous binary is kept beside it as `<name>.prev`, and every failure path puts it
+/// back and restarts it. An update must never leave the app without a working sidecar.
+pub fn apply_update(app: &AppHandle, src: &Path) -> Result<String, String> {
+    if !src.is_file() {
+        return Err(format!("the downloaded update is not there: {}", src.display()));
+    }
+
+    // The issues gathered while choosing are worth keeping: when no candidate can be
+    // used, they say which one was rejected and why, which is exactly what a failed
+    // update needs to report.
+    let mut issues: Vec<String> = Vec::new();
+    let dst = choose_sidecar(app, &mut issues)
+        .ok_or_else(|| format!("no sidecar binary to replace: {}", issues.join("; ")))?;
+    if dst == src {
+        return Err("that file is already the sidecar in use".into());
+    }
+
+    // Windows will not let a running executable be replaced.
+    stop();
+    std::thread::sleep(Duration::from_millis(700));
+
+    let prev = dst.with_file_name(format!(
+        "{}.prev",
+        dst.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("sabdopalon.exe")
+    ));
+    let _ = std::fs::remove_file(&prev);
+    std::fs::rename(&dst, &prev)
+        .map_err(|e| format!("could not set the current sidecar aside: {e}"))?;
+
+    if let Err(e) = std::fs::rename(src, &dst) {
+        let _ = std::fs::rename(&prev, &dst);
+        let _ = start(app);
+        return Err(format!("could not place the new sidecar: {e}"));
+    }
+
+    if let Err(e) = start(app) {
+        let _ = std::fs::remove_file(&dst);
+        let _ = std::fs::rename(&prev, &dst);
+        let _ = start(app);
+        return Err(format!(
+            "the new sidecar did not start, so the previous one was restored: {e}"
+        ));
+    }
+
+    Ok(dst.to_string_lossy().to_string())
+}
+
 /// Run `<bin> version` and return its trimmed stdout ("sabdopalon 0.8.3").
 fn probe_version(bin: &PathBuf) -> Option<String> {
     let out = std::process::Command::new(bin)
