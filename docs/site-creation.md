@@ -39,6 +39,11 @@ GET  /api/sites/job                                          → {running, done,
   polling continues in the page, and the completion toast and the site list follow
   the job to the end. Reopening the dialog re-attaches to a running job, which also
   covers a page reload mid-build.
+- A **finished** job is history, not state: opening the dialog clears it (a running
+  one is kept), so "New Site" always lands on the form. The success state carries a
+  "Create another" button for the same reason — 0.11.24 shipped without this and the
+  dialog reopened on the previous result with nothing but "Close", so a second site
+  needed a page reload.
 
 ## Where the log comes from
 
