@@ -1,0 +1,30 @@
+# Permissions for the commands this application exposes to its own dashboard.
+#
+# The dashboard is served by the Go sidecar over HTTP, so from Tauri's point of
+# view it is a REMOTE origin — and Tauri 2.11 enforces the ACL for remote origins
+# even when the application declares no permissions of its own. The result was
+# "Command apply_sidecar_update not allowed by ACL" during a real update: the new
+# sidecar was downloaded and its checksum verified, and then the shell refused to
+# be asked to apply it.
+#
+# Every custom command therefore has to be named here, and a capability has to
+# reference each permission. Without both halves the command is unreachable from
+# the dashboard no matter what the Rust side does.
+#
+# These three are the only commands that exist: everything else the dashboard
+# needs it does over HTTP against the sidecar.
+
+[[permission]]
+identifier = "allow-apply-sidecar-update"
+description = "Hand a checksum-verified download to the shell so it can replace the running sidecar and start it again."
+commands.allow = ["apply_sidecar_update"]
+
+[[permission]]
+identifier = "allow-apply-installer-update"
+description = "Hand a checksum-verified installer to the shell, which steps aside so the installer can replace the program and start it again."
+commands.allow = ["apply_installer_update"]
+
+[[permission]]
+identifier = "allow-open-path"
+description = "Open one of the installation's own folders in the OS file manager."
+commands.allow = ["open_path"]

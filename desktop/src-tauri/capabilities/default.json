@@ -18,6 +18,10 @@
     "opener:allow-open-url",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+
+    "allow-apply-sidecar-update",
+    "allow-apply-installer-update",
+    "allow-open-path"
   ]
 }

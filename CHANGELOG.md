@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.22] - 2026-10-16
+
+### Fixed
+- **Updating from inside the app was refused by the shell.** Tauri 2.11 enforces its
+  ACL for remote origins, and the dashboard is one: the Go sidecar serves it over HTTP
+  on `localhost:9900`. Because the application declared no permissions of its own, the
+  three commands the dashboard is allowed to call were unreachable, so pressing
+  "Update now" downloaded the new sidecar, verified its checksum, and failed with
+  `Command apply_sidecar_update not allowed by ACL`. The release pipeline fixes in
+  0.11.21 were necessary but not sufficient: this was the wall behind them. The
+  commands are now declared in `src-tauri/permissions/dashboard.toml` and granted to
+  the main window, which also repairs the About page's "open folder" buttons.
+
 ## [0.11.21] - 2026-10-16
 
 ### Fixed

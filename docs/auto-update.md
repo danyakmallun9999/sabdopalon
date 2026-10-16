@@ -58,6 +58,16 @@ contains `sidecar` as "only the Go program changed", and the installer path
 otherwise. The installer is then picked by name (`setup`) rather than by position,
 so a bare sidecar can never be run as an installer.
 
+The **other** half of the contract is Tauri's ACL. The dashboard is a remote
+origin (the sidecar serves it over HTTP), and Tauri 2.11 enforces capabilities for
+remote origins; an application that declares no permissions of its own has no
+manifest to allow its own commands against. Applying an update therefore needs
+both `desktop/src-tauri/permissions/dashboard.toml` (which commands are
+callable) and a capability that grants them to the main window. Missing either
+half fails at the last step — after the download and the checksum — with
+`Command apply_sidecar_update not allowed by ACL`, which is exactly what 0.11.21
+shipped and 0.11.22 fixed.
+
 CI decides with a git diff against the previous release tag:
 
 ```
