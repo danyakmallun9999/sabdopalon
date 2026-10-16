@@ -171,6 +171,7 @@ export default function SitesPage() {
   // and it survives closing the dialog so a long composer run is never lost.
   const [createState, setCreateState] = useState<CreateJob | null>(null)
   const [elapsed, setElapsed] = useState(0)
+  const [rawLog, setRawLog] = useState(false)
   const logRef = useRef<HTMLPreElement>(null)
 
   const filtered = sites.filter((s) =>
@@ -640,7 +641,7 @@ export default function SitesPage() {
             <DialogTrigger render={<Button size="sm" />}>
               <Plus /> New Site
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[calc(100vh-3rem)] overflow-y-auto sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>
                   {createState?.running
@@ -660,8 +661,8 @@ export default function SitesPage() {
               </DialogHeader>
 
               {createState && (createState.running || createState.done) ? (
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-center gap-2 text-sm">
+                <div className="flex min-w-0 flex-col gap-3">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
                     {createState.running ? (
                       <Loader2 className="size-4 animate-spin text-muted-foreground" />
                     ) : createState.error ? (
@@ -681,20 +682,31 @@ export default function SitesPage() {
                         href={createState.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary ml-auto inline-flex items-center gap-1 text-sm hover:underline"
+                        className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
                       >
                         <Globe className="size-3.5" /> Open site
                       </a>
                     ) : null}
+                    {/* The simplified view is what a person reads; the raw bytes are
+                        one click away because that is what a bug report needs. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground ml-auto h-7 px-2 text-xs"
+                      onClick={() => setRawLog((v) => !v)}
+                    >
+                      {rawLog ? "Simplified log" : "Raw log"}
+                    </Button>
                   </div>
 
                   <pre
                     ref={logRef}
-                    className={`bg-background text-muted-foreground max-h-72 min-h-40 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${
-                      createState.error ? "border-destructive/40" : ""
-                    }`}
+                    className={`bg-background text-muted-foreground max-h-72 min-h-40 overflow-x-hidden overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${
+                      rawLog ? "break-all" : "break-words"
+                    } ${createState.error ? "border-destructive/40" : ""}`}
                   >
-                    {createState.output || (createState.running ? "starting…" : "")}
+                    {(rawLog ? createState.output_raw : createState.output) ||
+                      (createState.running ? "starting…" : "")}
                   </pre>
 
                   {createState.error ? (

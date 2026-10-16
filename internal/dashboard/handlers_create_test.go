@@ -30,7 +30,7 @@ func createServer(t *testing.T) *Server {
 		defer createJob.mu.Unlock()
 		createJob.running, createJob.done = false, false
 		createJob.name, createJob.template, createJob.url, createJob.err = "", "", "", ""
-		createJob.output.Reset()
+		createJob.log.reset()
 	})
 	return New(cfg, proxy.New(cfg), nil, nil, nil, nil)
 }

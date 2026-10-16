@@ -12,7 +12,6 @@
 package dashboard
 
 import (
-	"bytes"
 	"net/http"
 	"sync"
 	"time"
@@ -29,7 +28,7 @@ type createTask struct {
 	template string
 	url      string
 	err      string
-	output   bytes.Buffer
+	log      createLog
 	started  string
 	finished string
 }
@@ -39,21 +38,24 @@ type createTask struct {
 var createJob createTask
 
 // snapshot is the JSON the dialog polls. Output is the whole log rather than a
-// delta: it is bounded by what a scaffold prints, and re-reading it keeps the
-// page dumb.
+// delta: it is bounded (see createLog), and re-reading it keeps the page dumb.
+//
+// Two forms travel: "output" is what a person reads, and "output_raw" is the
+// terminal's own bytes for when something needs diagnosing.
 func (j *createTask) snapshot() map[string]any {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	return map[string]any{
-		"running":  j.running,
-		"done":     j.done,
-		"name":     j.name,
-		"template": j.template,
-		"url":      j.url,
-		"error":    j.err,
-		"output":   j.output.String(),
-		"started":  j.started,
-		"finished": j.finished,
+		"running":    j.running,
+		"done":       j.done,
+		"name":       j.name,
+		"template":   j.template,
+		"url":        j.url,
+		"error":      j.err,
+		"output":     j.log.Simplified(),
+		"output_raw": j.log.Raw(),
+		"started":    j.started,
+		"finished":   j.finished,
 	}
 }
 
@@ -64,7 +66,7 @@ type createJobWriter struct{ j *createTask }
 func (w createJobWriter) Write(p []byte) (int, error) {
 	w.j.mu.Lock()
 	defer w.j.mu.Unlock()
-	return w.j.output.Write(p)
+	return w.j.log.Write(p)
 }
 
 // startSiteCreate begins the job and returns an empty string, or a sentence
@@ -83,7 +85,7 @@ func (s *Server) startSiteCreate(name, tmpl, database, testing string) string {
 	createJob.template = tmpl
 	createJob.err = ""
 	createJob.url = ""
-	createJob.output.Reset()
+	createJob.log.reset()
 	createJob.started = time.Now().UTC().Format(time.RFC3339)
 	createJob.finished = ""
 	createJob.mu.Unlock()

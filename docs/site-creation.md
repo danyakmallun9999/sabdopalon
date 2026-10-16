@@ -30,8 +30,11 @@ GET  /api/sites/job                                          → {running, done,
 
 - `POST` validates, starts the job and returns immediately. A second create while
   one runs is refused with `409` and a sentence naming the job to wait for.
-- The job's `output` is the whole log, not a delta: bounded by what a scaffold
-  prints, and it keeps the page dumb. The dialog polls it every 500 ms.
+- The job's `output` is the whole log, not a delta: it is bounded by what a
+  scaffold prints, and it keeps the page dumb. The dialog polls it every 500 ms.
+- Two forms travel. `output` is what a person reads; `output_raw` is what the
+  tool actually wrote, one click away in the dialog, because that is what a bug
+  report needs. Both are bounded (400 lines / 32 KB raw).
 - `GET /api/sites/job` is a literal path, so a site may not be named `job` — it
   would shadow its own detail endpoint. The create validator refuses that name with
   an explanation rather than leaving a trap.
@@ -62,3 +65,28 @@ everything, which is how a test and a CLI run that does not care say so.
 The CLI (`sabdopalon new`) passes a Progress writing to stdout, so its output is
 unchanged apart from no longer being buffered: the tool's own lines now appear while
 it works, the same as in the dashboard.
+
+## Why the log is filtered (0.11.26)
+
+Showing the child's bytes verbatim was the first version, and a real
+`composer create-project laravel/laravel` showed why that fails:
+
+| | raw | simplified |
+|---|---|---|
+| bytes | 23.7 KB | 1.9 KB |
+| terminal escape sequences | 1734 | 0 |
+| carriage returns | 270 | 0 |
+| lines naming one package | ~200 | 2 counters |
+| dots per migration line | 90 | 0 |
+
+An escape sequence is not a space, so a long run of them gives a line nothing to
+wrap at: that is what stretched the dialog past the window edge. `createLog`
+(handlers_create.go/logsimplify.go) therefore carries escape state between writes
+(a pipe splits sequences anywhere), resolves carriage-return redraws to the line's
+final state, collapses composer's per-package lines into a live counter, drops dot
+padding, and discards any line with no letters — a progress bar is drawn for a
+terminal, not said to a person. The raw bytes are kept beside it.
+
+The rules are tested against a captured run, not a hand-written sample:
+`internal/dashboard/testdata/create-laravel.log` is byte-for-byte what composer and
+artisan wrote on this machine.

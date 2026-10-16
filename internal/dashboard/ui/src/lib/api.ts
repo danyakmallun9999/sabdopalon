@@ -80,6 +80,10 @@ export type InstallJob = {
 
 // CreateJob is the state of a site being scaffolded: the template's own output
 // as it arrives, plus where the site will be reachable once it is done.
+//
+// `output` is the readable form — terminal colour codes, carriage-return
+// redraws and composer's one-line-per-package noise removed. `output_raw` is
+// what the tool actually wrote, for when something needs diagnosing.
 export type CreateJob = {
   running: boolean
   done: boolean
@@ -88,6 +92,7 @@ export type CreateJob = {
   url: string
   error: string
   output: string
+  output_raw: string
   started: string
   finished: string
 }

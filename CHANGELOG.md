@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.26] - 2026-10-16
+
+### Fixed
+- **The creation log is readable now, and the dialog stays inside the window.** The
+  first version of the live log showed the child's bytes verbatim, so a Laravel
+  scaffold arrived as 23.7 KB of composer and artisan output carrying 1734 terminal
+  escape sequences (`[37;44m`, `[39;49m`, `[90m`), 270 carriage returns, about two
+  hundred lines naming one package each, and ninety dots per migration line. Escape
+  codes are not spaces, so those long runs had nothing to wrap at and stretched the
+  popup past the edge of the screen.
+
+  A real run is now 1.9 KB and 43 lines: escape state is carried across writes (a
+  pipe splits a sequence anywhere), carriage-return redraws collapse to their final
+  state, composer's per-package lines become two live counters ("Installing
+  packages… 109 (last: phpunit/phpunit 12.5.40)"), dot padding goes, and a line with
+  no letters — a progress bar is drawn for a terminal, not said to a person — is
+  dropped. The dialog is capped at `2xl` with the log scrolling inside it, and long
+  lines break instead of widening the box.
+- The raw output is not thrown away: **Raw log** in the dialog shows exactly what
+  the tool wrote, which is what a bug report should quote.
+
 ## [0.11.25] - 2026-10-16
 
 ### Fixed
