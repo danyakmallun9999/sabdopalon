@@ -10,11 +10,8 @@ package templates
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-
-	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Testing frameworks a new site can be set up with.
@@ -36,8 +33,9 @@ func NormalizeTesting(framework string) (string, error) {
 }
 
 // configureTesting installs Pest when it was chosen, and does nothing for
-// PHPUnit.
-func configureTesting(dir, framework string, logf func(string, ...any)) error {
+// PHPUnit. Progress lines and every tool's own output go to p, so the dashboard
+// shows the composer work rather than a frozen button.
+func configureTesting(dir, framework string, p *Progress) error {
 	framework, err := NormalizeTesting(framework)
 	if err != nil {
 		return err
@@ -46,12 +44,7 @@ func configureTesting(dir, framework string, logf func(string, ...any)) error {
 		return nil
 	}
 
-	say := func(format string, args ...any) {
-		if logf != nil {
-			logf(format, args...)
-		}
-	}
-	say("installing Pest")
+	p.Printf("installing Pest")
 
 	steps := []struct {
 		bin  string
@@ -63,7 +56,7 @@ func configureTesting(dir, framework string, logf func(string, ...any)) error {
 		{"php", []string{"./vendor/bin/pest", "--init", "--no-interaction"}},
 	}
 	for _, step := range steps {
-		if err := runIn(dir, step.bin, step.args...); err != nil {
+		if err := p.Run(dir, step.bin, step.args...); err != nil {
 			return err
 		}
 	}
@@ -77,14 +70,14 @@ func configureTesting(dir, framework string, logf func(string, ...any)) error {
 	// The plugin takes a positional path and treats that flag as one, so no flag
 	// is passed to it. Failure is still not fatal: a project whose Pest
 	// installation is complete must not be thrown away over a style conversion.
-	if err := runIn(dir, "composer", "require", "pestphp/pest-plugin-drift", "--dev"); err != nil {
-		say("skipping test drift: %v", err)
+	if err := p.Run(dir, "composer", "require", "pestphp/pest-plugin-drift", "--dev"); err != nil {
+		p.Printf("skipping test drift: %v", err)
 	} else {
-		if err := runIn(dir, "php", "./vendor/bin/pest", "--drift"); err != nil {
-			say("test drift did not convert anything: %v", err)
+		if err := p.Run(dir, "php", "./vendor/bin/pest", "--drift"); err != nil {
+			p.Printf("test drift did not convert anything: %v", err)
 		}
-		if err := runIn(dir, "composer", "remove", "pestphp/pest-plugin-drift", "--dev"); err != nil {
-			say("could not remove the drift plugin: %v", err)
+		if err := p.Run(dir, "composer", "remove", "pestphp/pest-plugin-drift", "--dev"); err != nil {
+			p.Printf("could not remove the drift plugin: %v", err)
 		}
 	}
 	uncommentRefreshDatabase(dir)
@@ -109,22 +102,7 @@ func uncommentRefreshDatabase(dir string) {
 	}
 }
 
-// runIn runs a tool inside the project directory with Sabdopalon's bin/ first on
-// PATH, so a nested `php` call resolves to the bundled interpreter no matter how
-// the app was launched. The binary itself is resolved explicitly, because
-// exec.Command searches the CURRENT process's PATH rather than cmd.Env.
-func runIn(dir, name string, args ...string) error {
-	bin, err := resolveTool(name)
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command(bin, args...)
-	winproc.Quiet(cmd)
-	cmd.Dir = dir
-	cmd.Env = childEnv()
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("%s %s failed (%w): %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
-	}
-	return nil
-}
+// Steps that run a tool inside the project now go through Progress.Run, which
+// does the same bin/-first resolution and child environment while streaming the
+// tool's output — see progress.go. The buffered helper this replaced hid a
+// composer run for minutes and reported its output only when it failed.

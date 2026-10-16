@@ -78,6 +78,20 @@ export type InstallJob = {
   error?: string
 }
 
+// CreateJob is the state of a site being scaffolded: the template's own output
+// as it arrives, plus where the site will be reachable once it is done.
+export type CreateJob = {
+  running: boolean
+  done: boolean
+  name: string
+  template: string
+  url: string
+  error: string
+  output: string
+  started: string
+  finished: string
+}
+
 // System tools (Node.js, Composer) live on the user's system, not in bin/.
 export type SysTool = {
   name: string
@@ -327,11 +341,15 @@ const api = {
       privacy: { host: string; why: string }[]
       error?: string
     }>("/api/about"),
+  // Creating a site is a job, not one long request: a Laravel scaffold runs
+  // composer (and npm, for a starter kit) for minutes, and the dialog shows the
+  // log it produces instead of a button that only says "Creating…".
   createSite: (name: string, template: string, database?: string, testing?: string) =>
-    post<{ ok: boolean; name: string; url: string; message?: string; error?: string }>(
+    post<{ ok: boolean; name: string; job?: CreateJob; message?: string; error?: string }>(
       "/api/sites",
       { name, template, database, testing },
     ),
+  createJob: () => request<CreateJob>("/api/sites/job"),
   siteAction: (name: string, action: "start" | "stop" | "restart") =>
     post<{ ok: boolean; port?: number; was_running?: boolean; error?: string }>(
       `/api/sites/${encodeURIComponent(name)}/${action}`,

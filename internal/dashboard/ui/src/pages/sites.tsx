@@ -3,12 +3,14 @@ import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import {
   Box,
+  CheckCircle2,
   Copy,
   EllipsisVerticalIcon,
   Eraser,
   ExternalLink,
   Globe,
   Link as LinkIcon,
+  Loader2,
   Lock,
   PanelRight,
   Play,
@@ -21,10 +23,12 @@ import {
   Square,
   TerminalSquare,
   Trash2,
+  XCircle,
 } from "lucide-react"
 
 import api, {
   poll,
+  type CreateJob,
   type Site,
   type SiteConfigPayload,
 } from "@/lib/api"
@@ -163,7 +167,11 @@ export default function SitesPage() {
   // because Sabdopalon creates the database and writes the credentials itself.
   const [database, setDatabase] = useState("sqlite")
   const [testing, setTesting] = useState("pest")
-  const [creating, setCreating] = useState(false)
+  // Site creation is a job the dialog watches: `createState` is its last snapshot,
+  // and it survives closing the dialog so a long composer run is never lost.
+  const [createState, setCreateState] = useState<CreateJob | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const logRef = useRef<HTMLPreElement>(null)
 
   const filtered = sites.filter((s) =>
     search.trim()
@@ -277,23 +285,58 @@ export default function SitesPage() {
     }
   }
 
+  // Watch a running create job. This is deliberately not tied to the dialog being
+  // open: closing it means "let it run", not "stop telling me" — the log keeps
+  // filling in, the elapsed time keeps counting, and the toast still arrives.
+  useEffect(() => {
+    if (!createState?.running) return
+    const t = setInterval(() => {
+      api
+        .createJob()
+        .then((j) => {
+          setCreateState(j)
+          if (j.started) setElapsed(Math.max(0, Math.round((Date.now() - Date.parse(j.started)) / 1000)))
+          if (j.output) requestAnimationFrame(() => logRef.current?.scrollTo({ top: logRef.current.scrollHeight }))
+        })
+        .catch(() => {})
+    }, 500)
+    return () => clearInterval(t)
+  }, [createState?.running])
+
+  // One completion handler for both cases (dialog open or closed).
+  useEffect(() => {
+    if (!createState?.done || createState.running) return
+    if (createState.error) toast.error(`${createState.name} could not be created`, { description: createState.error })
+    else toast.success(`Site "${createState.name}" created`, { description: createState.url })
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createState?.done, createState?.running])
+
+  // Opening the dialog should show a job that is already running — after a page
+  // reload, or after the dialog was closed and reopened.
+  async function openCreate() {
+    setOpen(true)
+    try {
+      const j = await api.createJob()
+      if (j.running) {
+        setCreateState(j)
+        if (j.started) setElapsed(Math.max(0, Math.round((Date.now() - Date.parse(j.started)) / 1000)))
+      }
+    } catch {
+      /* an idle dashboard answers with an empty job; nothing to show */
+    }
+  }
+
   async function create() {
     if (!name.trim()) return
-    setCreating(true)
-    try {
-      const r = await api.createSite(name.trim().toLowerCase(), template, database, testing)
-      if (r.error) toast.error(r.error)
-      else {
-        toast.success(`Site "${r.name}" created — opening wizard done`, {
-          description: r.url,
-        })
-        setOpen(false)
-        setName("")
-        load()
-      }
-    } finally {
-      setCreating(false)
+    const r = await api.createSite(name.trim().toLowerCase(), template, database, testing)
+    if (r.error) {
+      toast.error(r.error)
+      return
     }
+    if (r.job) setCreateState(r.job)
+    setElapsed(0)
+    setName("")
   }
 
   async function doDelete() {
@@ -584,75 +627,156 @@ export default function SitesPage() {
           >
             <PanelRight /> Terminal
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog
+            open={open}
+            onOpenChange={(v) => {
+              if (v) void openCreate()
+              else setOpen(false)
+            }}
+          >
             <DialogTrigger render={<Button size="sm" />}>
               <Plus /> New Site
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Create a new site</DialogTitle>
+                <DialogTitle>
+                  {createState?.running
+                    ? `Creating ${createState.template} site "${createState.name}"`
+                    : createState?.done && !createState.error
+                      ? `"${createState.name}" is ready`
+                      : "Create a new site"}
+                </DialogTitle>
+                {/* A scaffold is minutes of composer (and npm), so the dialog says
+                    so up front instead of looking stalled halfway through. */}
+                {createState?.running ? (
+                  <DialogDescription>
+                    Composer resolves and installs packages one at a time{createState.template.startsWith("laravel") ? ", and a starter kit runs npm too" : ""}.
+                    This can take a few minutes; the log below is live, and you can close this window and let it finish.
+                  </DialogDescription>
+                ) : null}
               </DialogHeader>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="site-name">Site name</Label>
-                  <Input
-                    id="site-name"
-                    value={name}
-                    placeholder="my-app"
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && create()}
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>Template</Label>
-                  <Select value={template} onValueChange={(v) => setTemplate(v ?? "blank")}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEMPLATES.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* Laravel only: a blank or WordPress template has no database to
-                    point anywhere and no tests to convert. */}
-                {template.startsWith("laravel") && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-2">
-                      <Label>Database</Label>
-                      <Select value={database} onValueChange={(v) => setDatabase(v ?? "sqlite")}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="sqlite">SQLite (default)</SelectItem>
-                          <SelectItem value="mariadb">MariaDB — created for you</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Testing</Label>
-                      <Select value={testing} onValueChange={(v) => setTesting(v ?? "pest")}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pest">Pest (default)</SelectItem>
-                          <SelectItem value="phpunit">PHPUnit</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+              {createState && (createState.running || createState.done) ? (
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-sm">
+                    {createState.running ? (
+                      <Loader2 className="size-4 animate-spin text-muted-foreground" />
+                    ) : createState.error ? (
+                      <XCircle className="size-4 text-destructive" />
+                    ) : (
+                      <CheckCircle2 className="size-4 text-success" />
+                    )}
+                    <span>
+                      {createState.running
+                        ? `Working… ${elapsed}s`
+                        : createState.error
+                          ? "Creation failed"
+                          : "Created"}
+                    </span>
+                    {createState.done && !createState.error && createState.url ? (
+                      <a
+                        href={createState.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary ml-auto inline-flex items-center gap-1 text-sm hover:underline"
+                      >
+                        <Globe className="size-3.5" /> Open site
+                      </a>
+                    ) : null}
                   </div>
-                )}
-              </div>
+
+                  <pre
+                    ref={logRef}
+                    className={`bg-background text-muted-foreground max-h-72 min-h-40 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${
+                      createState.error ? "border-destructive/40" : ""
+                    }`}
+                  >
+                    {createState.output || (createState.running ? "starting…" : "")}
+                  </pre>
+
+                  {createState.error ? (
+                    <p className="text-destructive text-xs">{createState.error}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="site-name">Site name</Label>
+                    <Input
+                      id="site-name"
+                      value={name}
+                      placeholder="my-app"
+                      onChange={(e) => setName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void create()}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label>Template</Label>
+                    <Select value={template} onValueChange={(v) => setTemplate(v ?? "blank")}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEMPLATES.map((t) => (
+                          <SelectItem key={t.id} value={t.id}>
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Laravel only: a blank or WordPress template has no database to
+                      point anywhere and no tests to convert. */}
+                  {template.startsWith("laravel") && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-2">
+                        <Label>Database</Label>
+                        <Select value={database} onValueChange={(v) => setDatabase(v ?? "sqlite")}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sqlite">SQLite (default)</SelectItem>
+                            <SelectItem value="mariadb">MariaDB — created for you</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <Label>Testing</Label>
+                        <Select value={testing} onValueChange={(v) => setTesting(v ?? "pest")}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pest">Pest (default)</SelectItem>
+                            <SelectItem value="phpunit">PHPUnit</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <DialogFooter>
-                <Button onClick={create} disabled={creating || !name.trim()}>
-                  {creating ? "Creating…" : "Create site"}
-                </Button>
+                {createState?.running ? (
+                  <Button variant="outline" onClick={() => setOpen(false)}>
+                    Run in background
+                  </Button>
+                ) : createState?.done ? (
+                  <>
+                    {createState.error ? (
+                      <Button variant="outline" onClick={() => setCreateState(null)}>
+                        Try again
+                      </Button>
+                    ) : null}
+                    <Button onClick={() => setOpen(false)}>Close</Button>
+                  </>
+                ) : (
+                  <Button onClick={() => void create()} disabled={!name.trim()}>
+                    Create site
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>

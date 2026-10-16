@@ -38,7 +38,7 @@ import (
 )
 
 // Version is the Sabdopalon build version (overridden at build time via ldflags).
-var Version = "0.11.23"
+var Version = "0.11.24"
 
 // App holds the resolved config and CLI options.
 type App struct {
@@ -1276,7 +1276,7 @@ func (a *App) newProject(args []string) int {
 		Database: db,
 		Testing:  testing,
 		Cfg:      a.Cfg,
-		Logf:     func(format string, args ...any) { fmt.Printf("  →  "+format+"\n", args...) },
+		Progress: templates.NewProgress(os.Stdout),
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1

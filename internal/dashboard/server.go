@@ -101,6 +101,9 @@ func (s *Server) routes() {
 
 	// API: sites
 	s.mux.HandleFunc("/api/sites", s.handleAPISites)
+	// The create job's status lives on this literal path, which is why a site may
+	// not be named "job": its own detail endpoint would be shadowed.
+	s.mux.HandleFunc("/api/sites/job", s.handleAPICreateJob)
 	s.mux.HandleFunc("/api/sites/", s.handleAPISiteAction)
 
 	// API: packages

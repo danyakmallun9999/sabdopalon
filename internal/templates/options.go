@@ -2,6 +2,7 @@
 package templates
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -25,8 +26,10 @@ type Options struct {
 	// Cfg supplies the MariaDB port and the bundled client; nil is allowed and
 	// means "defaults" (tests, and a CLI run before any config exists).
 	Cfg *config.Engine
-	// Logf receives progress lines; nil discards them.
-	Logf func(format string, args ...any)
+	// Progress receives the build's output. Nil means "write to stdout", which
+	// is what a CLI run wants; the dashboard passes a stream it can show while
+	// the site is still being created.
+	Progress *Progress
 }
 
 // CreateWith creates a site and applies the caller's choices afterwards.
@@ -35,8 +38,12 @@ type Options struct {
 // .env, and installing a testing framework touches the project's composer
 // dependencies, so doing them in this order keeps each step's output meaningful.
 func CreateWith(opts Options) error {
+	p := opts.Progress
+	if p == nil {
+		p = NewProgress(os.Stdout)
+	}
 	name := strings.ToLower(strings.TrimSpace(opts.Name))
-	if err := Create(opts.SitesDir, opts.Template, name); err != nil {
+	if err := create(opts.SitesDir, opts.Template, name, p); err != nil {
 		return err
 	}
 	dir := filepath.Join(opts.SitesDir, name)
@@ -46,9 +53,7 @@ func CreateWith(opts Options) error {
 	// `php artisan migrate` that has no artisan to run.
 	if !fileExistsAt(filepath.Join(dir, "artisan")) {
 		if strings.TrimSpace(opts.Database) != "" || strings.TrimSpace(opts.Testing) != "" {
-			if opts.Logf != nil {
-				opts.Logf("database and testing choices apply to Laravel projects only — skipped for %s", opts.Template)
-			}
+			p.Printf("database and testing choices apply to Laravel projects only — skipped for %s", opts.Template)
 		}
 		return nil
 	}
@@ -58,12 +63,12 @@ func CreateWith(opts Options) error {
 		return err
 	}
 	if needsMigrate {
-		if err := migrateDatabase(dir, opts.Logf); err != nil {
+		if err := migrateDatabase(dir, p); err != nil {
 			return err
 		}
 	}
 
-	if err := configureTesting(dir, opts.Testing, opts.Logf); err != nil {
+	if err := configureTesting(dir, opts.Testing, p); err != nil {
 		return err
 	}
 	return nil
@@ -75,13 +80,11 @@ func CreateWith(opts Options) error {
 // MariaDB afterwards still has an empty server database. --force is required
 // because the environment is not interactive.
 //
-// It goes through runIn so the interpreter is resolved with bin/ first:
+// It goes through Progress.Run so the interpreter resolves with bin/ first:
 // exec.Command searches the CURRENT process's PATH rather than cmd.Env, which is
 // how this step failed with `exec: "php": executable file not found in %PATH%`
 // even after the child's PATH had been fixed.
-func migrateDatabase(dir string, logf func(string, ...any)) error {
-	if logf != nil {
-		logf("running database migrations")
-	}
-	return runIn(dir, "php", "artisan", "migrate", "--force", "--no-interaction")
+func migrateDatabase(dir string, p *Progress) error {
+	p.Printf("running database migrations")
+	return p.Run(dir, "php", "artisan", "migrate", "--force", "--no-interaction")
 }

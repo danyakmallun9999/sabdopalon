@@ -6,19 +6,20 @@ package templates
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/database"
-	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Template describes a project template.
 type Template struct {
 	Name        string
 	Description string
-	Setup       func(sitesDir, name string) error
+	// Setup builds the project. Progress carries whatever the template wants to
+	// say while it works — composer's output above all, which is the difference
+	// between a dialog that looks stuck and one that is visibly working.
+	Setup func(sitesDir, name string, p *Progress) error
 }
 
 // Registry of available templates.
@@ -55,8 +56,14 @@ var Registry = []Template{
 	},
 }
 
-// Create sets up a new project from a template.
+// Create sets up a new project from a template, reporting progress to stdout.
 func Create(sitesDir, templateName, projectName string) error {
+	return create(sitesDir, templateName, projectName, NewProgress(os.Stdout))
+}
+
+// create is Create with an explicit progress stream: the dashboard passes one
+// that feeds its create job, so the dialog can show composer working.
+func create(sitesDir, templateName, projectName string, p *Progress) error {
 	// Validate project name (normalized to lowercase — site folders are
 	// addressed via lowercase hostnames)
 	projectName = strings.ToLower(strings.TrimSpace(projectName))
@@ -77,12 +84,12 @@ func Create(sitesDir, templateName, projectName string) error {
 		return fmt.Errorf("project already exists: %s", projectDir)
 	}
 
-	fmt.Printf("  📦  Creating %s project '%s'...\n", templateName, projectName)
-	if err := tmpl.Setup(sitesDir, projectName); err != nil {
+	p.Printf("  📦  Creating %s project '%s'...", templateName, projectName)
+	if err := tmpl.Setup(sitesDir, projectName, p); err != nil {
 		return err
 	}
-	fmt.Printf("  ✓  Project created at sites/%s/\n", projectName)
-	fmt.Printf("  ✦  Visit: http://%s.localhost/\n", projectName)
+	p.Printf("  ✓  Project created at sites/%s/", projectName)
+	p.Printf("  ✦  Visit: http://%s.localhost/", projectName)
 	return nil
 }
 
@@ -107,7 +114,7 @@ func findTemplate(name string) *Template {
 
 // --- Template implementations ---
 
-func setupBlank(sitesDir, name string) error {
+func setupBlank(sitesDir, name string, p *Progress) error {
 	dir := filepath.Join(sitesDir, name, "public")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
@@ -752,7 +759,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 </html>
 `
 
-func setupLaravel(sitesDir, name string) error {
+func setupLaravel(sitesDir, name string, p *Progress) error {
 	// We use composer create-project, then adjust the docroot.
 	// Laravel's public/ is the docroot, which matches Sabdopalon's convention.
 	if err := requireComposer(); err != nil {
@@ -762,28 +769,28 @@ func setupLaravel(sitesDir, name string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	fmt.Printf("  ⏳  Running composer create-project laravel/laravel...\n")
+	p.Printf("  ⏳  Running composer create-project laravel/laravel...")
 	// Run: composer create-project laravel/laravel <name> --prefer-dist
 	// in the sites dir
-	if err := runCommand(sitesDir, "composer", "create-project", "laravel/laravel", name, "--prefer-dist"); err != nil {
+	if err := p.Run(sitesDir, "composer", "create-project", "laravel/laravel", name, "--prefer-dist"); err != nil {
 		_ = os.RemoveAll(dir) // clean up the partial scaffold so a retry is possible
 		return fmt.Errorf("composer create-project failed: %w", err)
 	}
 	return nil
 }
 
-func setupWordPress(sitesDir, name string) error {
+func setupWordPress(sitesDir, name string, p *Progress) error {
 	dir := filepath.Join(sitesDir, name, "public")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	// Download WordPress using wp-cli if available, otherwise direct download
-	fmt.Printf("  ⏳  Downloading latest WordPress...\n")
+	p.Printf("  ⏳  Downloading latest WordPress...")
 	// Use the official tarball
-	if err := runCommand(dir, "curl", "-sL", "https://wordpress.org/latest.tar.gz", "-o", "wp.tar.gz"); err != nil {
+	if err := p.Run(dir, "curl", "-sL", "https://wordpress.org/latest.tar.gz", "-o", "wp.tar.gz"); err != nil {
 		return fmt.Errorf("download WordPress: %w", err)
 	}
-	if err := runCommand(dir, "tar", "xzf", "wp.tar.gz", "--strip-components=1"); err != nil {
+	if err := p.Run(dir, "tar", "xzf", "wp.tar.gz", "--strip-components=1"); err != nil {
 		return fmt.Errorf("extract WordPress: %w", err)
 	}
 	_ = os.Remove(filepath.Join(dir, "wp.tar.gz"))
@@ -807,7 +814,7 @@ func setupWordPress(sitesDir, name string) error {
 	return os.WriteFile(filepath.Join(dir, "wp-config.php"), []byte(config), 0o644)
 }
 
-func setupCodeIgniter(sitesDir, name string) error {
+func setupCodeIgniter(sitesDir, name string, p *Progress) error {
 	if err := requireComposer(); err != nil {
 		return err
 	}
@@ -815,36 +822,21 @@ func setupCodeIgniter(sitesDir, name string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	fmt.Printf("  ⏳  Running composer create-project codeigniter4/appstarter...\n")
-	if err := runCommand(sitesDir, "composer", "create-project", "codeigniter4/appstarter", name, "--prefer-dist"); err != nil {
+	p.Printf("  ⏳  Running composer create-project codeigniter4/appstarter...")
+	if err := p.Run(sitesDir, "composer", "create-project", "codeigniter4/appstarter", name, "--prefer-dist"); err != nil {
 		_ = os.RemoveAll(dir) // clean up the partial scaffold so a retry is possible
 		return fmt.Errorf("composer create-project failed: %w", err)
 	}
 	return nil
 }
 
-func runCommand(dir, name string, args ...string) error {
-	bin, err := resolveTool(name)
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command(bin, args...)
-	winproc.Quiet(cmd)
-	cmd.Dir = dir
-	// `composer create-project` shells out to `php`, so the child needs our bin/
-	// on PATH even when the process that launched Sabdopalon did not have it.
-	cmd.Env = childEnv()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-// requireComposer verifies that the composer executable is on PATH and returns
-// a clear, actionable error when it is missing. Templates that delegate project
+// requireComposer verifies that the composer executable can be found — with
+// Sabdopalon's own bin/ first, so a managed composer counts — and returns a
+// clear, actionable error when it is missing. Templates that delegate project
 // scaffolding to `composer create-project` call this up front so a missing
 // composer produces one helpful message instead of a raw exec error.
 func requireComposer() error {
-	if _, err := exec.LookPath("composer"); err != nil {
+	if _, err := resolveTool("composer"); err != nil {
 		return fmt.Errorf("composer is required but was not found on your PATH.\n" +
 			"Install Composer from https://getcomposer.org/download/ and retry.")
 	}

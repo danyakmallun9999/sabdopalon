@@ -11,7 +11,6 @@ import (
 
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
-	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
 )
 
@@ -69,8 +68,12 @@ type createSiteReq struct {
 	Testing  string `json:"testing"`
 }
 
-// createSite scaffolds a new project from a template
+// createSite starts scaffolding a new project from a template
 // {name, template, database, testing}.
+//
+// It returns as soon as the job is running: the build takes minutes (composer,
+// and npm for a starter kit), and the dialog watches it through
+// GET /api/sites/job instead of holding one request open.
 func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 	var req createSiteReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -82,22 +85,21 @@ func (s *Server) createSite(w http.ResponseWriter, r *http.Request) {
 		s.json(w, map[string]string{"error": "site name is required"})
 		return
 	}
+	// "job" is where the create job reports itself (GET /api/sites/job). A site
+	// with that name would shadow its own detail endpoint, so it is refused here
+	// rather than left to confuse someone later.
+	if req.Name == "job" {
+		s.json(w, map[string]string{"error": `"job" is reserved by the dashboard — choose another name`})
+		return
+	}
 	if req.Template == "" {
 		req.Template = "blank"
 	}
-	if err := templates.CreateWith(templates.Options{
-		SitesDir: s.cfg.Root,
-		Template: req.Template,
-		Name:     req.Name,
-		Database: req.Database,
-		Testing:  req.Testing,
-		Cfg:      s.cfg,
-	}); err != nil {
-		s.json(w, map[string]string{"error": err.Error()})
+	if msg := s.startSiteCreate(req.Name, req.Template, req.Database, req.Testing); msg != "" {
+		s.fail(w, http.StatusConflict, "%s", msg)
 		return
 	}
-	u, _ := s.siteURLs(req.Name)
-	s.json(w, map[string]any{"ok": true, "name": req.Name, "url": u})
+	s.json(w, map[string]any{"ok": true, "name": req.Name, "job": createJob.snapshot()})
 }
 
 // handleAPISiteAction dispatches POST/DELETE actions on one site:

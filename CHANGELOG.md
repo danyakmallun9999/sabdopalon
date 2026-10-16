@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.24] - 2026-10-16
+
+### Changed
+- **Creating a site shows the work instead of a frozen button.** Scaffolding a Laravel
+  project runs composer — and npm, for a starter kit — for minutes, and that used to
+  happen inside one HTTP request: the dialog said "Creating…" and nothing else, so
+  progress was indistinguishable from a hang, and a browser or proxy that gave up made
+  a healthy build look like an error. Creation is now a job:
+  - the dialog streams the build's own output — composer resolving packages, then
+    migrations and the Pest conversion — with the elapsed time beside it;
+  - it can be closed while the build continues ("Run in background"), and the toast and
+    the site list still follow it to the end;
+  - a failure keeps its log and its error message in the dialog, with "Try again";
+  - `GET /api/sites/job` reports the job, which is why `job` is refused as a site name:
+    that URL belongs to the endpoint, not to a site.
+
+  Underneath, every scaffold step now reports through one `templates.Progress` stream
+  rather than writing to the process's own stdout, so a command's output appears as it
+  arrives instead of after it exits.
+
 ## [0.11.23] - 2026-10-16
 
 ### Fixed

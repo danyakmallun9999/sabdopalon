@@ -45,8 +45,8 @@ func starterKitArgs(kit, name string) []string {
 }
 
 // setupStarterKit returns a Setup function that installs one Laravel starter kit.
-func setupStarterKit(kit string) func(sitesDir, name string) error {
-	return func(sitesDir, name string) error {
+func setupStarterKit(kit string) func(sitesDir, name string, p *Progress) error {
+	return func(sitesDir, name string, p *Progress) error {
 		if err := requireComposer(); err != nil {
 			return err
 		}
@@ -54,8 +54,8 @@ func setupStarterKit(kit string) func(sitesDir, name string) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		fmt.Printf("  ⏳  Running composer create-project %s ...\n", kit)
-		if err := runCommand(sitesDir, "composer", starterKitArgs(kit, name)...); err != nil {
+		p.Printf("  ⏳  Running composer create-project %s ...", kit)
+		if err := p.Run(sitesDir, "composer", starterKitArgs(kit, name)...); err != nil {
 			// Remove the partial scaffold so a retry is not blocked by it.
 			_ = os.RemoveAll(dir)
 			return fmt.Errorf("composer create-project %s failed: %w", kit, err)
