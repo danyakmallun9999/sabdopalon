@@ -1,15 +1,16 @@
-# Auto-update on Windows — design note (future work)
+# Auto-update on Windows — design note
 
-Status: **not implemented.** This records the analysis so the decision does not
-have to be redone. Nothing here changes behaviour today.
+Status: **implemented in 0.11.20; the pipeline that decides which path applies was
+fixed in 0.11.21** (see "What 0.11.21 fixed"). Checking and applying are always
+separate: the app may tell you a release exists, and never installs one on its own.
 
 ## The problem it solves
 
-Updating Sabdopalon currently means: open GitHub, download a 59 MB installer, run
-it, reopen the app. Reinstalling is already non-destructive — since 0.11.15 the
-program lives in `%LOCALAPPDATA%\Sabdopalon` and **data lives in
-`C:\sabdopalon`**, so sites, databases, config and certificates are untouched and
-the setup wizard does not run again. What remains is the manual download.
+Updating Sabdopalon used to mean: open GitHub, download a 59 MB installer, run it,
+reopen the app. Reinstalling is already non-destructive — since 0.11.15 the program
+lives in `%LOCALAPPDATA%\Sabdopalon` and **data lives in `C:\sabdopalon`**, so sites,
+databases, config and certificates are untouched and the setup wizard does not run
+again. What remained was the manual download.
 
 ## What the history says
 
@@ -28,9 +29,10 @@ changes to the desktop shell. The dashboard UI needs no separate channel: it is
 compiled into the Go binary (`//go:embed all:ui/dist`), so UI work rides along
 with the sidecar.
 
-## Recommended shape: one button, two paths
+## One button, two paths
 
-Both paths are chosen automatically, from what the release contains.
+Both paths are chosen automatically, from what the release contains. The About page
+says which one applies before anything is downloaded.
 
 **Path A — sidecar only (fast, no installer, ~10 seconds)**
 
@@ -48,48 +50,73 @@ Both paths are chosen automatically, from what the release contains.
 4. Launch the installer and **quit the app** (program files are locked while it
    runs), then relaunch.
 
-**How CI decides, without anyone tagging anything**
+## The contract between CI and the updater
+
+The asset **name** is the signal, and it is the only metadata that has to stay in
+step. `internal/dashboard/handlers_update.go` treats a release asset whose name
+contains `sidecar` as "only the Go program changed", and the installer path
+otherwise. The installer is then picked by name (`setup`) rather than by position,
+so a bare sidecar can never be run as an installer.
+
+CI decides with a git diff against the previous release tag:
 
 ```
 git diff --name-only <previous-tag> HEAD -- desktop/src-tauri
 ```
 
-Empty → publish the sidecar asset → clients offer the fast path.
-Non-empty → publish only the installer → clients offer the installer path.
+- **No changed file** → publish `sabdopalon-sidecar-x86_64-pc-windows-msvc.exe`
+  → clients offer the fast path.
+- **Any unchanged-from-version change** → publish only the installer → clients
+  offer the installer path.
+- **No previous tag visible** → installer only. Not being able to tell is not
+  permission to promise that only Go changed.
+- A changed line that is only a `version` line in `Cargo.toml`, `Cargo.lock` or
+  `tauri.conf.json` does **not** count: every release carries a new number, and
+  counting it made the fast path unreachable. `src/`, `capabilities/`, `icons/`
+  and `resources/` always count.
 
-The presence of the sidecar asset *is* the signal; no separate manifest is
-needed, and the hash is already available from GitHub's `digest` field.
+## What 0.11.21 fixed
+
+The fast path had never been reachable:
+
+- The workflow published the bare sidecar under its Tauri external-binary name
+  (`sabdopalon-x86_64-pc-windows-msvc.exe`), which does not contain the word the
+  updater looks for, so every release was offered as an installer update.
+- The version bump every release needs touches `Cargo.toml`, `Cargo.lock` and
+  `tauri.conf.json`, which the gate read as "the desktop shell changed".
+- The installer was selected as "the first `.exe` asset", which was correct only
+  because CI happened to upload the installer first.
+
+After a fast update the shell binary is still the older version while the sidecar
+is the new one: that is the intended shape, and the version handshake in
+`sidecar.rs` falls back to the only candidate — logging a `stale sidecar skipped`
+line for the previous number in `logs/sidecar.log`. It is expected, not a fault.
+The next release that touches Rust publishes the installer again, which restores
+shell and sidecar to the same version.
 
 ## Windows details that make it practical
 
-- **Per-user install** (`%LOCALAPPDATA%\Sabdopalon`) → **no UAC prompt** for a
-  silent update. This is what usually blocks unattended updates.
+- **Per-user install** (`%LOCALAPPDATA%\Sabdopalon`) → **no UAC prompt** for an
+  update. This is what usually blocks unattended updates.
 - **Separate data root** → the installer only replaces the program; sites,
   databases and config survive, and no setup runs.
 - **Brief interruption**: the app must exit, so MariaDB and the PHP workers stop
-  too. A relaunch brings them back (sites start on demand). Roughly 30–60
-  seconds.
-- **Relaunch**: the reliable trick is to spawn a detached
-  `cmd /c start /wait <installer> … && start <app>` so something outlives the app
-  and starts it again. The installer's own relaunch flag, if it has one, needs
-  verifying at implementation time.
-- **Silent/passive install**: the exact NSIS flags need verifying. Even a normal
-  installer window is far less work than the manual flow.
-- **Prefer a sidecar copy in the data root** (`<root>/bin/sabdopalon.exe`; the
-  shell already seeds the CLI there) so a swap never writes into the installed
-  program directory.
+  too. A relaunch brings them back (sites start on demand). Roughly 30–60 seconds.
+- **Relaunch**: a detached `cmd /c start /wait <installer> … && start <app>` so
+  something outlives the app and starts it again.
 
 ## Honest limitations
 
 - **Unsigned installer.** A freshly downloaded installer can raise SmartScreen
-  once, because Windows tags downloads with Mark of the Web. The app can clear
-  that tag after the hash matches, but the real fix is a code-signing
-  certificate — which is also what makes this feel seamless for anyone else.
+  once, because Windows tags downloads with Mark of the Web. The real fix is a
+  code-signing certificate.
 - **sha256 from the same source as the download** is TLS-bound. It protects
   against a truncated or corrupted download, not against a compromised origin.
   The cryptographically stronger option is Tauri's official updater
-  (`tauri-plugin-updater`, minisign signatures + `latest.json`), which is the
-  path to take if Sabdopalon is ever distributed to other people.
+  (`tauri-plugin-updater`, minisign signatures + `latest.json`); the signing key
+  is already in place, and the plugin was left out in 0.11.20 only because its
+  `ring` dependency does not build on the development machine. Adding it needs a
+  clean build first.
 - **Version skew**: a new sidecar must keep working with an older shell. The
   protocol is small (argv, environment, HTTP), so the risk is low — but shell
   changes should stay rare and additive, and the sidecar must not require a newer
