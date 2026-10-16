@@ -55,6 +55,13 @@ import { useLive } from "@/lib/live"
 
 type Tab = "overview" | "config" | "logs" | "devtools" | "terminal"
 
+// baseName returns the last segment of a path, on either separator: the PHP
+// binary arrives as a native path, so splitting on "/" alone left the whole
+// "C:\...\php.exe" string on screen on Windows.
+function baseName(p: string): string {
+  return p.split(/[\\/]/).filter(Boolean).pop() ?? p
+}
+
 // Persist the active tab per-site across route changes and reloads, so a
 // refresh returns to the same view instead of snapping to "Overview". The
 // key is per-site (namespaced by name) so each site remembers its own tab.
@@ -214,7 +221,8 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
     {
       icon: Server,
       title: "PHP",
-      value: detail.php.binary ? detail.php.binary.split("/").pop() ?? "PHP" : "default",
+      // basename of the resolved binary, on either separator
+      value: detail.php.binary ? baseName(detail.php.binary) : "default",
       sub: detail.php.version ?? "",
     },
     {
@@ -277,13 +285,13 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
       <PublicAccessCard name={detail.name} />
 
       {/* DevTools summary */}
-      {detail.devtools.filter((t) => t.running).length > 0 && (
+      {(detail.devtools ?? []).filter((t) => t.running).length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm"><Zap className="size-4" /> Running Dev Tools</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {detail.devtools.filter((t) => t.running).map((t) => (
+            {(detail.devtools ?? []).filter((t) => t.running).map((t) => (
               <div key={t.tool} className="flex items-center gap-2 text-sm">
                 <StatusDot status="running" />
                 <span className="font-medium">{t.label}</span>
@@ -503,6 +511,16 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
     }
   }
 
+  // A value can be stored and still not be in the list: a version that is not
+  // downloaded, a binary path that moved, or a hand-edited file. The select
+  // then falls back to its placeholder — which reads as "it went back to
+  // Default" and is exactly how a saved choice looked thrown away. Show what is
+  // actually in the file as its own entry instead.
+  const options =
+    cfg.php && !phpOptions.some((o) => o.value === cfg.php)
+      ? [...phpOptions, { value: cfg.php, label: `${cfg.php} (as configured)`, group: "General" }]
+      : phpOptions
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4 pb-6">
       <Card>
@@ -516,13 +534,16 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
               {["General", "Bundled", "System"].map((group) => (
                 <div key={group}>
                   <div className="text-muted-foreground px-2 py-1 text-xs font-medium">{group}</div>
-                  {phpOptions.filter((o) => o.group === group).map((o) => (
+                  {options.filter((o) => o.group === group).map((o) => (
                     <SelectItem key={o.value || "__default"} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </div>
               ))}
             </SelectContent>
           </Select>
+          <p className="text-muted-foreground mt-2 text-xs">
+            Written to <code>.sabdopalon.yml</code> in the site folder and used the next time the site starts.
+          </p>
         </CardContent>
       </Card>
 
@@ -597,19 +618,23 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
 
 /* ----------------------------------- Logs ---------------------------------- */
 
-function LogsTab({ name, sources }: { name: string; sources: string[] }) {
+function LogsTab({ name, sources }: { name: string; sources?: string[] | null }) {
+  // The API can legitimately answer with no log files yet (a site that has
+  // never run), and an older sidecar sent null for that — both used to reach
+  // .length here and take the page down.
+  const known = sources ?? []
   const [current, setCurrent] = useState<string>("")
   const [log, setLog] = useState<LogResponse | null>(null)
   const [auto, setAuto] = useState(true)
   const scrollRef = useRef<HTMLPreElement>(null)
 
   useEffect(() => {
-    if (sources.length > 0 && !sources.includes(current)) {
-      setCurrent(sources[0])
-    } else if (sources.length === 0 && current === "") {
+    if (known.length > 0 && !known.includes(current)) {
+      setCurrent(known[0])
+    } else if (known.length === 0 && current === "") {
       setCurrent("php")
     }
-  }, [sources, current])
+  }, [known, current])
 
   useEffect(() => {
     if (!current) return
@@ -630,7 +655,7 @@ function LogsTab({ name, sources }: { name: string; sources: string[] }) {
     <div className="flex flex-col gap-3 pb-6">
       <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap gap-1.5">
-          {(sources.length > 0 ? sources : ["php"]).map((src) => (
+          {(known.length > 0 ? known : ["php"]).map((src) => (
             <Button
               key={src}
               size="sm"
@@ -661,7 +686,7 @@ function LogsTab({ name, sources }: { name: string; sources: string[] }) {
 
 /* --------------------------------- DevTools -------------------------------- */
 
-function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolStatus[]; onChanged: () => void }) {
+function DevToolsTab({ name, tools, onChanged }: { name: string; tools?: DevToolStatus[] | null; onChanged: () => void }) {
   const [busyTool, setBusyTool] = useState<string | null>(null)
 
   async function toggleTool(tool: string, running: boolean) {
@@ -677,7 +702,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools: DevToolS
   }
 
   // Filter out tools that are "not applicable"
-  const applicable = tools.filter((t) => t.last_error !== "not applicable for this project")
+  const applicable = (tools ?? []).filter((t) => t.last_error !== "not applicable for this project")
 
   return (
     <div className="flex flex-col gap-4 pb-6">

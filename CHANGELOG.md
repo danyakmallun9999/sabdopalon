@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **A per-site PHP version now sticks.** Picking one in a site's Config tab wrote the
+  value into `.sabdopalon.yml` quoted and escaped, but the reader only stripped the
+  quotes, so a Windows binary path came back as `C:\\php84\\php.exe` instead of
+  `C:\php84\php.exe`. It then matched none of the PHP choices the dashboard offers, and
+  the site looked like it had gone back to the default PHP. Writing and reading now
+  agree; files already on disk from the old build are read correctly; and a value the
+  parser cannot round-trip is refused before it reaches the disk, where it used to be
+  written first and reported afterwards (leaving the damaged file in place).
+- **The Config tab says what is actually stored.** A saved value that is not in the
+  list - a version that is not downloaded, a path that moved, a hand-edited file - is
+  now offered as its own "as configured" entry. The select used to fall back to its
+  placeholder, which read as "it reverted to Default".
+- **Saving reports a PHP that cannot be resolved.** A version that is neither bundled
+  nor on PATH saves fine but makes the site refuse to start, so the reply carries that
+  warning instead of a bare success.
+- **`node:` and `database:` overrides in `.sabdopalon.yml` survive a save** from the
+  Config tab, which used to replace the whole file. A file this build cannot parse is
+  not overwritten at all: it is left alone with an explanation.
+- **The site page no longer breaks when there are no dev-tools or log files.** The API
+  sends empty lists rather than `null`, and the page tolerates a `null` from an older
+  sidecar. A JSON `null` there reached `.filter()` and took the whole page down.
+- The PHP card on a site's Overview shows the binary name rather than the whole Windows
+  path, together with the version that binary actually reports.
+- Stray Windows-1252 bytes left in this file by earlier edits are repaired, so it is
+  valid UTF-8 again.
+
 ## [0.11.20] - 2026-10-11
 
 ### Added
@@ -48,7 +75,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 ### Fixed
 - **The PostgreSQL terminal no longer hangs.** psql was launched without the
   directory holding libpq on its PATH, and Windows reports a missing DLL as a modal
-  dialog that leaves the process waiting forever — a session that never showed a
+  dialog that leaves the process waiting forever â€” a session that never showed a
   prompt. The client tools are now self-contained: the archive's DLLs are installed
   beside the executables (14 DLLs, 42.8 MB in total), so nothing depends on how the
   child's PATH was assembled. Verified with the server's directory removed from PATH
@@ -127,7 +154,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   - `exec.Command` searches the CURRENT process's PATH, not cmd.Env, so
     `php artisan migrate` failed with `exec: "php": executable file not found in
     %PATH%` even with the child's PATH fixed. Every tool is now resolved
-    explicitly, with bin/ first — which also means a Composer installed through
+    explicitly, with bin/ first â€” which also means a Composer installed through
     the Packages page takes precedence over an older system one.
 
 ## [0.11.16] - 2026-10-11
@@ -172,7 +199,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   always `~/sabdopalon`, which is one level deeper than the convention this is
   modelled on (`C:\laragon`, `C:\xampp`) and spends ~33 characters of the
   260-character path limit a process gets before the project name is even
-  appended — the limit `node_modules` trees run into. A new install therefore
+  appended â€” the limit `node_modules` trees run into. A new install therefore
   creates `C:\sabdopalon` when that volume root accepts a new folder and a new
   file, and falls back to `~/sabdopalon` when it does not (a hardened machine can
   withhold even the default "create folders" grant), so the app never fails to
@@ -182,7 +209,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   `~/Sabdopalon` or the old OS app-data folder is still used as-is, and
   `SABDOPALON_HOME` still overrides everything, so upgrading never strands a
   user's sites. To move an existing install, quit Sabdopalon and move the folder
-  to `C:\sabdopalon` — it is picked up there on the next start, with no setting
+  to `C:\sabdopalon` â€” it is picked up there on the next start, with no setting
   to change.
 
 ## [0.11.14] - 2026-10-11

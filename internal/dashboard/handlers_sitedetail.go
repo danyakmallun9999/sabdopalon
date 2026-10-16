@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sabdopalon/sabdopalon/internal/devtools"
+	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
 )
@@ -47,22 +48,33 @@ func (s *Server) handleAPISiteDetail(w http.ResponseWriter, name string) {
 	u, h := s.siteURLs(name)
 	framework := proxy.DetectFramework(siteDir)
 
-	// Resolve the active PHP binary path (per-site override or global).
+	// Resolve the PHP actually in play for this site: the per-site override
+	// when it resolves, otherwise the global default. The version travels with
+	// the binary so the page can say "PHP 8.4.11" instead of leaving the user to
+	// guess whether their choice took effect.
 	phpBin := ""
 	if s.cfg.PHP.Binary != "" {
 		phpBin = s.cfg.PHP.Binary
 	}
 	sc, _ := loadSiteConfig(s.cfg.Root, name)
 	if sc != nil && sc.PHP != "" {
-		// We don't re-resolve here (needs pkgmgr); the list endpoint already
-		// reports the configured string. Keep it simple.
-		phpBin = sc.PHP
+		if resolved, err := pkgmgr.ResolvePHP(s.cfg.BinDir(), sc.PHP); err == nil {
+			phpBin = resolved
+		} else {
+			// Keep the configured string so the page can still show what was
+			// asked for when the binary cannot be found.
+			phpBin = sc.PHP
+		}
 	}
 
-	// Available dev-tools for this site dir.
-	var tools []devtools.Status
+	// Available dev-tools for this site dir. Empty slices, never nil: a JSON
+	// null here arrived as null and the first .filter() on it took the whole
+	// site page down.
+	tools := []devtools.Status{}
 	if s.dt != nil {
-		tools = s.dt.Status(name)
+		if got := s.dt.Status(name); got != nil {
+			tools = got
+		}
 		// Annotate availability from the site dir.
 		avail := devtools.AvailableTools(siteDir)
 		availMap := map[string]bool{}
@@ -78,6 +90,14 @@ func (s *Server) handleAPISiteDetail(w http.ResponseWriter, name string) {
 
 	// Available log files.
 	logs := s.siteLogFiles(name)
+	if logs == nil {
+		logs = []string{}
+	}
+
+	phpVersion := ""
+	if phpBin != "" {
+		phpVersion = pkgmgr.PHPBinaryVersion(phpBin)
+	}
 
 	detail := SiteDetail{
 		Name:      name,
@@ -86,17 +106,25 @@ func (s *Server) handleAPISiteDetail(w http.ResponseWriter, name string) {
 		Dir:       siteDir,
 		Running:   s.proxy.IsRunning(name),
 		Framework: framework.String(),
-		PHP:       SiteDetailPHP{Binary: phpBin},
+		PHP:       SiteDetailPHP{Binary: phpBin, Version: phpVersion},
 		DevTools:  tools,
 		Logs:      logs,
 	}
 	if sc != nil {
+		aliases := sc.Aliases
+		if aliases == nil {
+			aliases = []string{}
+		}
+		env := sc.Env
+		if env == nil {
+			env = map[string]string{}
+		}
 		detail.Config = siteConfigPayload{
 			PHP:     sc.PHP,
 			PHPIni:  sc.PHPIni,
 			Docroot: sc.Docroot,
-			Aliases: sc.Aliases,
-			Env:     sc.Env,
+			Aliases: aliases,
+			Env:     env,
 			Running: detail.Running,
 		}
 	}

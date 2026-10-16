@@ -191,8 +191,10 @@ export type SiteDetail = {
     version?: string
   }
   config: SiteConfigPayload
-  devtools: DevToolStatus[]
-  logs: string[]
+  // Optional: an older sidecar answered with null for "no tools"/"no logs yet",
+  // so page code must not assume an array is present.
+  devtools?: DevToolStatus[] | null
+  logs?: string[] | null
 }
 
 export type TunnelStatus = "off" | "starting" | "online" | "error"
@@ -337,7 +339,7 @@ const api = {
   siteConfig: (name: string) =>
     request<SiteConfigPayload>(`/api/sites/${encodeURIComponent(name)}/config`),
   saveSiteConfig: (name: string, payload: SiteConfigPayload) =>
-    request<{ ok: boolean; message: string; restarted: boolean; error?: string }>(
+    request<{ ok: boolean; message: string; restarted: boolean; php?: string; warning?: string; error?: string }>(
       `/api/sites/${encodeURIComponent(name)}/config`,
       { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) },
     ),

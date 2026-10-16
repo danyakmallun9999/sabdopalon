@@ -1,6 +1,11 @@
 package siteconfig
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 const sample = `# per-site config
 php: "8.3"
@@ -74,5 +79,111 @@ func TestSaveLoadPHPIni(t *testing.T) {
 	}
 	if loaded.PHPIni != "php-custom.ini" {
 		t.Errorf("round-trip php_ini = %q, want %q", loaded.PHPIni, "php-custom.ini")
+	}
+}
+
+// TestRoundTripKeepsAwkwardValues is the regression test for the reported bug:
+// saving a per-site PHP binary (a Windows path, which contains a colon and
+// backslashes) came back as "C:\\php\\php.exe" — quoted and escaped on write,
+// only de-quoted on read. The dashboard then matched it against none of its
+// choices and showed the site as using the default PHP.
+func TestRoundTripKeepsAwkwardValues(t *testing.T) {
+	values := []string{
+		"8.4",
+		"8.4.11",
+		`C:\php\php.exe`,
+		`C:\Program Files\php\php.exe`,
+		`D:\tools\php 8.4\php.exe`,
+		`/usr/local/bin/php8.4`,
+		"php with #hash",
+		`say "hi"`,
+		"trailing space ",
+	}
+	for _, v := range values {
+		dir := t.TempDir()
+		sc := &SiteConfig{PHP: v, Env: map[string]string{}}
+		if err := Save(dir, "site", sc); err != nil {
+			t.Fatalf("Save(php=%q): %v", v, err)
+		}
+		back, err := Load(dir, "site")
+		if err != nil {
+			t.Fatalf("Load(php=%q): %v", v, err)
+		}
+		if back.PHP != v {
+			t.Errorf("php round-trip: wrote %q, read %q", v, back.PHP)
+		}
+	}
+}
+
+// TestRoundTripKeepsEveryField: the same guarantee for the other fields, which
+// share the escaping code — an alias with a colon, an env value with a hash and
+// quotes, a php_ini path.
+func TestRoundTripKeepsEveryField(t *testing.T) {
+	dir := t.TempDir()
+	sc := &SiteConfig{
+		PHP:      `C:\php84\php.exe`,
+		PHPIni:   `C:\sites\me\php.ini`,
+		Node:     "22.11.0",
+		Database: "postgresql",
+		Docroot:  "public",
+		Aliases:  []string{"www.example.test", "api.example.test:8080"},
+		Env:      map[string]string{"APP_URL": "http://x.test:8080", "GREETING": `say "hi" #now`},
+	}
+	if err := Save(dir, "me", sc); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	back, err := Load(dir, "me")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if back.PHP != sc.PHP || back.PHPIni != sc.PHPIni || back.Node != sc.Node ||
+		back.Database != sc.Database || back.Docroot != sc.Docroot {
+		t.Errorf("scalars round-trip:\n got %+v\nwant %+v", back, sc)
+	}
+	if strings.Join(back.Aliases, "|") != strings.Join(sc.Aliases, "|") {
+		t.Errorf("aliases = %v, want %v", back.Aliases, sc.Aliases)
+	}
+	for k, v := range sc.Env {
+		if back.Env[k] != v {
+			t.Errorf("env[%s] = %q, want %q", k, back.Env[k], v)
+		}
+	}
+}
+
+// TestLoadRepairsFileWrittenByTheOldEscaping: configs already on disk from the
+// broken build hold doubled backslashes inside quotes. Reading them with the
+// new unescaper recovers the path the user actually picked, so an existing
+// install heals on the next load instead of needing a hand edit.
+func TestLoadRepairsFileWrittenByTheOldEscaping(t *testing.T) {
+	dir := t.TempDir()
+	site := filepath.Join(dir, "legacy")
+	if err := os.MkdirAll(site, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const legacy = "# old file\nphp: \"C:\\\\php\\\\php.exe\"\n"
+	if err := os.WriteFile(filepath.Join(site, ".sabdopalon.yml"), []byte(legacy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sc, err := Load(dir, "legacy")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if sc.PHP != `C:\php\php.exe` {
+		t.Errorf("php = %q, want %q", sc.PHP, `C:\php\php.exe`)
+	}
+}
+
+// TestSaveWritesNothingWhenItCannotRoundTrip: a value the parser would mangle
+// must not reach the disk at all. A rejected name is the one failure path this
+// package has, and the file must not appear.
+func TestSaveWritesNothingWhenItCannotRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	sc := &SiteConfig{PHP: "8.4", Env: map[string]string{}}
+	if err := Save(dir, "../escape", sc); err == nil {
+		t.Fatal("expected an error for a traversing site name")
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 0 {
+		t.Errorf("nothing should have been written, found %v", entries)
 	}
 }

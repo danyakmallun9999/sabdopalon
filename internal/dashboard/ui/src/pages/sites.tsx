@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { Fragment, useEffect, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 import {
@@ -240,6 +240,15 @@ export default function SitesPage() {
       setSavingCfg(false)
     }
   }
+
+  // A value can be stored and still not be in the list: a version that is not
+  // downloaded, a binary path that moved, or a hand-edited file. The select
+  // then falls back to its placeholder, which reads as "it went back to
+  // Default" — show what is actually in the file as its own entry instead.
+  const phpChoices =
+    cfg.php && !phpOptions.some((o) => o.value === cfg.php)
+      ? [...phpOptions, { value: cfg.php, label: `${cfg.php} (as configured)`, group: "General" }]
+      : phpOptions
 
   async function copyHostsLine(alias: string) {
     await navigator.clipboard.writeText(`127.0.0.1 ${alias}`).catch(() => {})
@@ -772,18 +781,18 @@ export default function SitesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {["General", "Bundled", "System"].map((group) => (
-                    <>
-                      <div key={group} className="text-muted-foreground px-2 py-1 text-xs font-medium">
+                    <Fragment key={group}>
+                      <div className="text-muted-foreground px-2 py-1 text-xs font-medium">
                         {group}
                       </div>
-                      {phpOptions
+                      {phpChoices
                         .filter((o) => o.group === group)
                         .map((o) => (
                           <SelectItem key={o.value || "__default"} value={o.value}>
                             {o.label}
                           </SelectItem>
                         ))}
-                    </>
+                    </Fragment>
                   ))}
                 </SelectContent>
               </Select>

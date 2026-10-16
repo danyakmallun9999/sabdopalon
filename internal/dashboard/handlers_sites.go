@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/siteconfig"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 	"github.com/sabdopalon/sabdopalon/internal/vhost"
@@ -269,12 +270,31 @@ func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Reque
 	}
 	wasRunning := s.proxy.IsRunning(name)
 
+	// Start from what is already on disk: the Config tab edits php, php_ini,
+	// docroot, aliases and env, and a save used to replace the whole file, so a
+	// `node:` or `database:` override written by hand (or by an older build)
+	// disappeared the moment anything else was saved from the dashboard.
+	prev, err := siteconfig.Load(s.cfg.Root, name)
+	if err != nil {
+		// Refuse rather than overwrite: the file is the user's, and a config
+		// this build cannot read is not a licence to discard it.
+		s.json(w, map[string]string{
+			"error": "existing .sabdopalon.yml could not be read, so it was left untouched: " + err.Error(),
+		})
+		return
+	}
+	if prev == nil {
+		prev = &siteconfig.SiteConfig{Env: map[string]string{}}
+	}
+
 	clean := &siteconfig.SiteConfig{
-		PHP:     strings.TrimSpace(p.PHP),
-		PHPIni:  strings.TrimSpace(p.PHPIni),
-		Docroot: filepath.ToSlash(filepath.Clean("/" + strings.TrimSpace(p.Docroot)))[1:],
-		Aliases: make([]string, 0, len(p.Aliases)),
-		Env:     map[string]string{},
+		PHP:      strings.TrimSpace(p.PHP),
+		PHPIni:   strings.TrimSpace(p.PHPIni),
+		Node:     prev.Node,
+		Database: prev.Database,
+		Docroot:  filepath.ToSlash(filepath.Clean("/" + strings.TrimSpace(p.Docroot)))[1:],
+		Aliases:  make([]string, 0, len(p.Aliases)),
+		Env:      map[string]string{},
 	}
 	for _, a := range p.Aliases {
 		a = strings.ToLower(strings.TrimSpace(a))
@@ -295,6 +315,17 @@ func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Reque
 		return
 	}
 
+	// Verify the choice now, not on the next request. A PHP version that is
+	// neither bundled nor on PATH saves fine but makes the site refuse to
+	// start, and "saved" followed by a site that will not run is exactly the
+	// report this warning exists to prevent.
+	warning := ""
+	if clean.PHP != "" {
+		if _, err := pkgmgr.ResolvePHP(s.cfg.BinDir(), clean.PHP); err != nil {
+			warning = err.Error()
+		}
+	}
+
 	// Apply immediately.
 	s.proxy.RebuildAliases()
 	restarted := false
@@ -310,8 +341,18 @@ func (s *Server) putSiteConfig(w http.ResponseWriter, name string, r *http.Reque
 	} else if wasRunning {
 		msg += " Saved — but the restart failed; check the Logs page."
 	}
+	if warning != "" {
+		msg += " Warning: " + warning
+	}
 	u, _ := s.siteURLs(name)
-	s.json(w, map[string]any{"ok": true, "message": msg, "restarted": restarted, "url": u})
+	s.json(w, map[string]any{
+		"ok":        true,
+		"message":   msg,
+		"restarted": restarted,
+		"url":       u,
+		"php":       clean.PHP,
+		"warning":   warning,
+	})
 }
 
 // phpIniFile returns the absolute path to the per-site php.ini and whether it
