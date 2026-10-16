@@ -15,6 +15,13 @@ func TestSimplifiedRealComposerOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("fixture: %v", err)
 	}
+	// The fixture is stored with -text in .gitattributes on purpose: Windows tools
+	// terminate lines with CRLF, and a filter that only ever saw LF would look
+	// correct while mangling every line of a real run. Catch a checkout that
+	// normalised it away.
+	if !strings.Contains(string(raw), "\r\n") {
+		t.Fatal("the fixture lost its CRLF terminators — check .gitattributes (testdata/*.log must stay -text)")
+	}
 
 	var log createLog
 	// Fed in awkward chunks on purpose: a child process does not deliver lines,

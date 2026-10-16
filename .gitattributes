@@ -1,0 +1,8 @@
+# Captured output, stored verbatim.
+#
+# internal/dashboard/testdata/create-laravel.log is byte-for-byte what composer and
+# artisan wrote on Windows — CRLF terminators included. Those terminators are part
+# of what the log filter has to handle, so Git must not normalise them away: with
+# core.autocrlf=input (this repository's setting on Windows) every CR disappeared
+# from the committed blob, which silently weakened the test that reads it.
+internal/dashboard/testdata/*.log -text
