@@ -272,14 +272,35 @@ func payloadFromRelease(rel releaseResponse, current string) updatePayload {
 		}
 	}
 	if out.Kind == "installer" {
-		for _, a := range rel.Assets {
-			if strings.HasSuffix(strings.ToLower(a.Name), ".exe") {
-				out.Size = a.Size
-				out.AssetURL = a.BrowserDownloadURL
-				out.AssetDigest = a.Digest
-				out.AssetName = a.Name
+		// Name the installer explicitly instead of taking the first .exe. The old
+		// rule only worked because CI happened to upload the installer first; a
+		// release whose assets arrive in another order would have downloaded the
+		// bare sidecar and run an 11 MB program as a 59 MB installer. A .exe whose
+		// name says "setup" is an installer, one that says "sidecar" is not, and
+		// anything else is a last resort rather than a guess.
+		idx := -1
+		for i, a := range rel.Assets {
+			name := strings.ToLower(a.Name)
+			if strings.HasSuffix(name, ".exe") && strings.Contains(name, "setup") {
+				idx = i
 				break
 			}
+		}
+		if idx < 0 {
+			for i, a := range rel.Assets {
+				name := strings.ToLower(a.Name)
+				if strings.HasSuffix(name, ".exe") && !strings.Contains(name, "sidecar") {
+					idx = i
+					break
+				}
+			}
+		}
+		if idx >= 0 {
+			a := rel.Assets[idx]
+			out.Size = a.Size
+			out.AssetURL = a.BrowserDownloadURL
+			out.AssetDigest = a.Digest
+			out.AssetName = a.Name
 		}
 	}
 	return out

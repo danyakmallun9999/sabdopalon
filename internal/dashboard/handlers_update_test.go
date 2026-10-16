@@ -3,6 +3,7 @@ package dashboard
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -151,6 +152,36 @@ func TestCheckForUpdateInstallerPath(t *testing.T) {
 	got := checkForUpdate("0.11.19")
 	if got.Kind != "installer" {
 		t.Errorf("kind = %q, want installer", got.Kind)
+	}
+	if got.Size != 59 {
+		t.Errorf("size = %d, want the installer's 59", got.Size)
+	}
+}
+
+// TestInstallerIsChosenByNameNotByPosition: the installer path must not depend on
+// the order GitHub lists assets in. A release that carries the bare sidecar under a
+// name without the word "sidecar" — which is exactly what the release workflow used
+// to publish — would have had that 11 MB program run as the installer.
+func TestInstallerIsChosenByNameNotByPosition(t *testing.T) {
+	const body = `{
+	  "tag_name": "v0.99.2",
+	  "assets": [
+	    {"name": "sabdopalon-x86_64-pc-windows-msvc.exe", "size": 11, "digest": "sha256:ee", "browser_download_url": "https://example.test/bare"},
+	    {"name": "Sabdopalon_0.99.2_x64-setup.exe", "size": 59, "digest": "sha256:ff", "browser_download_url": "https://example.test/setup"},
+	    {"name": "Sabdopalon_0.99.2_x64-setup.exe.sig", "size": 1, "digest": "", "browser_download_url": "https://example.test/sig"}
+	  ]
+	}`
+	var rel releaseResponse
+	if err := json.Unmarshal([]byte(body), &rel); err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+
+	got := payloadFromRelease(rel, "0.11.19")
+	if got.Kind != "installer" {
+		t.Fatalf("kind = %q, want installer", got.Kind)
+	}
+	if got.AssetName != "Sabdopalon_0.99.2_x64-setup.exe" {
+		t.Errorf("asset = %q, want the setup executable", got.AssetName)
 	}
 	if got.Size != 59 {
 		t.Errorf("size = %d, want the installer's 59", got.Size)

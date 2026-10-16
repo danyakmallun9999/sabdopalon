@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.21] - 2026-10-16
+
 ### Fixed
 - **A per-site PHP version now sticks.** Picking one in a site's Config tab wrote the
   value into `.sabdopalon.yml` quoted and escaped, but the reader only stripped the
@@ -32,7 +34,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 - Stray Windows-1252 bytes left in this file by earlier edits are repaired, so it is
   valid UTF-8 again.
 
+### Fixed (updates)
+- **The in-place update path can be offered again.** The updater reads the presence of an
+  asset whose name says *sidecar* as "only the Go program changed, replace it in about
+  ten seconds". The workflow published that binary under its Tauri external-binary name
+  (`sabdopalon-x86_64-pc-windows-msvc.exe`), which never says it, so every release was
+  offered as a full installer update and the fast path could not trigger at all. It is
+  now published as `sabdopalon-sidecar-x86_64-pc-windows-msvc.exe`.
+- **A version bump is no longer mistaken for a shell change.** Every release carries the
+  new number in `Cargo.toml`, `Cargo.lock` and `tauri.conf.json`; counting those files as
+  "the desktop shell changed" is what made every release installer-only. A file now only
+  counts when some changed line is not a version line — `src/`, `capabilities/`, `icons/`
+  and `resources/` still count unconditionally.
+- **The installer is chosen by name, not by upload order.** The updater used to take the
+  first `.exe` asset, which was correct only because CI happened to upload the installer
+  first; a release listing a bare sidecar ahead of it would have run an 11 MB program as
+  a 59 MB installer. A name containing `setup` wins, a name containing `sidecar` is never
+  an installer, and anything else is a last resort.
+
 ## [0.11.20] - 2026-10-11
+
 
 ### Added
 - **An About page** that answers what this installation is, what it does to your machine,

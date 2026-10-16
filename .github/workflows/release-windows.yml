@@ -252,9 +252,25 @@ jobs:
           fi
           if [ -n "$prev" ]; then
             changed=$(git diff --name-only "$prev" "$GITHUB_SHA" -- desktop/src-tauri | grep -v '^target/' || true)
-            if [ -n "$changed" ]; then
+            # A version bump is not a shell change. Every release has to carry the new
+            # number in Cargo.toml, Cargo.lock and tauri.conf.json, and counting those
+            # as "the shell changed" made every release installer-only — which is how
+            # the fast path ended up unreachable. A file therefore only counts when
+            # some changed line is not a version line; src/, capabilities/, icons/ and
+            # resources/ still count unconditionally, and target/ never does.
+            real=""
+            for f in $changed; do
+              case "$f" in
+                desktop/src-tauri/Cargo.toml|desktop/src-tauri/Cargo.lock|desktop/src-tauri/tauri.conf.json)
+                  other=$(git diff -U0 "$prev" "$GITHUB_SHA" -- "$f" | grep -E '^[-+][^-+]' | grep -v 'version' || true)
+                  if [ -n "$other" ]; then real="$real$f"$'\n'; fi
+                  ;;
+                *) real="$real$f"$'\n' ;;
+              esac
+            done
+            if [ -n "$real" ]; then
               echo "Desktop shell changed since $prev — installer only:"
-              echo "$changed"
+              printf '%s' "$real"
               echo "kind=installer" >> "$GITHUB_OUTPUT"
               sig=$(find desktop/src-tauri/target -path '*bundle/nsis/*-setup.exe.sig' -type f -print -quit 2>/dev/null || true)
               {
@@ -265,13 +281,20 @@ jobs:
               } >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "Desktop shell unchanged since $prev — publishing the sidecar asset too."
+            echo "Only version strings changed under desktop/src-tauri since $prev — publishing the sidecar asset too."
           fi
 
           case "$sidecar" in
             /?*) echo "::error::refusing an absolute path for action-gh-release: $sidecar"; exit 1 ;;
           esac
-          ls -lh "$sidecar"
+          # The asset NAME is the signal the updater reads: a name containing "sidecar"
+          # means "only the Go program changed, apply in place". Publishing it under its
+          # Tauri external-binary name (sabdopalon-x86_64-pc-windows-msvc.exe) never said
+          # that, so the fast path could not trigger and every update took the installer
+          # route. Name it for what it is.
+          publish="desktop/sabdopalon-sidecar-x86_64-pc-windows-msvc.exe"
+          cp "$sidecar" "$publish"
+          ls -lh "$sidecar" "$publish"
           echo "kind=sidecar" >> "$GITHUB_OUTPUT"
           # The installer's signature travels with it: a signed artifact nobody can fetch
           # proves nothing. It exists only when the build was given a signing key.
@@ -279,7 +302,7 @@ jobs:
           {
             echo "files<<EOF"
             echo "$installer"
-            echo "$sidecar"
+            echo "$publish"
             if [ -n "$sig" ]; then echo "$sig"; fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
