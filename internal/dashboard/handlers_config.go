@@ -82,12 +82,21 @@ func (s *Server) statusSnapshot() map[string]any {
 }
 
 // handleAPISystemPHP lists PHP CLIs found on the host (outside bin/).
+//
+// The answer is always a JSON array, never null. A machine with no system PHP is
+// the normal case, and the nil slice this used to marshal as `null` made the
+// dashboard's PHP dropdown empty: the page ran `.forEach` on the answer, threw,
+// and the surrounding catch swallowed it — so every PHP choice disappeared, which
+// reads as "there is no way to change the PHP version".
 func (s *Server) handleAPISystemPHP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.methodNotAllowed(w, "GET")
 		return
 	}
 	cands := pkgmgr.SystemPHPCandidates()
+	if cands == nil {
+		cands = []pkgmgr.SystemPHP{}
+	}
 	for i := range cands {
 		cands[i].Active = samePathLocal(cands[i].Path, s.cfg.PHP.Binary)
 	}

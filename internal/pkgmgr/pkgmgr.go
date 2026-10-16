@@ -1226,7 +1226,9 @@ func SystemPHPCandidates() []SystemPHP {
 	}
 	pattern := regexp.MustCompile(`^php(\d+\.\d+)?` + regexp.QuoteMeta(ext) + `$`)
 
-	var out []SystemPHP
+	// An empty slice, not nil: this value is served as JSON, where nil becomes
+	// `null` and a caller iterating the answer throws instead of seeing "none".
+	out := []SystemPHP{}
 	collect := func(dir string) {
 		matches, _ := filepath.Glob(filepath.Join(dir, name))
 		for _, suffixGlob := range []string{"php8.*", "php7.*"} {

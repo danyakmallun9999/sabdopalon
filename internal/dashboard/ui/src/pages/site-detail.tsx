@@ -478,25 +478,61 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
   const { status } = useLive()
   const [cfg, setCfg] = useState<SiteConfigPayload>(config)
   const [phpOptions, setPhpOptions] = useState<{ value: string; label: string; group: string }[]>([])
+  const [optionsError, setOptionsError] = useState("")
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     setCfg(config)
   }, [config])
 
+  // The three groups are built from two requests, and the list is published even
+  // when they fail. It used to be set once, at the end of a promise chain, with
+  // the error swallowed: a sidecar that answered `null` for the system-PHP list
+  // (a machine with no system PHP is normal) made `.forEach` throw, `setPhpOptions`
+  // never ran, and the select showed three empty group headings — which reads as
+  // "there is no way to choose a PHP version at all".
   useEffect(() => {
     const opts: { value: string; label: string; group: string }[] = [
       { value: "", label: `Default (${status?.php_version ?? "system-first"})`, group: "General" },
     ]
-    Promise.all([api.listPackages(), api.systemPHPs()])
-      .then(([pkgs, sys]) => {
-        pkgs.filter((p) => p.is_php).forEach((p) =>
-          opts.push({ value: p.short, label: `${p.short}${p.installed ? "" : " (not downloaded)"}`, group: "Bundled" }),
-        )
-        sys.forEach((c) => opts.push({ value: c.path, label: `${c.version} — ${c.path}`, group: "System" }))
-        setPhpOptions(opts)
-      })
-      .catch(() => {})
+    let cancelled = false
+    void (async () => {
+      const problems: string[] = []
+      try {
+        const pkgs = await api.listPackages()
+        if (Array.isArray(pkgs)) {
+          pkgs
+            .filter((p) => p.is_php)
+            .forEach((p) =>
+              opts.push({ value: p.short, label: `${p.short}${p.installed ? "" : " (not downloaded)"}`, group: "Bundled" }),
+            )
+        } else {
+          problems.push("the bundled list")
+        }
+      } catch {
+        problems.push("the bundled list")
+      }
+      try {
+        const sys = await api.systemPHPs()
+        if (Array.isArray(sys)) {
+          sys.forEach((c) => opts.push({ value: c.path, label: `${c.version} — ${c.path}`, group: "System" }))
+        } else {
+          problems.push("the system PHP list")
+        }
+      } catch {
+        problems.push("the system PHP list")
+      }
+      if (cancelled) return
+      setPhpOptions(opts)
+      setOptionsError(
+        problems.length
+          ? `Could not read ${problems.join(" and ")} — reload the page to try again.`
+          : "",
+      )
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [status?.php_version])
 
   async function save() {
@@ -544,6 +580,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
           <p className="text-muted-foreground mt-2 text-xs">
             Written to <code>.sabdopalon.yml</code> in the site folder and used the next time the site starts.
           </p>
+          {optionsError ? <p className="text-destructive mt-1 text-xs">{optionsError}</p> : null}
         </CardContent>
       </Card>
 

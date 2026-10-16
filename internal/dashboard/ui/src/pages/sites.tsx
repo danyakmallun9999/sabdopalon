@@ -204,13 +204,21 @@ export default function SitesPage() {
     ]
     try {
       const pkgs = await api.listPackages()
-      pkgs.filter((p) => p.is_php).forEach((p) =>
-        opts.push({ value: p.short, label: `${p.short}${p.installed ? "" : " (not downloaded)"}`, group: "Bundled" }),
-      )
+      // Array.isArray, not a bare .filter: a failed or older sidecar can answer
+      // with an error object or `null` (a machine with no system PHP is a normal
+      // answer), and a throw here left the select showing nothing but its group
+      // headings — which reads as "there is no way to choose a PHP version".
+      if (Array.isArray(pkgs)) {
+        pkgs
+          .filter((p) => p.is_php)
+          .forEach((p) => opts.push({ value: p.short, label: `${p.short}${p.installed ? "" : " (not downloaded)"}`, group: "Bundled" }))
+      }
       const sys = await api.systemPHPs()
-      sys.forEach((c) => opts.push({ value: c.path, label: `${c.version} — ${c.path}`, group: "System" }))
+      if (Array.isArray(sys)) {
+        sys.forEach((c) => opts.push({ value: c.path, label: `${c.version} — ${c.path}`, group: "System" }))
+      }
     } catch {
-      /* options stay partial */
+      /* the default entry is still offered */
     }
     setPhpOptions(opts)
 

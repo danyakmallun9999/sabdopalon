@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.23] - 2026-10-16
+
+### Fixed
+- **The PHP version dropdown offers every installed version again.** The list was
+  built from `/api/php/system`, which answered `null` — not `[]` — on a machine with
+  no system PHP, which is the ordinary case. The page ran `.forEach` on that answer,
+  the call threw inside a promise, and the surrounding `catch` swallowed it, so
+  `setPhpOptions` never ran and the select showed nothing but its "General",
+  "Bundled" and "System" headings. With every PHP downloaded (8.1 … 8.5) there was
+  still no way to pick one. The endpoint now always answers an array, both dropdowns
+  build their list even when a request fails, and a failure is shown instead of
+  hidden.
+- **A list endpoint can no longer answer `null`.** A Go nil slice marshals as JSON
+  `null`, and every page that iterates such an answer throws. This is the second
+  screen the same mistake emptied (`/api/sites/<name>` did it for dev-tools and
+  logs); a test now checks each list endpoint on the dashboard for it.
+
 ## [0.11.22] - 2026-10-16
 
 ### Fixed

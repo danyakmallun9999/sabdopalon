@@ -357,7 +357,10 @@ const api = {
     ),
 
   listPackages: () => request<Package[]>("/api/packages"),
-  systemPHPs: () => request<SystemPHP[]>("/api/php/system"),
+  // null, not just [], is possible from a sidecar built before the list was made
+  // to marshal as an array: consuming it with .forEach threw and emptied the PHP
+  // version dropdown.
+  systemPHPs: () => request<SystemPHP[] | null>("/api/php/system"),
   installPackage: (name: string) =>
     post<{ ok: boolean; message?: string; error?: string }>("/api/packages/install", { name }),
   installJob: () => request<InstallJob>("/api/packages/job"),
