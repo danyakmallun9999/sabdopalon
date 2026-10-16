@@ -313,9 +313,12 @@ export default function SitesPage() {
   }, [createState?.done, createState?.running])
 
   // Opening the dialog should show a job that is already running — after a page
-  // reload, or after the dialog was closed and reopened.
+  // reload, or after the dialog was closed and reopened. A finished job from last
+  // time is history, not state: without clearing it, "New Site" would reopen on the
+  // previous result and offer nothing but Close.
   async function openCreate() {
     setOpen(true)
+    setCreateState((s) => (s && !s.running ? null : s))
     try {
       const j = await api.createJob()
       if (j.running) {
@@ -769,7 +772,11 @@ export default function SitesPage() {
                       <Button variant="outline" onClick={() => setCreateState(null)}>
                         Try again
                       </Button>
-                    ) : null}
+                    ) : (
+                      <Button variant="outline" onClick={() => setCreateState(null)}>
+                        Create another
+                      </Button>
+                    )}
                     <Button onClick={() => setOpen(false)}>Close</Button>
                   </>
                 ) : (

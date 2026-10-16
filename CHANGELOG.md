@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.25] - 2026-10-16
+
+### Fixed
+- **The new-site dialog can be used twice.** After a successful create the dialog keeps
+  the finished job on screen — that log is the point of 0.11.24 — but it then opened on
+  that result every time, offering nothing but "Close": with no way back to the form,
+  the only escape was reloading the page. Opening the dialog now clears a finished job
+  (a running one is still re-attached, which is what makes "Run in background" safe),
+  and the success state has a "Create another" button beside "Close".
+
 ## [0.11.24] - 2026-10-16
 
 ### Changed
