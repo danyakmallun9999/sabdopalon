@@ -60,10 +60,17 @@ func TestBundledToolsAreFoundWithoutPATH(t *testing.T) {
 	if got == "" || !strings.HasPrefix(got, bin) {
 		t.Fatalf("bundledPath(composer) = %q, want a path inside %s", got, bin)
 	}
-	// Node and npm: the shims EnsureShims just wrote are the reachable artifact.
-	for _, name := range []string{"node", "npm", "npx"} {
-		if got := bundledPath(name); got == "" {
-			t.Errorf("bundledPath(%s) = \"\", want the launcher in bin/", name)
+	// Node and npm are reached through the launchers EnsureShims writes - on
+	// Windows. EnsureShims is deliberately a no-op on Unix (shim_unix.go: there
+	// is no single PATH entry for launchers to serve), so requiring one there
+	// fails CI over a documented design decision rather than a defect. This is
+	// exactly how it failed: v0.11.29 and v0.11.30 both went red on
+	// ubuntu-latest and macos-latest while the installers built fine.
+	if runtime.GOOS == "windows" {
+		for _, name := range []string{"node", "npm", "npx"} {
+			if got := bundledPath(name); got == "" {
+				t.Errorf("bundledPath(%s) = \"\", want the launcher in bin/", name)
+			}
 		}
 	}
 	if got := bundledPath("nothing-here"); got != "" {
@@ -81,8 +88,10 @@ func TestBundledToolsAreFoundWithoutPATH(t *testing.T) {
 
 	// Without the launcher, the phar alone must still be found and still be
 	// reported as the pinned version — no PHP process, no PATH lookup.
-	if err := os.Remove(filepath.Join(bin, "composer.cmd")); err != nil && runtime.GOOS == "windows" {
-		t.Fatal(err)
+	if runtime.GOOS == "windows" {
+		if err := os.Remove(filepath.Join(bin, "composer.cmd")); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if got := bundledPath("composer"); got != filepath.Join(bin, "composer.phar") {
 		t.Errorf("bundledPath(composer) = %q, want the shipped phar", got)
