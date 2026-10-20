@@ -6,7 +6,9 @@ import api, { type ConfigPayload as Config, type Profile, type PhpIni } from "@/
 import { Button } from "@/components/ui/button"
 import {
   Card,
+  CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -71,71 +73,109 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-4 px-4 lg:px-6">
+      {/*
+        One card, one form, one button.
+
+        The TLD, the fallback ports, the dashboard port/auto-open and the LAN
+        switch are all fields of the same ConfigPayload, and a single save()
+        writes all of them. Splitting them across three cards made the button
+        look like it belonged to whichever card happened to hold it (Dashboard),
+        while the LAN switch sat below that button and looked like it saved
+        itself. One card with the button in its footer is what the code does.
+      */}
       <Card>
         <CardHeader>
           <CardTitle>General</CardTitle>
           <CardDescription>
-            Stored in config/engine.toml. Port/TLD/database changes apply after a restart.
+            Stored in config/engine.toml. Port, TLD and database changes apply after a restart.
           </CardDescription>
-          <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="tld">Domain suffix (TLD)</Label>
-              <Input id="tld" value={cfg.tld ?? ""} onChange={(e) => set("tld", e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="http">HTTP port (fallback)</Label>
-              <Input
-                id="http"
-                type="number"
-                value={cfg.http_port ?? ""}
-                onChange={(e) => set("http_port", Number(e.target.value))}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="https">HTTPS port (fallback)</Label>
-              <Input
-                id="https"
-                type="number"
-                value={cfg.https_port ?? ""}
-                onChange={(e) => set("https_port", Number(e.target.value))}
-              />
-            </div>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Sabdopalon automatically tries ports 80/443 for clean URLs first — these are fallbacks.
-            Enable permanently: <code>sabdopalon enable-ports</code>.
-          </p>
         </CardHeader>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Dashboard</CardTitle>
-          <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="dashport">Dashboard port</Label>
-              <Input
-                id="dashport"
-                type="number"
-                value={cfg.dashboard_port ?? ""}
-                onChange={(e) => set("dashboard_port", Number(e.target.value))}
-              />
+        <CardContent className="flex flex-col gap-6">
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold">Domain and ports</h3>
+            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="tld">Domain suffix (TLD)</Label>
+                <Input id="tld" value={cfg.tld ?? ""} onChange={(e) => set("tld", e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="http">HTTP port (fallback)</Label>
+                <Input
+                  id="http"
+                  type="number"
+                  value={cfg.http_port ?? ""}
+                  onChange={(e) => set("http_port", Number(e.target.value))}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="https">HTTPS port (fallback)</Label>
+                <Input
+                  id="https"
+                  type="number"
+                  value={cfg.https_port ?? ""}
+                  onChange={(e) => set("https_port", Number(e.target.value))}
+                />
+              </div>
             </div>
-            <div className="flex flex-row items-center justify-between rounded-lg border p-3">
-              <Label htmlFor="autoopen" className="font-normal">
-                Open dashboard on start
-              </Label>
+            <p className="text-muted-foreground text-xs">
+              Sabdopalon automatically tries ports 80/443 for clean URLs first; these are fallbacks.
+              Enable permanently: <code>sabdopalon enable-ports</code>.
+            </p>
+          </section>
+
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold">Dashboard</h3>
+            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="dashport">Dashboard port</Label>
+                <Input
+                  id="dashport"
+                  type="number"
+                  value={cfg.dashboard_port ?? ""}
+                  onChange={(e) => set("dashboard_port", Number(e.target.value))}
+                />
+              </div>
+              <div className="flex flex-row items-center justify-between rounded-lg border p-3">
+                <Label htmlFor="autoopen" className="font-normal">
+                  Open dashboard on start
+                </Label>
+                <Switch
+                  id="autoopen"
+                  checked={!!cfg.auto_open}
+                  onCheckedChange={(v) => set("auto_open", v)}
+                />
+              </div>
+            </div>
+          </section>
+
+          {/* Security: PHP sites execute code, so LAN access must be opt-in. */}
+          <section className="flex flex-col gap-3">
+            <h3 className="text-sm font-semibold">Network access</h3>
+            <div className="flex flex-row items-center justify-between gap-4 rounded-lg border p-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="lan" className="font-normal">
+                  Allow other devices on the network to open your sites
+                </Label>
+                <p className="text-muted-foreground text-xs">
+                  Exposes the proxy ports above to your network; only enable this on a Wi-Fi you
+                  trust. Applies after restart.
+                </p>
+              </div>
               <Switch
-                id="autoopen"
-                checked={!!cfg.auto_open}
-                onCheckedChange={(v) => set("auto_open", v)}
+                id="lan"
+                checked={!!cfg.lan}
+                onCheckedChange={(v) => set("lan", v)}
               />
             </div>
-          </div>
-          <Button className="mt-3 w-fit" onClick={save} disabled={saving}>
+          </section>
+        </CardContent>
+
+        <CardFooter className="justify-end border-t pt-4">
+          <Button onClick={save} disabled={saving}>
             <Save /> Save settings
           </Button>
-        </CardHeader>
+        </CardFooter>
       </Card>
 
       <Card>
@@ -164,29 +204,6 @@ export default function SettingsPage() {
             <span className="text-muted-foreground text-xs">
               Saving will restart running sites.
             </span>
-          </div>
-        </CardHeader>
-      </Card>
-
-      {/* Security: PHP sites execute code — LAN access must be opt-in */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Network access (LAN)</CardTitle>
-          <div className="mt-2 flex flex-row items-center justify-between gap-4 rounded-lg border p-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="lan" className="font-normal">
-                Allow other devices on the network to open your sites
-              </Label>
-              <p className="text-muted-foreground text-xs">
-                Exposes ports 8080/8443 to your network — only enable this on a
-                Wi-Fi you trust. Applies after restart.
-              </p>
-            </div>
-            <Switch
-              id="lan"
-              checked={!!cfg.lan}
-              onCheckedChange={(v) => set("lan", v)}
-            />
           </div>
         </CardHeader>
       </Card>
