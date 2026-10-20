@@ -224,20 +224,50 @@ function LogDialog({
   )
 }
 
+// Last known dashboard state, kept outside the component.
+//
+// Switching tabs unmounts this page, so every return used to start from
+// `setup = null` and refetch: the render fell into the skeleton branch below for
+// the length of one round trip to /api/setup/status. That is the flash of
+// skeleton seen when moving to Dashboard and back, and it happened even though
+// nothing had changed and the data had been on screen a second earlier.
+//
+// Holding the snapshot at module scope makes a revisit render what was already
+// known while the refresh runs in the background. The skeleton is then reserved
+// for what it was meant for: the first load of the session, when there is
+// genuinely nothing to show.
+type DashboardSnapshot = {
+  setup: SetupStatus | null
+  services: ServiceStatus[]
+  traffic: TrafficPoint[]
+  trafficTotal: number
+  history: { t: number; running: number; enabled: number }[]
+  setupDone: boolean
+}
+
+let dashboardSnapshot: DashboardSnapshot | null = null
 export default function DashboardPage() {
   const navigate = useNavigate()
   const { status } = useLive()
-  const [setup, setSetup] = useState<SetupStatus | null>(null)
-  const [services, setServices] = useState<ServiceStatus[]>([])
-  const [traffic, setTraffic] = useState<TrafficPoint[]>([])
-  const [trafficTotal, setTrafficTotal] = useState(0)
+  const [setup, setSetup] = useState<SetupStatus | null>(dashboardSnapshot?.setup ?? null)
+  const [services, setServices] = useState<ServiceStatus[]>(dashboardSnapshot?.services ?? [])
+  const [traffic, setTraffic] = useState<TrafficPoint[]>(dashboardSnapshot?.traffic ?? [])
+  const [trafficTotal, setTrafficTotal] = useState(dashboardSnapshot?.trafficTotal ?? 0)
   const [busy, setBusy] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [logFor, setLogFor] = useState<string | null>(null)
   const [dbBusy, setDbBusy] = useState<string | null>(null)
-  const [serviceHistory, setServiceHistory] = useState<{ t: number; running: number; enabled: number }[]>([])
-  const [setupDone, setSetupDone] = useState(false)
+  const [serviceHistory, setServiceHistory] = useState<{ t: number; running: number; enabled: number }[]>(
+    dashboardSnapshot?.history ?? [],
+  )
+  const [setupDone, setSetupDone] = useState(dashboardSnapshot?.setupDone ?? false)
 
+  // Mirror the current state into the module-level snapshot. Written on every
+  // change rather than on unmount, because a tab switch can unmount this page
+  // without running a cleanup here (and a cleanup would capture stale values).
+  useEffect(() => {
+    dashboardSnapshot = { setup, services, traffic, trafficTotal, history: serviceHistory, setupDone }
+  }, [setup, services, traffic, trafficTotal, serviceHistory, setupDone])
   // Mounted guard: prevents setState after unmount (nav away mid-fetch),
   // which was one cause of the dashboard→sites hang.
   const mountedRef = useRef(true)
