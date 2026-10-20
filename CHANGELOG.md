@@ -5,6 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.30] - 2026-10-20
+
+### Fixed
+- **`php`, `composer` and the other tools now work outside the Sabdopalon
+  folder, wherever the install lives.** The PATH entry was written only when the
+  install root was exactly `%USERPROFILE%\sabdopalon`, so an install at
+  `C:\sabdopalon` -- the common case, and the one in the bug report -- got no
+  entry at all and its tools worked only inside Sabdopalon's own terminal. The
+  rule is now "is this location durable?" instead of "is it the default
+  location": anything outside `%TEMP%` is wired, while a scratch folder from a
+  dev run or a test harness still is not.
+- **A machine-wide Composer no longer stops Sabdopalon installing its own.**
+  `installTool` asked `IsInstalled`, which a system Composer from Composer-Setup
+  satisfies, so it wrote nothing and the caller failed with "Composer was
+  installed but is not visible in ...". The downloader now asks its own
+  question -- "does this installation own a copy?" -- and `add composer`
+  downloads the pinned 2.10.3 alongside the bundled PHP even when a system copy
+  exists. The system copy is left untouched and Sabdopalon never runs it.
+
+### Changed
+- `add` advertised its bin dir on the user's PATH unconditionally, so installing
+  into a scratch root put that temp folder at the front of the real user PATH.
+  It is now wired only for a durable location, like every other writer.
+- The generated `engine.toml` said `prefer` defaulted to `system`, and `doctor`
+  printed the same; both now say `bundled`, matching the resolver since 0.11.27.
+- `add` printed "Installing Composer onto your system" while writing into the
+  install's own `bin/`; it now names the actual destination.
 ## [0.11.29] - 2026-10-20
 
 ### Changed
