@@ -611,14 +611,8 @@ export default function SitesPage() {
         title="Sites"
         description="Every folder in sites/ is served locally. Start, stop, or open a site without leaving the list."
         className="pt-7"
-      />
-      {/* Toolbar: filter + actions, all on one control height (h-8) so nothing
-          in the row stands a few pixels taller than its neighbour. The sentence
-          that used to explain that every folder in sites/ is served at
-          name.localhost is gone: the URLs column below shows exactly that, per
-          site, and repeating it pushed the table down for no information. */}
-      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        actions={
+          <>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-muted" />
             <Input
@@ -805,15 +799,16 @@ export default function SitesPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* Two-pane app frame: content | terminal dock. Both scroll internally;
           the frame spans exactly to the bottom of the viewport. The content
           column carries NO extra right padding: with lg:pr-4 here the table
           ended 16px short of the toolbar buttons above it. The gap belongs to
           the dock, which is the only thing that needs separating. */}
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <div className="mt-4 flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* Left: scrolling content column */}
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pb-6">
           {listing}

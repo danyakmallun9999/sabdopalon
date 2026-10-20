@@ -81,6 +81,11 @@ export default function TerminalPage() {
         className="pt-7"
         title="Terminal"
         description="Each tab is an independent shell. Sessions survive tab switches, route changes, and reloads."
+        actions={
+          <IconButton label="New shell" variant="outline" size="icon-sm" onClick={addTab}>
+            <Plus />
+          </IconButton>
+        }
       />
       {/* Tab bar */}
       <div className="flex items-center gap-1 overflow-x-auto">
@@ -110,9 +115,6 @@ export default function TerminalPage() {
             </span>
           </button>
         ))}
-        <IconButton label="New shell" variant="ghost" size="icon-sm" onClick={addTab}>
-          <Plus />
-        </IconButton>
       </div>
 
       {/* Panels — kept mounted so background sessions survive tab switches. */}
