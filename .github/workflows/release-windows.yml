@@ -125,10 +125,25 @@ jobs:
             -o /tmp/mariadb.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
           (cd "$CORE/mariadb" && unzip -q /tmp/mariadb.zip && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
 
+          # Composer is a component of the product, not something the user is
+          # expected to fetch from getcomposer.org: `composer create-project` is
+          # the first thing a new Laravel site does. Shipping the .phar means a
+          # fresh install can scaffold immediately, and that the Composer is the
+          # version this build was tested against.
+          #
+          # 2.10.3 is deliberate. 2.10.2 parses curl's info block with "[^/]+",
+          # which spans newlines for a Schannel build - and the bundled Windows
+          # PHP is one ("SSL Version => Schannel", no /version). It invents the
+          # platform package "lib-curl-schannel..." and aborts dependency
+          # resolution with a malformed Packagist URL.
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors \
+            -o "$CORE/composer.phar" https://getcomposer.org/download/2.10.3/composer.phar
+          echo "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6  $CORE/composer.phar" | sha256sum -c -
+
           # Fail loud. An empty core still builds an installer — just one that
           # cannot run PHP, serve phpMyAdmin, or start a database, which is far
           # worse than a red build.
-          for f in "$CORE/php/8.5/php.exe" "$CORE/phpmyadmin/index.php" "$CORE/mariadb/bin/mysqld.exe"; do
+          for f in "$CORE/php/8.5/php.exe" "$CORE/composer.phar" "$CORE/phpmyadmin/index.php" "$CORE/mariadb/bin/mysqld.exe"; do
             test -f "$f" || { echo "::error::core stack incomplete: missing $f"; exit 1; }
           done
           echo "core stack:"; du -sh "$CORE"

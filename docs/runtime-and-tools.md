@@ -160,9 +160,15 @@ including setup mode. It creates the Composer home, the temp directory, a
 shims. It is idempotent, needs no network, and failures are warnings — a
 read-only install must still run.
 
-Composer itself is fetched on demand the first time a project is created
-(`templates.requireComposer`), into Sabdopalon's own `bin/`, so a fresh install
-can scaffold a Laravel project with no manual step.
+Composer ships **inside the release artifact**: both workflows download the
+pinned `composer.phar` (verified against its SHA-256) into `bin/composer.phar`,
+next to the PHP that must run it, and the Windows installer additionally fails
+the build if it is missing. A fresh install can therefore scaffold a Laravel
+project immediately, with the exact Composer release this build was tested with.
+
+A source build (`go build`, no artifact) has no bundled phar, so
+`templates.requireComposer` fetches it on first use into the same place — still
+without a manual step, and still run by the bundled PHP.
 
 ## Opting out
 

@@ -66,6 +66,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   `bin/node/` with its distribution layout intact so `npm.cmd`/`npx.cmd`
   resolve their own CLI. The old installer copied `npm.cmd` up a level while
   leaving `node_modules/` behind, which made bundled npm fail at start.
+- **Composer ships inside every release artifact.** Both release workflows
+  download the pinned `composer.phar` (SHA-256 verified) into `bin/composer.phar`
+  beside the PHP that runs it, and the Windows installer fails the build if it
+  is missing, so a fresh install can scaffold a Laravel project straight away.
+- **The Packages page sees bundled tools.** `IsInstalled`/`Version` now prefer
+  the copy this install ships over anything on PATH — a global Composer from
+  Composer-Setup no longer makes the page describe somebody else's version as
+  ours, and a bundled Composer is no longer reported as "not installed" (and
+  re-downloaded) just because a GUI launch left `bin/` off PATH.
 - `docs/runtime-and-tools.md` documents the resolution rule, the three failures
   above, the on-disk layout, and how to verify it.
 

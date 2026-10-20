@@ -20,6 +20,7 @@ package sysinstall
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -63,4 +64,34 @@ func cleanDir(key string) string {
 func isRegularFile(path string) bool {
 	st, err := os.Stat(path)
 	return err == nil && st.Mode().IsRegular()
+}
+
+// bundledPath returns the artifact this installation ships for a registered
+// tool: the executable when the tool has one, otherwise its .phar. "" when the
+// install does not ship it.
+//
+// This exists because "is it on PATH?" is no longer the same question as "is it
+// available?". Composer and Node.js arrive inside the release artifact, in bin/,
+// and a GUI launch does not put bin/ on the process PATH â€” so a PATH-only check
+// reported a working Composer as "not installed" and offered to download it
+// again.
+func bundledPath(name string) string {
+	dir := targetBinDir()
+	if dir == "" {
+		return ""
+	}
+	suffixes := []string{"", ".exe"}
+	if runtime.GOOS == "windows" {
+		suffixes = append(suffixes, ".cmd", ".bat")
+	}
+	for _, s := range suffixes {
+		if p := filepath.Join(dir, name+s); isRegularFile(p) {
+			return p
+		}
+	}
+	// Composer is a PHP archive, not an executable.
+	if p := filepath.Join(dir, name+".phar"); isRegularFile(p) {
+		return p
+	}
+	return ""
 }

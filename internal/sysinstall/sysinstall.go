@@ -197,6 +197,12 @@ func IsInstalled(name string) bool {
 	if t == nil {
 		return false
 	}
+	// What this install ships wins: that is the copy Sabdopalon actually runs.
+	// A global Composer installed by Composer-Setup must not make the Packages
+	// page describe somebody else's version as ours.
+	if bundledPath(t.Bin) != "" {
+		return true
+	}
 	_, ok := lookPath(t.Bin)
 	return ok
 }
@@ -230,17 +236,56 @@ func Version(name string) string {
 	if t == nil {
 		return ""
 	}
-	p, ok := lookPath(t.Bin)
-	if !ok {
-		return ""
+	// A shipped Composer is a .phar, and its presence IS the version: the phar
+	// that arrived with this build is the pinned release, digest-checked at
+	// install time. Running it would spend a PHP process on every
+	// /api/sys-tools poll (every 8s).
+	if t.Name == "composer" {
+		if p := filepath.Join(targetBinDir(), "composer.phar"); isRegularFile(p) {
+			return t.version
+		}
+	}
+	p := bundledPath(t.Bin)
+	if p == "" {
+		q, ok := lookPath(t.Bin)
+		if !ok {
+			return ""
+		}
+		p = q
+	}
+	if strings.HasSuffix(strings.ToLower(p), ".phar") {
+		// Asking a phar for its version would need the bundled PHP, i.e. an
+		// extra process on every /api/sys-tools poll (every 8s). The shipped
+		// phar is the pinned release and its digest is verified at install
+		// time, so reporting the pin is accurate and cheap.
+		return t.version
 	}
 	// Every registered tool reports its version with `--version`; the per-bin
 	// switch above was always identical, so a single call suffices.
-	out, err := versionCommand(p).Output()
+	out, err := versionCommandFor(p).Output()
 	if err != nil {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// versionCommandFor builds the `--version` probe for an already-resolved path.
+//
+// A batch launcher cannot be started by CreateProcess directly, so it goes
+// through cmd.exe â€” the same way the shims themselves are invoked. Without this
+// the bundled npm (bin/node/npm.cmd) reported no version at all.
+func versionCommandFor(p string) *exec.Cmd {
+	switch strings.ToLower(filepath.Ext(p)) {
+	case ".cmd", ".bat":
+		comspec := os.Getenv("ComSpec")
+		if comspec == "" {
+			comspec = "cmd.exe"
+		}
+		cmd := exec.Command(comspec, "/c", p, "--version")
+		winproc.Quiet(cmd)
+		return cmd
+	}
+	return versionCommand(p)
 }
 
 // Install downloads and installs the named tool into the per-user prefix.
@@ -260,8 +305,10 @@ func Install(name string, p Progress) (string, error) {
 }
 
 func installTool(t *SystemTool, p Progress) error {
-	// Already on PATH (process or login-shell)? Skip the download.
-	if _, ok := lookPath(t.Bin); ok {
+	// Already available â€” on PATH, or shipped in this install? Skip the
+	// download. A bundled Composer must not be re-fetched just because a GUI
+	// launch left bin/ off PATH.
+	if IsInstalled(t.Name) {
 		p.Printf("  ✓  %s already installed (%s)\n", t.Label, Version(t.Name))
 		return nil
 	}

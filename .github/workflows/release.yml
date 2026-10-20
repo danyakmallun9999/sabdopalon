@@ -109,6 +109,18 @@ jobs:
           curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o mariadb-win.zip https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip
           mkdir -p windows/bin/mariadb && (cd windows/bin/mariadb && unzip -q "$OLDPWD/mariadb-win.zip" && mv mariadb-11.4.13-winx64/* . && rmdir mariadb-11.4.13-winx64)
 
+          # --- Composer 2.10.3 for every platform (see the Windows installer's
+          #     note, and composerSHA in internal/sysinstall, for why this is
+          #     not 2.10.2). ---
+          # It rides in bin/ beside the PHP that must run it, so the launcher
+          # (bin/composer.cmd, bin/composer) can name the interpreter by path
+          # instead of relying on PATH.
+          curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o composer.phar https://getcomposer.org/download/2.10.3/composer.phar
+          echo "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6  composer.phar" | sha256sum -c -
+          for d in linux-x86_64 macos-x86_64 macos-aarch64 windows; do
+            cp composer.phar "$d/bin/composer.phar"
+          done
+
           echo "core stack sizes:"; du -sh linux-x86_64 macos-x86_64 macos-aarch64 windows
 
       - name: Package release assets (full bundles with core stack)
