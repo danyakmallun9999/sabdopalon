@@ -1,7 +1,7 @@
 <div align="center">
   <img src="images/logo-text.png" alt="Sabdopalon" width="360">
   <p><strong>A ready-to-go local PHP development environment.</strong></p>
-  <p>PHP, databases, and dev tools — managed for you, in one folder.</p>
+  <p>PHP, databases, and dev tools managed for you, all in one folder.</p>
   <p>
     <img alt="Windows" src="https://img.shields.io/badge/Windows-✓-0078D4?logo=windows&logoColor=white">
     <img alt="macOS" src="https://img.shields.io/badge/macOS-✓-000000?logo=apple&logoColor=white">
@@ -14,17 +14,17 @@
 
 Sabdopalon lets you build PHP websites and apps on your own machine without
 the usual setup headache. PHP, a database, and the tools you reach for every
-day get installed and managed for you — inside a single folder.
+day get installed and managed for you, inside a single folder.
 
 No Apache or Nginx to configure. No manual installs. Nothing touches your
 operating system. Just run `sabdopalon` and:
 
-- **Manage it all from your browser** — create sites, start/stop them,
+- **Manage it all from your browser**: create sites, start/stop them,
   install PHP or a database, turn on HTTPS, back up your database. Point and
   click, no config files.
-- **Sites just work** — drop a folder into `sites/` and it's instantly live at
+- **Sites just work**: drop a folder into `sites/` and it's instantly live at
   `http://yoursite.localhost`. No web server to set up.
-- **Safe and clean** — everything lives inside the Sabdopalon folder. Remove
+- **Safe and clean**: everything lives inside the Sabdopalon folder. Remove
   the folder, remove the app. Your OS stays untouched.
 
 ## A peek inside
@@ -32,8 +32,8 @@ operating system. Just run `sabdopalon` and:
 <table>
   <tr>
     <td align="center" width="50%">
-      <a href="images/ui/dashboard.png"><img src="images/ui/dashboard.png" alt="Dashboard — server, services, and traffic at a glance" width="100%"></a>
-      <br><sub><b>Dashboard</b><br>Server status, running services, and traffic — all on one screen.</sub>
+      <a href="images/ui/dashboard.png"><img src="images/ui/dashboard.png" alt="Dashboard: server, services, and traffic at a glance" width="100%"></a>
+      <br><sub><b>Dashboard</b><br>Server status, running services, and traffic, all on one screen.</sub>
     </td>
   </tr>
 </table>
@@ -61,13 +61,13 @@ operating system. Just run `sabdopalon` and:
 
 | Feature | What you get |
 |---|---|
-| **Web dashboard** | Manage everything from the browser — no config editing |
+| **Web dashboard** | Manage everything from the browser, with no config editing |
 | **Multiple sites** | Every folder in `sites/` automatically becomes a site |
-| **Multi-PHP** | PHP 8.1 – 8.5; pick a different version per site |
-| **Databases** | SQLite (zero setup), MariaDB, or PostgreSQL — all managed for you |
+| **Multi-PHP** | PHP 8.1 to 8.5; pick a different version per site |
+| **Databases** | SQLite (zero setup), MariaDB, or PostgreSQL, all managed for you |
 | **Local HTTPS** | Your own local certificates, in a few clicks |
 | **Mail catcher** | Mailpit catches outgoing email locally so nothing leaks |
-| **Extra tools** | Redis, MinIO, Meilisearch, Adminer — optional, one click |
+| **Extra tools** | Redis, MinIO, Meilisearch, Adminer, all optional and one click away |
 | **Backups** | One click, with automatic history |
 | **Desktop app** | A native window with a tray icon and a setup wizard |
 | **Built-in terminal** | Run `composer`, `artisan`, `php` right from the dashboard |
@@ -77,7 +77,7 @@ operating system. Just run `sabdopalon` and:
 ## Prerequisites
 
 **None.** Sabdopalon is self-contained. You don't need to install PHP, a
-database, or Go by hand — the setup wizard handles PHP and the database on
+database, or Go by hand; the setup wizard handles PHP and the database on
 first run. (Go is only needed if you want to build from source.)
 
 > Already have PHP on your machine? Sabdopalon still uses **its own** copy, by
@@ -88,7 +88,7 @@ first run. (Go is only needed if you want to build from source.)
 
 ## Installation
 
-### Option A — Desktop app (no terminal)
+### Option A: Desktop app (no terminal)
 
 Grab the installer from the
 [Releases](https://github.com/danyakmallun9999/sabdopalon/releases) page:
@@ -103,7 +103,7 @@ Double-click → a standard setup wizard → done. You never touch a terminal
 during install or everyday use. PHP, MariaDB, phpMyAdmin, Composer and Node.js
 come bundled in the installer.
 
-### Option B — One-command installer (terminal)
+### Option B: One-command installer (terminal)
 
 ```bash
 # Linux / macOS:
@@ -117,7 +117,7 @@ The installer downloads the binary, adds it to your PATH, then runs the
 setup wizard. You answer a few questions (PHP + database by default) and
 you're ready.
 
-### Option C — Build from source
+### Option C: Build from source
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for building from source, the repo
 layout, and how to contribute.
@@ -128,7 +128,7 @@ After installing, the **setup wizard starts automatically** on first run.
 You can also run it any time:
 
 ```bash
-sabdopalon              # start everything — dashboard + database + sites
+sabdopalon              # start everything: dashboard + database + sites
 sabdopalon setup        # re-run the setup wizard
 sabdopalon doctor       # health check: PHP, ports, database, SSL
 ```
@@ -152,13 +152,13 @@ sabdopalon
 sabdopalon new laravel myblog
 # → open http://myblog.localhost/
 
-# Or just make a folder — it's a site instantly:
+# Or just make a folder. It's a site instantly.
 mkdir -p sites/myapp/public
 echo '<?php echo "Hello!";' > sites/myapp/public/index.php
 # → open http://myapp.localhost/ (no restart needed)
 ```
 
-You can also do all of this from the dashboard — hit **New Site** on the
+You can also do all of this from the dashboard: hit **New Site** on the
 Sites page.
 
 ## How it works (in plain terms)
@@ -167,7 +167,7 @@ Sabdopalon is one small program (written in Go) that does three jobs at once:
 
 1. **Serves your sites.** When a browser asks for `myapp.localhost`, it finds
    the matching folder in `sites/` and hands the request to PHP. No Apache or
-   Nginx needed — PHP's own built-in server is enough, and the program routes
+   Nginx needed; PHP's own built-in server is enough, and the program routes
    requests to it by hostname.
 2. **Runs your databases.** MariaDB, PostgreSQL, and SQLite are started and
    stopped for you, bound to `127.0.0.1` so only your machine can reach them.
@@ -195,13 +195,13 @@ flowchart TB
 The README above is meant for **users**. If you want to build Sabdopalon,
 understand its architecture, or contribute:
 
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — building from source, repo layout,
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: building from source, repo layout,
   commands, environment variables, per-site config, and how to contribute.
-- **[CHANGELOG.md](CHANGELOG.md)** — what changed in each release.
-- **[DESIGN.md](DESIGN.md)** — the design rationale and architectural
+- **[CHANGELOG.md](CHANGELOG.md)**: what changed in each release.
+- **[DESIGN.md](DESIGN.md)**: the design rationale and architectural
   decisions.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Sabdopalon manages third-party open-source
+MIT. See [LICENSE](LICENSE). Sabdopalon manages third-party open-source
 components (PHP, MariaDB) downloaded through its package system.
