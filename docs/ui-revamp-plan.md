@@ -1047,3 +1047,10 @@ header, tab, dan isi bergerak bersama. Tab Terminal memakai tinggi sendiri
   masuk ke dalam segmented control tab, seperti pada desain.
 - `npm run typecheck` memakai `tsc --noEmit` di atas tsconfig *solution-style*,
   sehingga **tidak memeriksa apa pun**. Diganti `tsc -b` (yang dipakai build).
+
+### 6. Judul grup di sidebar dihapus
+
+Label **MANAGE / TOOLS / SYSTEM** dihapus. Tiga label kecil itu memecah daftar
+sembilan halaman jadi tiga daftar pendek tanpa menambah informasi apa pun —
+halaman yang tersedia sudah diketahui, dan jaraknya antar kelompok tetap terasa.
+Sidebar sekarang satu daftar bersih, dengan jarak antar kelompok yang lebih longgar.

@@ -18,7 +18,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
@@ -78,10 +77,7 @@ export default function AppSidebar() {
     <Sidebar collapsible="offcanvas" className="border-r border-sidebar-border">
       <SidebarContent className="px-3.5 py-5">
         {NAV_GROUPS.map((group) => (
-          <SidebarGroup key={group.label} className="px-0 py-0">
-            <SidebarGroupLabel className="h-6 px-2.5 text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
-              {group.label}
-            </SidebarGroupLabel>
+          <SidebarGroup key={group.label} className="px-0 pt-2 pb-0 first:pt-0">
             <SidebarGroupContent>
               <SidebarMenu className="gap-1.5">
                 {group.items.map((item) => (
