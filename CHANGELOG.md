@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.27] - 2026-10-20
+
 ### Fixed
 - **Creating a Laravel project works on a clean Windows install.** `composer
   create-project` aborted with a corrupted Packagist URL
