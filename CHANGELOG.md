@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **A site works at its custom domain after the TLD is changed.** Changing the TLD
+  on the Settings page saved, routed, and then left the site unreachable: the
+  proxy has always matched the Host header against the configured TLD, but the
+  NAME has to resolve before a browser can send that request, and nothing wrote a
+  hosts entry. `.localhost` (and every `*.localhost`) resolves by itself — RFC
+  6761 — while a stock Windows box answers "No such host is known" for
+  `mysite.sabdopalon` and `mysite.test` alike, so only the default TLD ever
+  worked. A new `internal/hostsync` maintains one marked block in the OS hosts
+  file with every site and per-site alias, replacing it when the TLD changes and
+  leaving every other entry untouched. A sync that changes nothing writes
+  nothing, so a default install still needs no administrator rights; when the file
+  does need them, the save reports it and `sabdopalon hosts:sync` does the job
+  from an elevated terminal.
+- A TLD change now applies immediately: hostnames are mapped, per-site aliases are
+  rebuilt, running sites are restarted, and `*.<new-tld>` is issued when a local CA
+  already exists. The field is validated too — it must be a single DNS label, since
+  it is appended as `.<tld>` and is the suffix the proxy matches.
+- The TLD path no longer creates a root CA as a side effect of saving the form.
+  `ssl.Manager.HasCA` answers "is there one?" without generating a trust anchor.
 ## [0.11.30] - 2026-10-20
 
 ### Fixed

@@ -67,6 +67,16 @@ func (m *Manager) EnsureCA() (created bool, err error) {
 	return true, nil
 }
 
+// HasCA reports whether a local root CA already exists, without creating one.
+//
+// EnsureCA() is not a suitable check for callers that merely want to know: it
+// generates the CA when it is missing, and a root certificate is a trust anchor
+// the user must agree to, not a side effect of saving a settings form.
+func (m *Manager) HasCA() bool {
+	cert, key := m.caPaths()
+	return fileExists(cert) && fileExists(key)
+}
+
 // IssueSite generates a leaf certificate for host signed by the local CA.
 func (m *Manager) IssueSite(host string) error {
 	caCertPath, caKeyPath := m.caPaths()

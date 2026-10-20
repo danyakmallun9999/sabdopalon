@@ -189,8 +189,16 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		restart := false
 		validPort := func(n int) bool { return n > 0 && n <= 65535 }
-		if p.TLD != "" && p.TLD != s.cfg.TLD {
-			s.cfg.TLD = p.TLD
+		tldChanged := false
+		if p.TLD != "" && !strings.EqualFold(p.TLD, s.cfg.TLD) {
+			tld := strings.ToLower(strings.TrimSpace(p.TLD))
+			if !validTLD(tld) {
+				s.fail(w, http.StatusBadRequest,
+					"tld must be a single label like localhost, test or acme (no dots, slashes or spaces)")
+				return
+			}
+			s.cfg.TLD = tld
+			tldChanged = true
 			restart = true
 		}
 		if p.HTTPPort != nil && validPort(*p.HTTPPort) && *p.HTTPPort != s.cfg.Proxy.HTTPPort {
@@ -264,6 +272,13 @@ func (s *Server) handleAPIConfig(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		msg := "Settings saved."
+		if tldChanged {
+			// Apply it now. The proxy already routes the new TLD (hostToSite
+			// compares the Host header against cfg.TLD), but the NAME has to
+			// resolve first â€” that is the step that used to be missing, and the
+			// reason a saved TLD left the site unreachable at its new domain.
+			msg += s.applyTLDChange()
+		}
 		if restart {
 			msg += " Some changes apply after restarting Sabdopalon."
 		}

@@ -102,6 +102,12 @@ func (s *Server) startSiteCreate(name, tmpl, database, testing string) string {
 			Progress: templates.NewProgress(createJobWriter{&createJob}),
 		})
 
+		// The site exists on disk now, so its hostname has to exist too. With a
+		// custom TLD that means a hosts entry; without this a freshly created
+		// site was reachable only at .localhost.
+		if err == nil {
+			_, _ = s.SyncHosts()
+		}
 		createJob.mu.Lock()
 		defer createJob.mu.Unlock()
 		createJob.running = false

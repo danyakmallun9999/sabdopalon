@@ -22,6 +22,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/database"
 	"github.com/sabdopalon/sabdopalon/internal/deploy"
 	"github.com/sabdopalon/sabdopalon/internal/devtools"
+	"github.com/sabdopalon/sabdopalon/internal/hostsync"
 	"github.com/sabdopalon/sabdopalon/internal/lock"
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
@@ -187,6 +188,8 @@ func (a *App) Run(args []string) int {
 		return a.phpList()
 	case "enable-ports", "ports:enable":
 		return a.enablePorts()
+	case "hosts:sync", "hosts":
+		return a.hostsSync()
 	case "share":
 		return a.share(args[1:])
 	case "ssl:ca":
@@ -582,6 +585,23 @@ func (a *App) serve() int {
 		bk := backup.New(a.Cfg, 5)
 		dash := dashboard.New(a.Cfg, srv, bk, svcMgr, dbMgr, dtMgr)
 		dash.SetTunnels(tnMgr)
+
+		// A custom TLD only works if its names resolve. .localhost needs nothing,
+		// but anything else needs a hosts entry - and nothing used to write one,
+		// so a saved TLD left every site unreachable at its new domain. Syncing
+		// here also picks up sites created while the app was closed, and drops
+		// entries left over from a previous TLD.
+		if res, err := dash.SyncHosts(); err != nil {
+			if errors.Is(err, hostsync.ErrPermission) {
+				fmt.Fprintf(os.Stderr, "  hosts file: %v\n", err)
+				fmt.Fprintln(os.Stderr, "              custom TLDs need it; run 'sabdopalon hosts:sync' elevated once")
+			} else {
+				fmt.Fprintf(os.Stderr, "  hosts file: %v\n", err)
+			}
+		} else if res.Changed {
+			fmt.Fprintf(os.Stderr, "  hosts file: mapped %d hostname(s) for .%s\n", len(res.Hosts), a.Cfg.TLD)
+		}
+
 		go func() {
 			if err := dash.Start(); err != nil {
 				fmt.Fprintf(os.Stderr, "  ⚠ dashboard: %v\n", err)
@@ -984,6 +1004,43 @@ func (a *App) sslWildcard() int {
 	cert, key := m.CertPaths(wildcard)
 	fmt.Printf("✓ Wildcard cert for %s:\n  cert: %s\n  key:  %s\n", wildcard, cert, key)
 	fmt.Printf("  HTTPS proxy will use it on port %d (run 'sabdopalon' to start).\n", a.Cfg.Proxy.HTTPSPort)
+	return 0
+}
+
+// hostsSync writes the managed hosts block for the configured TLD.
+//
+// It is the elevated path, and the one the Settings page points at: on Windows
+// the hosts file belongs to Administrators, so a normal start can only warn. A
+// custom TLD cannot resolve without this, which is why saving one used to leave
+// the site unreachable at its new domain.
+func (a *App) hostsSync() int {
+	a.Cfg = a.cfgOrBare() // fresh-install safe
+	res, err := hostsync.SyncForInstall(a.Cfg)
+	if err != nil {
+		if errors.Is(err, hostsync.ErrPermission) {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			fmt.Fprintln(os.Stderr, "       run this command from an elevated (Administrator) terminal.")
+			return 1
+		}
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		return 1
+	}
+	if len(res.Hosts) == 0 {
+		fmt.Printf("TLD .%s resolves by itself — no hosts entries needed", a.Cfg.TLD)
+		if res.Changed {
+			fmt.Print(" (stale entries removed)")
+		}
+		fmt.Println(".")
+		return 0
+	}
+	if res.Changed {
+		fmt.Printf("✓ %d hostname(s) mapped to 127.0.0.1 for .%s:\n", len(res.Hosts), a.Cfg.TLD)
+	} else {
+		fmt.Printf("✓ already up to date for .%s:\n", a.Cfg.TLD)
+	}
+	for _, h := range res.Hosts {
+		fmt.Printf("    %s\n", h)
+	}
 	return 0
 }
 
