@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.33] - 2026-10-20
+
+### Changed
+- **The Settings page groups what a single button saves.** The TLD, the fallback
+  ports, the dashboard port/auto-open and the LAN switch are one form: they are
+  fields of the same ConfigPayload and one save() writes all of them. They were
+  split across three cards with the button inside the middle one, so the General
+  card looked independent and the LAN switch, sitting below that button, looked
+  like it saved itself. They are now one General card with three labelled
+  subsections (Domain and ports, Dashboard, Network access) and the button in the
+  card footer, where the action for everything above it belongs. The LAN note
+  stopped naming 8080/8443, which are not the ports on screen, and the card
+  description now also says a TLD change needs a restart.
 ## [0.11.32] - 2026-10-20
 
 ### Fixed
