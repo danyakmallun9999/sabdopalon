@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.29] - 2026-10-20
+
+### Changed
+- **Composer ships inside every release artifact.** Both release workflows
+  download the pinned `composer.phar` (SHA-256 verified) into `bin/composer.phar`
+  beside the PHP that runs it, and the Windows installer fails the build when it
+  is missing -- the same guard PHP, phpMyAdmin and mysqld already had. Until now
+  Composer was fetched on first use, so a machine that was offline or behind a
+  proxy that blocks getcomposer.org ended up with PHP, MariaDB and Node.js but no
+  Composer at all.
+- **The Packages page reports the Composer this install ships.** `IsInstalled`
+  and `Version` asked PATH first, so a machine-wide copy from Composer-Setup was
+  described as ours; and because a GUI launch never puts `bin/` on PATH, the
+  bundled Composer looked "not installed" and was offered for download again
+  while `composer` worked fine. Both now prefer the bundled copy and fall back
+  to PATH only when there is none, and Install no longer re-downloads what is
+  already bundled. A shipped Composer reports its version from the pinned
+  release instead of executing the phar, which `/api/sys-tools` polls every 8s.
 ## [0.11.28] - 2026-10-20
 
 ### Fixed
@@ -66,15 +84,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   `bin/node/` with its distribution layout intact so `npm.cmd`/`npx.cmd`
   resolve their own CLI. The old installer copied `npm.cmd` up a level while
   leaving `node_modules/` behind, which made bundled npm fail at start.
-- **Composer ships inside every release artifact.** Both release workflows
-  download the pinned `composer.phar` (SHA-256 verified) into `bin/composer.phar`
-  beside the PHP that runs it, and the Windows installer fails the build if it
-  is missing, so a fresh install can scaffold a Laravel project straight away.
-- **The Packages page sees bundled tools.** `IsInstalled`/`Version` now prefer
-  the copy this install ships over anything on PATH — a global Composer from
-  Composer-Setup no longer makes the page describe somebody else's version as
-  ours, and a bundled Composer is no longer reported as "not installed" (and
-  re-downloaded) just because a GUI launch left `bin/` off PATH.
 - `docs/runtime-and-tools.md` documents the resolution rule, the three failures
   above, the on-disk layout, and how to verify it.
 
