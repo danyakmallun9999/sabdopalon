@@ -61,6 +61,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ]
 
+// The same list, flattened: the top bar names the page you are on.
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
+
 // The active page is drawn the same way a button is: a 1px outer edge, a 2px
 // gap in the app background, then the raised panel with its own 1px edge.
 const ACTIVE_RING =
@@ -76,7 +79,7 @@ export default function AppSidebar() {
       <SidebarContent className="px-3.5 py-5">
         {NAV_GROUPS.map((group) => (
           <SidebarGroup key={group.label} className="px-0 py-0">
-            <SidebarGroupLabel className="h-6 px-2.5 text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+            <SidebarGroupLabel className="h-6 px-2.5 text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
@@ -90,7 +93,7 @@ export default function AppSidebar() {
                           isActive={isActive}
                           render={<span />}
                           className={
-                            "relative h-9 gap-2.5 rounded-lg border border-transparent px-2.5 text-[13px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted data-active:z-10 " +
+                            "relative h-9 gap-2.5 rounded-lg border border-transparent px-2.5 text-[13.5px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted data-active:z-10 " +
                             ACTIVE_RING +
                             " data-active:border-ring-inner data-active:bg-surface-raised data-active:font-semibold data-active:text-text-primary data-active:[&_svg]:text-brand"
                           }
@@ -116,12 +119,12 @@ export default function AppSidebar() {
                 status={status ? "running" : "error"}
                 aria-label={status ? "Dashboard connected" : "Dashboard disconnected"}
               />
-              <span className="text-[11.5px] text-text-secondary">Proxy</span>
-              <span className="ml-auto font-mono text-[11px] text-text-primary">
+              <span className="text-[13.5px] text-text-secondary">Proxy</span>
+              <span className="ml-auto font-mono text-[13.5px] text-text-primary">
                 {proxyPort}
               </span>
             </div>
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[13.5px] text-text-muted">
               {status?.low_ports
                 ? `Clean URLs active (${proxyPort}/${httpsPort})`
                 : `HTTPS on ${httpsPort}`}

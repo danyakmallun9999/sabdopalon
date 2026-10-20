@@ -3,7 +3,6 @@ import { toast } from "sonner"
 import { Copy, CircleAlert, ExternalLink, Play, Square } from "lucide-react"
 
 import api, { poll, type ServiceStatus } from "@/lib/api"
-import { PageHeader } from "@/components/page-header"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
@@ -68,7 +67,7 @@ function EnvSnippet({ services }: { services: ServiceStatus[] }) {
             </TabsList>
           </Tabs>
         )}
-        <pre className="max-h-56 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
+        <pre className="max-h-56 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
           {snippet}
         </pre>
         <Button
@@ -143,11 +142,7 @@ export default function ServicesPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageHeader
-        title="Services"
-        description="Start or stop a tool now, or let it come up automatically when Sabdopalon opens."
-      />
-
+      
       {installed.length === 0 ? (
         <Card>
           <CardHeader>
@@ -170,7 +165,7 @@ export default function ServicesPage() {
                     <CardTitle>{svc.label}</CardTitle>
                     <CardDescription>
                       {svc.ports?.length ? (
-                        <span className="font-mono text-[10.5px]">{svc.ports.join("  ")}</span>
+                        <span className="font-mono text-[13.5px]">{svc.ports.join("  ")}</span>
                       ) : null}
                     </CardDescription>
                   </div>
@@ -186,7 +181,7 @@ export default function ServicesPage() {
                       href={svc.ui}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
+                      className="inline-flex items-center gap-1 text-[13.5px] text-brand hover:underline"
                     >
                       Open UI <ExternalLink className="size-3.5" />
                     </a>
@@ -217,7 +212,7 @@ export default function ServicesPage() {
                   </div>
 
                   {svc.last_error && !svc.running && (
-                    <p className="flex items-center gap-1 text-[11px] text-destructive">
+                    <p className="flex items-center gap-1 text-[13.5px] text-destructive">
                       <CircleAlert className="size-3" /> {svc.last_error}
                     </p>
                   )}

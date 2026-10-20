@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { StatusDot } from "@/components/status"
 import { useLive } from "@/lib/live"
+import { NAV_ITEMS } from "@/components/app-sidebar"
 import { dbEngineRunning } from "@/lib/dbstatus"
 
 // The trail the reference design puts in the top bar: on a site page you are
@@ -28,7 +29,7 @@ function Pill({
   return (
     <span
       className={
-        "inline-flex h-[28px] items-center gap-1.5 rounded-lg border border-border-soft bg-surface px-2.5 text-[11px] whitespace-nowrap text-text-secondary " +
+        "inline-flex h-[28px] items-center gap-1.5 rounded-lg border border-border-soft bg-surface px-2.5 text-[13.5px] whitespace-nowrap text-text-secondary " +
         className
       }
     >
@@ -41,6 +42,7 @@ export default function SiteHeader() {
   const { status } = useLive()
   const location = useLocation()
   const siteName = siteNameFrom(location.pathname)
+  const page = NAV_ITEMS.find((n) => n.url === location.pathname)
   const dbRunning = status ? dbEngineRunning(status) : false
 
   return (
@@ -51,14 +53,19 @@ export default function SiteHeader() {
         {siteName ? (
           <nav
             aria-label="Breadcrumb"
-            className="flex items-center gap-1.5 text-[12.5px] text-text-secondary"
+            className="flex items-center gap-1.5 text-[13.5px] text-text-secondary"
           >
             <Link to="/sites" className="hover:text-text-primary">
               Sites
             </Link>
             <span className="text-text-muted/50">/</span>
-            <span className="font-medium text-text-primary">{siteName}</span>
+            <span className="font-semibold text-text-primary">{siteName}</span>
           </nav>
+        ) : page ? (
+          <h1 className="flex items-center gap-2 text-[15.5px] font-semibold tracking-[-0.01em] text-text-primary">
+            <page.icon className="size-4 text-text-muted" />
+            {page.title}
+          </h1>
         ) : null}
 
         <div className="ml-auto flex items-center gap-2">
@@ -82,7 +89,7 @@ export default function SiteHeader() {
               Active services
             </Pill>
           )}
-          <Pill className="text-[10.5px]">
+          <Pill className="text-[13.5px]">
             v{status?.version ?? "…"} · up {status?.uptime ?? "—"}
           </Pill>
           <StatusDot

@@ -38,7 +38,7 @@ import TerminalPanel, {
 } from "@/components/terminal-panel"
 import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
-import { PageHeader } from "@/components/page-header"
+import { PageActions } from "@/components/page-actions"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
 import { IconButton } from "@/components/icon-button"
 import { Empty, EmptyTitle } from "@/components/ui/empty"
@@ -127,7 +127,7 @@ function TermStatusLabel({ s }: { s: TermStatus }) {
   const dot: DotStatus =
     s === "connected" ? "running" : s === "connecting" ? "connecting" : "error"
   return (
-    <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+    <span className="text-muted-foreground inline-flex items-center gap-1.5 text-[13px]">
       <StatusDot status={dot} />
       {s}
     </span>
@@ -383,7 +383,7 @@ export default function SitesPage() {
         href={s.url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 text-[11.5px] text-brand hover:underline"
+        className="inline-flex items-center gap-1.5 text-[13.5px] text-brand hover:underline"
       >
         <Globe className="size-3.5 shrink-0" />
         {s.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
@@ -393,7 +393,7 @@ export default function SitesPage() {
         href={s.https}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-1.5 text-[11.5px] text-text-secondary hover:text-text-primary hover:underline"
+        className="inline-flex items-center gap-1.5 text-[13.5px] text-text-secondary hover:text-text-primary hover:underline"
       >
         <Lock className="size-3.5 shrink-0 text-success" />
         {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
@@ -458,7 +458,7 @@ export default function SitesPage() {
   const startStopBtn = (s: Site) => (
     <Button
       size="sm"
-      variant={s.running ? "outline" : "default"}
+      variant="outline"
       disabled={busy === s.name + "start" || busy === s.name + "stop"}
       onClick={() => act(s, s.running ? "stop" : "start")}
     >
@@ -607,11 +607,7 @@ export default function SitesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col px-5 pb-6 lg:px-7">
-      <PageHeader
-        title="Sites"
-        description="Every folder in sites/ is served locally. Start, stop, or open a site without leaving the list."
-        className="pt-7"
-        actions={
+      <PageActions className="pt-7">
           <>
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-muted" />
@@ -619,7 +615,7 @@ export default function SitesPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter sites…"
-              className="h-[30px] w-52 pl-8 text-[12px]"
+              className="h-[30px] w-52 pl-8 text-[13.5px]"
             />
           </div>
           <Button
@@ -682,7 +678,7 @@ export default function SitesPage() {
                         href={createState.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
+                        className="inline-flex items-center gap-1 text-[13.5px] text-brand hover:underline"
                       >
                         <Globe className="size-3.5" /> Open site
                       </a>
@@ -692,7 +688,7 @@ export default function SitesPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-muted-foreground ml-auto h-7 px-2 text-xs"
+                      className="text-muted-foreground ml-auto h-7 px-2 text-[13px]"
                       onClick={() => setRawLog((v) => !v)}
                     >
                       {rawLog ? "Simplified log" : "Raw log"}
@@ -701,7 +697,7 @@ export default function SitesPage() {
 
                   <pre
                     ref={logRef}
-                    className={`max-h-72 min-h-40 overflow-x-hidden overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary ${
+                    className={`max-h-72 min-h-40 overflow-x-hidden overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary ${
                       rawLog ? "break-all" : "break-words"
                     } ${createState.error ? "border-destructive/40" : ""}`}
                   >
@@ -710,7 +706,7 @@ export default function SitesPage() {
                   </pre>
 
                   {createState.error ? (
-                    <p className="text-destructive text-xs">{createState.error}</p>
+                    <p className="text-destructive text-[13px]">{createState.error}</p>
                   ) : null}
                 </div>
               ) : (
@@ -800,8 +796,7 @@ export default function SitesPage() {
             </DialogContent>
           </Dialog>
           </>
-        }
-      />
+        </PageActions>
 
       {/* Two-pane app frame: content | terminal dock. Both scroll internally;
           the frame spans exactly to the bottom of the viewport. The content
@@ -934,7 +929,7 @@ export default function SitesPage() {
                 <SelectContent>
                   {["General", "Bundled", "System"].map((group) => (
                     <Fragment key={group}>
-                      <div className="text-muted-foreground px-2 py-1 text-xs font-medium">
+                      <div className="text-muted-foreground px-2 py-1 text-[13px] font-medium">
                         {group}
                       </div>
                       {phpChoices
@@ -958,7 +953,7 @@ export default function SitesPage() {
                 value={cfg.php_ini ?? ""}
                 onChange={(e) => setCfg({ ...cfg, php_ini: e.target.value })}
               />
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-[13px]">
                 Override the global php.ini for this site only. Leave empty to use the global config.
               </p>
             </div>
@@ -984,7 +979,7 @@ export default function SitesPage() {
                   setCfg({ ...cfg, aliases: e.target.value.split("\n").map((x) => x.trim()) })
                 }
               />
-              <p className="text-muted-foreground text-xs">
+              <p className="text-muted-foreground text-[13px]">
                 Custom domains (not *.localhost) need a hosts entry to resolve.
               </p>
             </div>

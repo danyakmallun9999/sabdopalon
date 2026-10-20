@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IconButton } from "@/components/icon-button"
-import { PageHeader } from "@/components/page-header"
+import { PageActions } from "@/components/page-actions"
 import { MetricStrip } from "@/components/metric-strip"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Switch } from "@/components/ui/switch"
@@ -89,7 +89,7 @@ function ServiceCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col gap-1">
             <CardTitle>{svc.label}</CardTitle>
-            <CardDescription className="font-mono text-[10.5px]">
+            <CardDescription className="font-mono text-[13.5px]">
               {svc.ports?.join("  ") || "no ports"}
             </CardDescription>
           </div>
@@ -101,7 +101,7 @@ function ServiceCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex items-center justify-between rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
-          <span className="text-[11.5px] text-text-secondary">
+          <span className="text-[13.5px] text-text-secondary">
             {svc.enabled ? "Auto-start ON" : "Auto-start OFF"}
           </span>
           <Switch checked={!!svc.enabled} disabled={busy} onCheckedChange={onToggle} />
@@ -125,7 +125,7 @@ function ServiceCard({
               href={svc.ui}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
+              className="inline-flex items-center gap-1 text-[13.5px] text-brand hover:underline"
             >
               Open UI <ExternalLink className="size-3.5" />
             </a>
@@ -133,10 +133,10 @@ function ServiceCard({
         </div>
 
         {!svc.installed && !svc.running && (
-          <p className="text-[11px] leading-relaxed text-text-muted">{svc.hint || "Install its package from Packages."}</p>
+          <p className="text-[13.5px] leading-relaxed text-text-muted">{svc.hint || "Install its package from Packages."}</p>
         )}
         {svc.last_error && !svc.running && (
-          <p className="flex items-center gap-1 text-[11px] text-destructive">
+          <p className="flex items-center gap-1 text-[13.5px] text-destructive">
             <CircleAlert className="size-3" /> {svc.last_error}
           </p>
         )}
@@ -184,11 +184,11 @@ function LogDialog({
           <DialogDescription>Auto-refreshing (5s).</DialogDescription>
         </DialogHeader>
         {error ? (
-          <p className="text-xs text-text-secondary">{error}</p>
+          <p className="text-[13px] text-text-secondary">{error}</p>
         ) : (
           <pre
             ref={preRef}
-            className="max-h-[55vh] overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary"
+            className="max-h-[55vh] overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary"
           >
             {lines.length ? lines.join("\n") : "No logs yet."}
           </pre>
@@ -483,15 +483,11 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageHeader
-        title="Dashboard"
-        description="Everything Sabdopalon is serving, provisioning, and running on this machine."
-        actions={
+      <PageActions>
           <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
             <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
           </Button>
-        }
-      />
+        </PageActions>
 
       {/* The four numbers are one card, not four: the divider between the
           cells is what makes them read as one fact about the machine. */}
@@ -546,17 +542,17 @@ export default function DashboardPage() {
         <div className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-danger-soft p-4">
           <CircleAlert className="text-destructive mt-0.5 size-5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-[12.5px] font-medium text-text-primary">Some services failed to start</p>
+            <p className="text-[13.5px] font-medium text-text-primary">Some services failed to start</p>
             {Object.entries(errors).map(([name, msg]) => (
-              <p key={name} className="text-[11px] text-text-secondary">
-                <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-primary">{name}</code>: {msg}
+              <p key={name} className="text-[13.5px] text-text-secondary">
+                <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-primary">{name}</code>: {msg}
               </p>
             ))}
             {installed
               .filter((s) => s.last_error)
               .map((s) => (
-                <p key={s.name} className="text-[11px] text-text-secondary">
-                  <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-primary">{s.name}</code>: {s.last_error}
+                <p key={s.name} className="text-[13.5px] text-text-secondary">
+                  <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-primary">{s.name}</code>: {s.last_error}
                 </p>
               ))}
           </div>
@@ -609,7 +605,7 @@ export default function DashboardPage() {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex flex-col gap-1">
                     <CardTitle>{engine === "mariadb" ? "MariaDB" : "PostgreSQL"}</CardTitle>
-                    <CardDescription className="font-mono text-[10.5px]">
+                    <CardDescription className="font-mono text-[13.5px]">
                       {engine === "mariadb" ? ":3306" : ":5433"}
                     </CardDescription>
                   </div>
@@ -619,7 +615,7 @@ export default function DashboardPage() {
                   </ToneBadge>
                 </div>
                 {err && (
-                  <p className="mt-1 flex items-center gap-1 text-[11px] text-destructive">
+                  <p className="mt-1 flex items-center gap-1 text-[13.5px] text-destructive">
                     <CircleAlert className="size-3" /> {err}
                   </p>
                 )}
@@ -642,7 +638,7 @@ export default function DashboardPage() {
                   )}
                   <a
                     href="/database"
-                    className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
+                    className="inline-flex items-center gap-1 text-[13.5px] text-brand hover:underline"
                   >
                     Manage <ExternalLink className="size-3.5" />
                   </a>
@@ -672,7 +668,7 @@ export default function DashboardPage() {
               <TableBody>
                 {installed.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-[12.5px] text-text-muted">
+                    <TableCell colSpan={4} className="text-[13.5px] text-text-muted">
                       No services installed yet — add Mailpit, Redis, MinIO or
                       Meilisearch from Packages.
                     </TableCell>
@@ -681,7 +677,7 @@ export default function DashboardPage() {
                 {installed.map((svc) => (
                   <TableRow key={svc.name}>
                     <TableCell className="font-medium">{svc.label}</TableCell>
-                    <TableCell className="font-mono text-[11px] text-text-secondary">{svc.ports?.join("  ")}</TableCell>
+                    <TableCell className="font-mono text-[13.5px] text-text-secondary">{svc.ports?.join("  ")}</TableCell>
                     <TableCell>
                       {/* Same vocabulary as the Sites table: a state is never
                           the primary button colour, and the dot always travels
@@ -698,7 +694,7 @@ export default function DashboardPage() {
                             <Square /> Stop
                           </Button>
                         ) : (
-                          <Button size="sm" onClick={() => startService(svc)} disabled={busy === svc.name}>
+                          <Button size="sm" variant="outline" onClick={() => startService(svc)} disabled={busy === svc.name}>
                             <Play /> Start
                           </Button>
                         )}

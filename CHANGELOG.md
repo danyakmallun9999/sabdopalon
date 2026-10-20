@@ -51,6 +51,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   The pieces of the design with no backend behind them — the top-bar search
   field, the notification bell, the avatar, the quick-install chips — are still
   deliberately absent: a control that cannot work is worse than no control.
+- **The page title went back to the top bar.** It sits there with the page's
+  icon, and the one-line description under it is gone; a page now opens with
+  what you can do with it instead of repeating itself. The site trail
+  ("Sites / name") stays in the top bar, where the design has it.
+- **The type scale went up.** The body is 14px, card titles 15.5px, labels
+  13.5px, table headers 11px, and the smallest text on screen is 11.5px
+  instead of 10px. The screen was legible but small, and dense panels read as
+  fine print.
+- **Only one button per screen or card is orange.** The design draws the
+  orange fill for the single main action — New Site, Save settings, Check for
+  updates, Start — and every other button as a surface button. Install, Start
+  and Save port inside tables and cards are surface buttons now, so the orange
+  always means "this is the action of this screen".
+- **The site page scrolls as one page.** Only the tab panel used to scroll,
+  which left the header, the tabs and the content fighting over the same
+  space. Everything below the top bar moves together now, and the terminal
+  keeps a height of its own.
 
 ### Fixed
 - **A tool version no longer shows its terminal escape codes.** Composer

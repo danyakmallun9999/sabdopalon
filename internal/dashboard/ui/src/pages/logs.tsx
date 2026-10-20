@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import { ScrollText } from "lucide-react"
 
 import { Switch } from "@/components/ui/switch"
-import { PageHeader } from "@/components/page-header"
+import { PageActions } from "@/components/page-actions"
 
 import api, { type LogResponse } from "@/lib/api"
 import {
@@ -49,16 +49,12 @@ export default function LogsPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageHeader
-        title="Logs"
-        description="Follow a site, the database, or Mailpit without opening a terminal."
-        actions={
-          <label className="flex items-center gap-2 text-[11px] text-text-muted">
+      <PageActions>
+          <label className="flex items-center gap-2 text-[13.5px] text-text-muted">
             auto-refresh
             <Switch checked={auto} onCheckedChange={setAuto} id="log-auto" />
           </label>
-        }
-      />
+        </PageActions>
       <Tabs value={current} onValueChange={setCurrent}>
         <div className="max-w-full overflow-x-auto">
           <TabsList>
@@ -75,10 +71,10 @@ export default function LogsPage() {
           <TabsContent key={n} value={n}>
             {current === n && (
               <>
-                <p className="text-muted-foreground mb-2 font-mono text-xs">
+                <p className="text-muted-foreground mb-2 font-mono text-[13px]">
                   logs/{log?.file ?? "…"}
                 </p>
-                <pre className="bg-background text-muted-foreground max-h-[60vh] min-h-56 overflow-y-auto rounded-lg border p-3 font-mono text-xs leading-relaxed">
+                <pre className="bg-background text-muted-foreground max-h-[60vh] min-h-56 overflow-y-auto rounded-lg border p-3 font-mono text-[13px] leading-relaxed">
                   {log?.error ?? log?.lines.join("\n") ?? "No logs yet."}
                 </pre>
               </>

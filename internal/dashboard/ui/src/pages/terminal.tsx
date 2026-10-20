@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { Plus, TerminalSquare, X } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
-import { PageHeader } from "@/components/page-header"
 import TerminalPanel, { type TerminalPanelHandle } from "@/components/terminal-panel"
 
 type ShellTab = { id: number; title: string; sk: string }
@@ -76,25 +74,16 @@ export default function TerminalPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 px-5 pb-6 lg:px-7">
-      <PageHeader
-        className="pt-7"
-        title="Terminal"
-        description="Each tab is an independent shell. Sessions survive tab switches, route changes, and reloads."
-        actions={
-          <Button size="sm" onClick={addTab}>
-            <Plus /> New shell
-          </Button>
-        }
-      />
-      {/* Tab bar */}
+    <div className="flex h-full min-h-0 flex-col gap-3 px-5 pt-7 pb-6 lg:px-7">
+      {/* Tab bar — the new-shell button lives inside the control, the way the
+          reference puts it, so a new shell is one click from the tabs. */}
       <div className="flex items-center gap-1 overflow-x-auto">
         <div className="flex items-center gap-1 rounded-xl border border-ring-inner bg-surface-raised p-[3px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
-            className={`group inline-flex h-[28px] shrink-0 items-center gap-2 rounded-lg border px-2.5 text-[12.5px] transition-colors ${
+            className={`group inline-flex h-[28px] shrink-0 items-center gap-2 rounded-lg border px-2.5 text-[13.5px] transition-colors ${
               t.id === active
                 ? "border-[#3d3d3d] bg-[#333333] font-medium text-text-primary"
                 : "border-transparent text-text-muted hover:text-text-primary"
@@ -121,6 +110,15 @@ export default function TerminalPage() {
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={addTab}
+          aria-label="New shell"
+          title="New shell"
+          className="flex size-7 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-[#333333] hover:text-text-primary focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/35 focus-visible:outline-none"
+        >
+          <Plus className="size-3.5" />
+        </button>
         </div>
       </div>
 

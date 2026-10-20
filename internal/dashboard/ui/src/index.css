@@ -149,7 +149,7 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.5;
     text-rendering: optimizeLegibility;
   }

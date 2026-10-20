@@ -10,7 +10,6 @@ import api, {
   type SysTool,
   type SysToolJob,
 } from "@/lib/api"
-import { PageHeader } from "@/components/page-header"
 import { ToneBadge } from "@/components/status"
 import { Spinner } from "@/components/ui/spinner"
 import { Button } from "@/components/ui/button"
@@ -56,12 +55,12 @@ function SystemPHPCard() {
           </div>
         </div>
         {sys.length === 0 ? (
-          <p className="text-[11.5px] text-text-muted">No system PHP found.</p>
+          <p className="text-[13.5px] text-text-muted">No system PHP found.</p>
         ) : (
           <div className="mt-2 flex flex-col gap-1.5">
             {sys.map((c) => (
-              <div key={c.path} className="flex items-center justify-between gap-2 rounded-md border border-ring-inner bg-surface-inset px-3 py-2 text-[11.5px]">
-                <span className="font-mono text-[10.5px] break-all text-text-secondary">{c.path}</span>
+              <div key={c.path} className="flex items-center justify-between gap-2 rounded-md border border-ring-inner bg-surface-inset px-3 py-2 text-[13.5px]">
+                <span className="font-mono text-[13.5px] break-all text-text-secondary">{c.path}</span>
                 {c.active ? (
                   <ToneBadge tone="success">default</ToneBadge>
                 ) : (
@@ -130,7 +129,7 @@ function SystemToolsCard() {
         <div className="flex flex-col gap-1.5">
           <CardTitle>System tools (Node.js &amp; Composer)</CardTitle>
           <CardDescription>
-            Installed per-user onto your system (not <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">bin/</code>), for
+            Installed per-user onto your system (not <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">bin/</code>), for
             Composer, npm and Vite.
           </CardDescription>
         </div>
@@ -141,11 +140,11 @@ function SystemToolsCard() {
             {tools.map((t) => (
               <div key={t.name} className="flex items-center justify-between gap-2 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-[12px] font-medium text-text-primary">{t.label}</span>
+                  <span className="text-[13.5px] font-medium text-text-primary">{t.label}</span>
                   {t.installed ? (
-                    <span className="font-mono text-[10.5px] text-text-muted">{stripAnsi(t.version)}</span>
+                    <span className="font-mono text-[13.5px] text-text-muted">{stripAnsi(t.version)}</span>
                   ) : (
-                    <span className="text-[10.5px] text-text-muted">not installed yet</span>
+                    <span className="text-[13.5px] text-text-muted">not installed yet</span>
                   )}
                 </div>
                 {t.installed ? (
@@ -164,7 +163,7 @@ function SystemToolsCard() {
         )}
         {job && (
           <div className="mt-3 flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-[12px]">
+            <div className="flex items-center gap-2 text-[13.5px]">
               {job.running ? (
                 <Loader2 className="size-3.5 animate-spin text-text-muted" />
               ) : job.error ? (
@@ -187,7 +186,7 @@ function SystemToolsCard() {
             </div>
             <pre
               ref={logRef}
-              className={`max-h-40 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-text-secondary ${job.error ? "border-destructive/40" : ""}`}
+              className={`max-h-40 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary ${job.error ? "border-destructive/40" : ""}`}
             >
               {job.output || (job.running ? "starting…" : "")}
             </pre>
@@ -292,15 +291,7 @@ export default function PackagesPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageHeader
-        title="Packages"
-        description={
-          <>
-            Install runtimes and services inside <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">bin/</code> — nothing touches your OS.
-          </>
-        }
-      />
-
+      
       <SystemPHPCard />
 
       <SystemToolsCard />
@@ -346,7 +337,7 @@ export default function PackagesPage() {
                 </div>
                 <Button
                   className="mt-3 w-fit"
-                  variant={status === "available" ? "default" : "secondary"}
+                  variant="outline"
                   disabled={status !== "available" || !!job?.running}
                   onClick={() => install(p.name)}
                 >
@@ -394,7 +385,7 @@ export default function PackagesPage() {
             {job.running && <Progress value={progress} className="w-full" />}
             <pre
               ref={logRef}
-              className={`max-h-56 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-text-secondary ${job.error ? "border-destructive/40" : ""}`}
+              className={`max-h-56 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[13.5px] leading-relaxed whitespace-pre-wrap text-text-secondary ${job.error ? "border-destructive/40" : ""}`}
             >
               {job.output || (job.running ? "starting…" : "")}
             </pre>

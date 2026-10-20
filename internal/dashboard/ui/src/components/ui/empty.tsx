@@ -27,7 +27,7 @@ function EmptyTitle({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
       data-slot="empty-title"
-      className={cn("text-[13px] font-medium text-text-primary", className)}
+      className={cn("text-[13.5px] font-medium text-text-primary", className)}
       {...props}
     />
   )
@@ -37,7 +37,7 @@ function EmptyDescription({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
       data-slot="empty-description"
-      className={cn("max-w-sm text-[11.5px] leading-relaxed text-text-muted", className)}
+      className={cn("max-w-sm text-[13.5px] leading-relaxed text-text-muted", className)}
       {...props}
     />
   )

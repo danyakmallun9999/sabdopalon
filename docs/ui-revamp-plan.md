@@ -989,3 +989,61 @@ membuat tampilannya terasa "mirip, tapi bukan yang sama".
 sama pada lebar yang sama, keduanya dilihat berdampingan. Warna diambil dari
 node desain (`Get` → `fill`/`stroke`), bukan dari mata — contoh: fill tombol
 primary sudah `#973C00` sejak awal, hanya struktur dua-lapisnya yang belum.
+
+---
+
+## Lampiran G — Putaran Kesetiaan Terakhir (setelah.umpan balik pengguna)
+
+### 1. Judul halaman kembali ke top bar
+
+Keputusan Lampiran C butir 1 (judul pindah ke body) **diubah**: judul halaman
+lagi di top bar, bersama ikon halamannya, dan **baris detail kecil di bawahnya
+dihapus** — halaman langsung dibuka dengan apa yang bisa dilakukan di halaman
+itu. `PageHeader` berubah jadi `PageActions` (`src/components/page-actions.tsx`):
+hanya baris aksi, rata kanan, di atas isi halaman.
+
+Untuk halaman site, top bar menampilkan trail `Sites / <nama>` (sesuai desain),
+dan status running/stopped pindah ke baris aksi halaman site (karena status
+bukan judul, dan tetap harus terlihat di tab mana pun).
+
+### 2. Skala tipografi dinaikkan
+
+| Peran | Lama | Baru |
+|---|---|---|
+| Body | 13 px | 14 px |
+| Judul kartu | 14.5 px | 15.5 px |
+| Label form / header tabel | 12.5 / 10 px | 13.5 / 11 px |
+| Isi tabel | 12.5 px | 13.5 px |
+| Label metrik | 11.5 px | 12.5 px |
+| Teks terkecil di layar | 10 px | 11.5 px |
+
+### 3. Hierarki tombol mengikut desain
+
+Aturan dari desain: **hanya satu tombol oranye per layar atau per kartu** —
+tombol aksi utama. Semua tombol lain adalah tombol *surface* (isi `#262626`,
+edge `#232323`, dibungkus ring).
+
+| Tombol |Antes | Sesudah |
+|---|---|---|
+| Start/Stop di baris tabel Sites | oranye | surface |
+| Install di kartu paket | oranye | surface |
+| Save port | surface | surface (tetap) |
+| Save php.ini | oranye | surface |
+| Start di tabel Installed services | oranye | surface |
+| Langkah SSL | semua oranye | hanya langkah 1 yang bisa jalan; sisanya surface |
+
+### 4. Scroll halaman site
+
+Sebelumnya hanya panel tab yang bisa digulir; bagian di bawah navbar (baris
+status, tab) diam. Sekarang **satu halaman** di bawah top bar yang bergulir:
+header, tab, dan isi bergerak bersama. Tab Terminal memakai tinggi sendiri
+(70vh, min 22rem) supaya xterm tetap punya ruang.
+
+### 5. Perbaikan kecil
+
+- Halaman **Database** kehilangan padding atas setelah judulnya dihapus →
+  tab Daemons menempel ke navbar. Dipperbaiki (`pt-7`).
+- Tombol **New shell** di halaman Terminal dihapus dari kanan; tombol **+**
+  masuk ke dalam segmented control tab, seperti pada desain.
+- `npm run typecheck` memakai `tsc --noEmit` di atas tsconfig *solution-style*,
+  sehingga **tidak memeriksa apa pun**. Diganti `tsc -b` (yang dipakai build).

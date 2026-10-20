@@ -28,18 +28,18 @@ export function MetricStrip({ metrics }: { metrics: Metric[] }) {
           const cell = (
             <div className="flex flex-col gap-3.5 bg-card p-[18px_22px]">
               <div className="flex items-center gap-2.5">
-                <span className="text-[11.5px] font-medium text-text-secondary">
+                <span className="text-[13.5px] font-medium text-text-secondary">
                   {m.label}
                 </span>
                 {m.icon ? (
                   <m.icon className="ml-auto size-3.5 text-text-muted" />
                 ) : null}
               </div>
-              <div className="text-[26px] leading-none font-semibold tracking-[-0.02em] text-text-primary tabular-nums">
+              <div className="text-[28px] leading-none font-semibold tracking-[-0.02em] text-text-primary tabular-nums">
                 {m.value}
               </div>
               {m.sub ? (
-                <div className="text-[11px] text-text-muted">{m.sub}</div>
+                <div className="text-[13.5px] text-text-muted">{m.sub}</div>
               ) : null}
             </div>
           )

@@ -66,7 +66,7 @@ export function ToneBadge({
   ...props
 }: ComponentProps<typeof Badge> & { tone: Tone }) {
   return (
-    <Badge variant="outline" className={cn("h-[22px] gap-1.5 border px-2.5 text-[11px]", TONE[tone], className)} {...props}>
+    <Badge variant="outline" className={cn("h-[22px] gap-1.5 border px-2.5 text-[13.5px]", TONE[tone], className)} {...props}>
       {children}
     </Badge>
   )

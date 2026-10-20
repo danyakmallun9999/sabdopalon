@@ -34,7 +34,7 @@ import api, {
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
 import { IconButton } from "@/components/icon-button"
-import { PageHeader } from "@/components/page-header"
+import { PageActions } from "@/components/page-actions"
 import { openExternal } from "@/lib/external"
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
@@ -129,36 +129,12 @@ export default function SiteDetailPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-5 pb-6 lg:px-7">
-      <PageHeader
-        className="pt-7"
-        title={
-          <span className="flex flex-wrap items-center gap-2.5">
-            {detail.name}
-            <ToneBadge tone={detail.running ? "success" : "muted"}>
-              <StatusDot status={detail.running ? "running" : "stopped"} />
-              {detail.running ? "running" : "stopped"}
-            </ToneBadge>
-          </span>
-        }
-        description={
-          <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
-            {detail.framework !== "unknown" && (
-              <Badge variant="secondary">{detail.framework}</Badge>
-            )}
-            <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-text-primary hover:underline">
-              <Globe className="size-3.5 text-brand" /> {detail.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-            </a>
-            <span className="text-text-muted/40">·</span>
-            <a href={detail.https} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-text-primary hover:underline">
-              <Lock className="size-3.5 text-success" /> {detail.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-            </a>
-            {detail.port ? (
-              <span className="font-mono text-text-muted">:{detail.port}</span>
-            ) : null}
-          </div>
-        }
-        actions={
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-5 pt-7 pb-6 lg:px-7">
+      <PageActions className="justify-between pt-7">
+          <ToneBadge tone={detail.running ? "success" : "muted"}>
+            <StatusDot status={detail.running ? "running" : "stopped"} />
+            {detail.running ? "running" : "stopped"}
+          </ToneBadge>
           <div className="flex items-center gap-2">
           {detail.running ? (
             <>
@@ -175,11 +151,10 @@ export default function SiteDetailPage() {
             </Button>
           )}
           </div>
-        }
-      />
+        </PageActions>
 
       {/* Tabs */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex flex-col">
         <TabsList className="mt-4 flex-wrap">
           <TabsTrigger value="overview"><Box className="size-3.5" /> Overview</TabsTrigger>
           <TabsTrigger value="config"><Settings2 className="size-3.5" /> Config</TabsTrigger>
@@ -188,19 +163,19 @@ export default function SiteDetailPage() {
           <TabsTrigger value="terminal"><TerminalIcon className="size-3.5" /> Terminal</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="mt-4 min-h-0 flex-1 overflow-y-auto pb-4">
+        <TabsContent value="overview" className="mt-4 pb-4">
           <OverviewTab detail={detail} />
         </TabsContent>
-        <TabsContent value="config" className="mt-4 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="config" className="mt-4">
           <ConfigTab name={detail.name} config={detail.config} onSaved={load} />
         </TabsContent>
-        <TabsContent value="logs" className="mt-4 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="logs" className="mt-4">
           <LogsTab name={detail.name} sources={detail.logs} />
         </TabsContent>
-        <TabsContent value="devtools" className="mt-4 min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="devtools" className="mt-4">
           <DevToolsTab name={detail.name} tools={detail.devtools} onChanged={load} />
         </TabsContent>
-        <TabsContent value="terminal" className="mt-4 min-h-0 flex-1 overflow-hidden">
+        <TabsContent value="terminal" className="mt-4">
           <TerminalTab name={detail.name} dir={detail.dir} />
         </TabsContent>
       </Tabs>
@@ -248,16 +223,16 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
           <Card key={c.title}>
             <CardContent className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+                <span className="text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
                   {c.title}
                 </span>
                 <c.icon className="size-[15px] text-text-muted" />
               </div>
-              <div className="truncate text-[15px] font-semibold text-text-primary" title={c.value}>
+              <div className="truncate text-[16px] font-semibold text-text-primary" title={c.value}>
                 {c.value}
               </div>
               {c.sub && (
-                <p className="truncate font-mono text-[12.5px] text-text-muted">{c.sub}</p>
+                <p className="truncate font-mono text-[13.5px] text-text-muted">{c.sub}</p>
               )}
             </CardContent>
           </Card>
@@ -270,10 +245,10 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
           <CardTitle className="flex items-center gap-2"><Globe className="size-[15px] text-text-muted" /> URLs</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
-          <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[11.5px] text-brand hover:underline">
+          <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[13.5px] text-brand hover:underline">
             <Globe className="size-3.5" /> {detail.url} <ExternalLink className="size-3 opacity-60" />
           </a>
-          <a href={detail.https} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[11.5px] text-text-secondary hover:text-text-primary hover:underline">
+          <a href={detail.https} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[13.5px] text-text-secondary hover:text-text-primary hover:underline">
             <Lock className="size-3.5 text-success" /> {detail.https}
           </a>
           {detail.config.aliases?.length > 0 && (
@@ -296,11 +271,11 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {(detail.devtools ?? []).filter((t) => t.running).map((t) => (
-              <div key={t.tool} className="flex items-center gap-2 text-[12px]">
+              <div key={t.tool} className="flex items-center gap-2 text-[13.5px]">
                 <StatusDot status="running" />
                 <span className="font-medium">{t.label}</span>
                 {t.port ? <Badge variant="secondary" className="font-mono">:{t.port}</Badge> : null}
-                <span className="text-[10.5px] text-text-muted">PID {t.pid}</span>
+                <span className="text-[13.5px] text-text-muted">PID {t.pid}</span>
               </div>
             ))}
           </CardContent>
@@ -400,7 +375,7 @@ function PublicAccessCard({ name }: { name: string }) {
       <CardContent className="flex flex-col gap-3">
         {needsCloudflared && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed border-border bg-surface-inset p-2.5">
-            <span className="text-[11px] text-text-muted">
+            <span className="text-[13.5px] text-text-muted">
               Public URLs need cloudflared — not installed yet.
             </span>
             <Button size="sm" variant="outline" disabled={installing} onClick={() => void installCloudflared()}>
@@ -451,7 +426,7 @@ function PublicAccessCard({ name }: { name: string }) {
 
         {tunnel?.url && (
           <div className="flex items-center gap-2">
-            <span className="min-w-0 truncate font-mono text-xs" title={tunnel.url}>
+            <span className="min-w-0 truncate font-mono text-[13px]" title={tunnel.url}>
               {tunnel.url}
             </span>
             <IconButton label="Copy public URL" size="icon-sm" variant="ghost" onClick={copyUrl}>
@@ -468,7 +443,7 @@ function PublicAccessCard({ name }: { name: string }) {
           </div>
         )}
 
-        <p className="text-[11px] leading-relaxed text-text-muted">
+        <p className="text-[13.5px] leading-relaxed text-text-muted">
           Anyone with this link can reach this site. Turn off APP_DEBUG before sharing.
         </p>
       </CardContent>
@@ -580,7 +555,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
       <div className="flex flex-col gap-4 @5xl/main:col-span-5">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+          <span className="text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
             PHP version
           </span>
           <Settings2 className="size-[15px] text-text-muted" />
@@ -591,7 +566,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
             <SelectContent>
               {["General", "Bundled", "System"].map((group) => (
                 <div key={group}>
-                  <div className="px-2 py-1 text-[10px] font-medium tracking-[0.08em] text-text-muted uppercase">{group}</div>
+                  <div className="px-2 py-1 text-[13.5px] font-medium tracking-[0.08em] text-text-muted uppercase">{group}</div>
                   {options.filter((o) => o.group === group).map((o) => (
                     <SelectItem key={o.value || "__default"} value={o.value}>{o.label}</SelectItem>
                   ))}
@@ -599,16 +574,16 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
               ))}
             </SelectContent>
           </Select>
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">
+          <p className="mt-2 text-[13.5px] leading-relaxed text-text-muted">
             Written to <code>.sabdopalon.yml</code> in the site folder and used the next time the site starts.
           </p>
-          {optionsError ? <p className="mt-1 text-[11px] text-destructive">{optionsError}</p> : null}
+          {optionsError ? <p className="mt-1 text-[13.5px] text-destructive">{optionsError}</p> : null}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+          <span className="text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
             Document root
           </span>
           <FolderTree className="size-[15px] text-text-muted" />
@@ -619,13 +594,13 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
             value={cfg.docroot}
             onChange={(e) => setCfg({ ...cfg, docroot: e.target.value })}
           />
-          <p className="mt-2 text-[11px] leading-relaxed text-text-muted">Relative to the site folder. Laravel uses <code>public</code>.</p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-text-muted">Relative to the site folder. Laravel uses <code>public</code>.</p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+          <span className="text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
             Aliases
           </span>
           <Globe className="size-[15px] text-text-muted" />
@@ -639,7 +614,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
               setCfg({ ...cfg, aliases: e.target.value.split("\n").map((x) => x.trim()) })
             }
           />
-          <p className="text-[11px] leading-relaxed text-text-muted">One per line. Custom domains (not *.localhost) need a hosts entry.</p>
+          <p className="text-[13.5px] leading-relaxed text-text-muted">One per line. Custom domains (not *.localhost) need a hosts entry.</p>
         </CardContent>
       </Card>
 
@@ -657,7 +632,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+          <span className="text-[13.5px] font-semibold tracking-[0.08em] text-text-muted uppercase">
             Environment
           </span>
           <TerminalIcon className="size-[15px] text-text-muted" />
@@ -676,7 +651,7 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
               setCfg({ ...cfg, env })
             }}
           />
-          <p className="text-[11px] leading-relaxed text-text-muted">KEY=value per line. Injected into the PHP process.</p>
+          <p className="text-[13.5px] leading-relaxed text-text-muted">KEY=value per line. Injected into the PHP process.</p>
         </CardContent>
       </Card>
 
@@ -748,20 +723,20 @@ function LogsTab({ name, sources }: { name: string; sources?: string[] | null })
             </Button>
           ))}
         </div>
-        <label className="flex items-center gap-2 text-[11px] text-text-muted">
+        <label className="flex items-center gap-2 text-[13.5px] text-text-muted">
           auto-refresh
           <Switch checked={auto} onCheckedChange={setAuto} />
         </label>
       </div>
       <div className="flex items-center justify-between gap-3 rounded-lg border border-ring-inner bg-surface-inset px-3 py-2">
-        <p className="truncate font-mono text-[10.5px] text-text-muted">
+        <p className="truncate font-mono text-[13.5px] text-text-muted">
           logs/{log?.file ?? `${name}.${current}.log`}
         </p>
-        <span className="shrink-0 font-mono text-[10px] text-text-muted">{log?.lines.length ?? 0} lines</span>
+        <span className="shrink-0 font-mono text-[13.5px] text-text-muted">{log?.lines.length ?? 0} lines</span>
       </div>
       <pre
         ref={scrollRef}
-        className="max-h-[55vh] min-h-48 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed text-text-secondary"
+        className="max-h-[55vh] min-h-48 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[13.5px] leading-relaxed text-text-secondary"
       >
         {log?.error ?? (log?.lines.length ? log.lines.join("\n") : "No logs yet.")}
       </pre>
@@ -791,15 +766,15 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools?: DevTool
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <div className="flex items-center gap-2 rounded-lg border border-ring-inner bg-surface-inset px-3 py-2 text-[11.5px]">
+      <div className="flex items-center gap-2 rounded-lg border border-ring-inner bg-surface-inset px-3 py-2 text-[13.5px]">
         <Zap className="size-3.5 shrink-0 text-warning" />
         <p className="text-text-muted">
-          Vite is auto-proxied, so <code className="rounded bg-surface-raised px-1 font-mono text-[10.5px] text-text-secondary">{name}.localhost</code> serves HMR assets.
+          Vite is auto-proxied, so <code className="rounded bg-surface-raised px-1 font-mono text-[13.5px] text-text-secondary">{name}.localhost</code> serves HMR assets.
         </p>
       </div>
       {applicable.length === 0 && (
-        <div className="flex min-h-32 items-center justify-center rounded-xl border border-ring-inner bg-surface p-6 text-center text-[11.5px] text-text-muted">
-          No dev-tools detected for this project. Create a <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[10.5px]">vite.config.js</code>, <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[10.5px]">artisan</code>, or <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[10.5px]">package.json</code> to enable tools.
+        <div className="flex min-h-32 items-center justify-center rounded-xl border border-ring-inner bg-surface p-6 text-center text-[13.5px] text-text-muted">
+          No dev-tools detected for this project. Create a <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[13.5px]">vite.config.js</code>, <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[13.5px]">artisan</code>, or <code className="mx-1 rounded bg-surface-raised px-1 font-mono text-[13.5px]">package.json</code> to enable tools.
         </div>
       )}
       {applicable.map((t) => (
@@ -811,7 +786,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools?: DevTool
             </CardTitle>
             <Button
               size="sm"
-              variant={t.running ? "outline" : "default"}
+              variant="outline"
               disabled={busyTool === t.tool}
               onClick={() => toggleTool(t.tool, t.running)}
             >
@@ -820,7 +795,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools?: DevTool
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap items-center gap-2 text-[11px] text-text-muted">
+            <div className="flex flex-wrap items-center gap-2 text-[13.5px] text-text-muted">
               {t.running ? (
                 <>
                   <span className="inline-flex items-center gap-1">
@@ -832,7 +807,7 @@ function DevToolsTab({ name, tools, onChanged }: { name: string; tools?: DevTool
                 <span>stopped</span>
               )}
               {t.last_error && t.running === false && (
-                <span className="text-[11px] text-warning">{t.last_error}</span>
+                <span className="text-[13.5px] text-warning">{t.last_error}</span>
               )}
             </div>
             {t.running && (
@@ -865,7 +840,7 @@ function ToolLog({ name, tool }: { name: string; tool: string }) {
   return (
     <pre
       ref={scrollRef}
-      className="mt-3 max-h-48 min-h-24 overflow-y-auto rounded-lg border border-ring-inner bg-surface-inset p-3 font-mono text-[11px] leading-relaxed text-text-secondary"
+      className="mt-3 max-h-48 min-h-24 overflow-y-auto rounded-lg border border-ring-inner bg-surface-inset p-3 font-mono text-[13.5px] leading-relaxed text-text-secondary"
     >
       {log?.error ?? (log?.lines.length ? log.lines.join("\n") : "No output yet.")}
     </pre>
@@ -879,10 +854,10 @@ function TerminalTab({ name, dir }: { name: string; dir: string }) {
   const panelRef = useRef<{ clear: () => void; restart: () => void }>(null)
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-ring-inner bg-surface-inset">
+    <div className="flex h-[70vh] min-h-[22rem] flex-col overflow-hidden rounded-xl border border-ring-inner bg-surface-inset">
       <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-soft px-3">
         <TerminalIcon className="size-4 shrink-0" />
-        <span className="text-[12px] font-medium text-text-primary">{name}</span>
+        <span className="text-[13.5px] font-medium text-text-primary">{name}</span>
         <StatusDot
           status={
             termStatus === "connected"
@@ -892,7 +867,7 @@ function TerminalTab({ name, dir }: { name: string; dir: string }) {
                 : "error"
           }
         />
-        <span className="text-[10.5px] text-text-muted">{termStatus}</span>
+        <span className="text-[13.5px] text-text-muted">{termStatus}</span>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <TerminalPanel
@@ -940,13 +915,13 @@ function PhpIniEditor({ name, onSaved }: { name: string; onSaved: () => void }) 
       <Textarea
         rows={12}
         spellCheck={false}
-        className="resize-y font-mono text-[11.5px] leading-relaxed"
+        className="resize-y font-mono text-[13.5px] leading-relaxed"
         placeholder="; memory_limit = 256M&#10; display_errors = On"
         value={content}
         onChange={(e) => setContent(e.target.value)}
       />
       <div className="flex items-center justify-between">
-        <p className="text-[11px] leading-relaxed text-text-muted">
+        <p className="text-[13.5px] leading-relaxed text-text-muted">
           {exists
             ? "Editing sites/" + name + "/php.ini — overrides the global php.ini for this site."
             : "No per-site php.ini yet — this default will create sites/" + name + "/php.ini on save."}

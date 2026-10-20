@@ -5,7 +5,6 @@ import { Database, HardDriveDownload, Play, RotateCw, Server, Square, Terminal a
 import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
 import { useLive } from "@/lib/live"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
-import { PageHeader } from "@/components/page-header"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Empty, EmptyTitle } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
@@ -206,13 +205,8 @@ export default function DatabasePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 px-5 pb-6 lg:px-7">
-      <PageHeader
-        className="pt-7"
-        title="Database"
-        description="Run MariaDB and PostgreSQL side by side, manage the SQLite fallback, and keep a recent backup."
-      />
-      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 flex-col gap-4 px-5 pt-7 pb-6 lg:px-7">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="flex-wrap">
           <TabsTrigger value="daemons"><Server className="size-3.5" /> Daemons</TabsTrigger>
           <TabsTrigger value="backups"><Database className="size-3.5" /> Backups</TabsTrigger>
@@ -301,11 +295,11 @@ function DaemonsTab({
                 </div>
 
                 {!d.installed && (
-                  <p className="mt-2 text-[11px] text-destructive">
+                  <p className="mt-2 text-[13.5px] text-destructive">
                     Not installed yet — install it from the Packages page first.
                   </p>
                 )}
-                {err && <p className="mt-2 text-[11px] text-destructive">Start failed: {err}</p>}
+                {err && <p className="mt-2 text-[13.5px] text-destructive">Start failed: {err}</p>}
 
                 {d.enabled && (
                   <>
@@ -338,7 +332,7 @@ function DaemonsTab({
                         <RotateCw /> Restart
                       </Button>
                       {(busyKey === d.key + "start" || busyKey === d.key + "restart") && (
-                        <span className="text-[10.5px] text-text-muted">
+                        <span className="text-[13.5px] text-text-muted">
                           {busyKey === d.key + "start" ? "starting…" : "restarting…"}
                         </span>
                       )}
@@ -383,8 +377,8 @@ function DaemonsTab({
         </Card>
       </div>
 
-      <p className="mt-4 px-1 text-[11px] leading-relaxed text-text-muted">
-        Every site can reach any engine: <code className="rounded bg-surface-raised px-1 font-mono text-[10.5px] text-text-secondary">SABDOPALON_MARIADB_*</code> and <code className="rounded bg-surface-raised px-1 font-mono text-[10.5px] text-text-secondary">SABDOPALON_PG_*</code> are set for it.
+      <p className="mt-4 px-1 text-[13.5px] leading-relaxed text-text-muted">
+        Every site can reach any engine: <code className="rounded bg-surface-raised px-1 font-mono text-[13.5px] text-text-secondary">SABDOPALON_MARIADB_*</code> and <code className="rounded bg-surface-raised px-1 font-mono text-[13.5px] text-text-secondary">SABDOPALON_PG_*</code> are set for it.
       </p>
     </>
   )
@@ -430,9 +424,9 @@ function BackupsTab({
               <TableBody>
                 {backups.map((b) => (
                   <TableRow key={b.name}>
-                    <TableCell className="font-mono text-[11px]">{b.name}</TableCell>
+                    <TableCell className="font-mono text-[13.5px]">{b.name}</TableCell>
                     <TableCell>{(b.size / 1024).toFixed(0)} KB</TableCell>
-                    <TableCell className="text-[11px] text-text-muted">{b.time}</TableCell>
+                    <TableCell className="text-[13.5px] text-text-muted">{b.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -500,7 +494,7 @@ function TerminalTab({
                 disabled={!d.installed}
                 onClick={() => setEngine(d.key)}
                 title={!d.installed ? "Install from the Packages page first" : dRunning ? "running" : "stopped"}
-                className={`inline-flex h-[28px] items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                className={`inline-flex h-[28px] items-center gap-1.5 rounded-md border px-2.5 text-[13.5px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
                   active
                     ? "border-[#3d3d3d] bg-[#333333] text-text-primary"
                     : "border-transparent text-text-muted hover:text-text-primary"
@@ -512,7 +506,7 @@ function TerminalTab({
             )
           })}
         </div>
-        <div className="flex items-center gap-2 text-[10.5px] text-text-muted">
+        <div className="flex items-center gap-2 text-[13.5px] text-text-muted">
           {pgUnsupported ? (
             <span>{card.label} — terminal feature not available yet</span>
           ) : running ? (
@@ -571,9 +565,9 @@ function TerminalTab({
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-ring-inner bg-surface-inset">
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-soft px-3">
             <TerminalIcon className="size-4 shrink-0" />
-            <span className="text-[12px] font-medium text-text-primary">{card.label}</span>
+            <span className="text-[13.5px] font-medium text-text-primary">{card.label}</span>
             <span className={`size-1.5 rounded-full ${termStatus === "connected" ? "bg-success" : termStatus === "connecting" ? "bg-warning animate-pulse" : "bg-destructive"}`} />
-            <span className="text-[10.5px] text-text-muted">{termStatus}</span>
+            <span className="text-[13.5px] text-text-muted">{termStatus}</span>
             <div className="ml-auto flex items-center gap-1.5">
               <Button size="sm" variant="ghost" onClick={() => panelRef.current?.clear()}>
                 Clear

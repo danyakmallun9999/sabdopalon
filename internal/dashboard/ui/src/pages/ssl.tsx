@@ -5,7 +5,6 @@ import { Copy, KeyRound, Lock, ShieldCheck } from "lucide-react"
 import api, { poll, type SslAction, type SslStatus } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ToneBadge } from "@/components/status"
-import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -108,11 +107,7 @@ export default function SslPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageHeader
-        title="SSL / HTTPS"
-        description="A local certificate authority makes every site trusted in the browser — without warnings."
-      />
-      <div className="grid grid-cols-1 gap-3.5 @xl/main:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3.5 @xl/main:grid-cols-3">
         {steps.map((s) => (
           <Card key={s.n}>
             <CardHeader>
@@ -133,10 +128,7 @@ export default function SslPage() {
                 <Button
                   size="sm"
                   variant={
-                    (s.stateKey === "ca_exists" && st?.ca_exists) ||
-                    (s.stateKey === "wildcard_cert" && st?.wildcard_cert)
-                      ? "secondary"
-                      : "default"
+                    s.n === 1 && !st?.ca_exists ? "default" : "outline"
                   }
                   title="Click to regenerate / re-apply"
                   disabled={busy === String(s.n) || (s.n >= 2 && !st?.ca_exists)}
@@ -213,7 +205,7 @@ export default function SslPage() {
             <DialogDescription>{suAction?.message}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2">
-            <code className="flex-1 rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[11.5px] break-all text-text-secondary">
+            <code className="flex-1 rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[13.5px] break-all text-text-secondary">
               {suAction?.command}
             </code>
             <Button size="icon" variant="outline" onClick={() => copyCommand(suAction?.command)}>
@@ -222,7 +214,7 @@ export default function SslPage() {
             </Button>
           </div>
           {suAction?.note && (
-            <p className="text-[11px] leading-relaxed text-text-muted">{suAction.note}</p>
+            <p className="text-[13.5px] leading-relaxed text-text-muted">{suAction.note}</p>
           )}
         </DialogContent>
       </Dialog>

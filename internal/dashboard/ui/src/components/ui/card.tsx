@@ -31,7 +31,7 @@ function Card({
       data-size={size}
       data-variant={variant}
       className={cn(
-        "group/card flex min-h-0 flex-col text-[13px] text-card-foreground",
+        "group/card flex min-h-0 flex-col text-[13.5px] text-card-foreground",
         ring && "rounded-2xl border border-ring-outer bg-ring-gap p-[3px]",
         className
       )}
@@ -77,7 +77,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-[14.5px] leading-[1.3] font-semibold tracking-[-0.01em] text-text-primary",
+        "font-heading text-[15.5px] leading-[1.3] font-semibold tracking-[-0.01em] text-text-primary",
         className
       )}
       {...props}
@@ -89,7 +89,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-[12.5px] leading-relaxed text-text-secondary", className)}
+      className={cn("text-[13.5px] leading-relaxed text-text-secondary", className)}
       {...props}
     />
   )

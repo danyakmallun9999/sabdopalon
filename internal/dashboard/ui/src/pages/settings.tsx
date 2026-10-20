@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import { PageHeader } from "@/components/page-header"
 import {
   Table,
   TableBody,
@@ -85,11 +84,7 @@ export default function SettingsPage() {
         while the LAN switch sat below that button and looked like it saved
         itself. One card with the button in its footer is what the code does.
       */}
-      <PageHeader
-        title="Settings"
-        description="Domain, ports, network exposure, and the PHP defaults every site inherits."
-      />
-
+      
       <div className="grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-3">
         <Card className="min-w-0 @4xl/main:col-span-2">
         <CardHeader>
@@ -101,7 +96,7 @@ export default function SettingsPage() {
 
         <CardContent className="flex flex-col gap-5">
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[13px] font-semibold text-text-primary">Domain and ports</h3>
+            <h3 className="text-[13.5px] font-semibold text-text-primary">Domain and ports</h3>
             <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="tld">Domain suffix (TLD)</Label>
@@ -135,20 +130,20 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            <p className="text-[11px] leading-relaxed text-text-muted">
+            <p className="text-[13.5px] leading-relaxed text-text-muted">
               Sabdopalon automatically tries ports 80/443 for clean URLs first; these are fallbacks.
-              Enable permanently: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">sabdopalon enable-ports</code>.
+              Enable permanently: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">sabdopalon enable-ports</code>.
             </p>
           </section>
 
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[13px] font-semibold text-text-primary">Dashboard</h3>
+            <h3 className="text-[13.5px] font-semibold text-text-primary">Dashboard</h3>
             <div className="flex flex-row items-center justify-between gap-4 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="autoopen" className="font-normal">
                   Open dashboard on start
                 </Label>
-                <p className="text-[11px] leading-relaxed text-text-muted">
+                <p className="text-[13.5px] leading-relaxed text-text-muted">
                   Opens the dashboard in your browser when Sabdopalon starts.
                 </p>
               </div>
@@ -162,13 +157,13 @@ export default function SettingsPage() {
 
           {/* Security: PHP sites execute code, so LAN access must be opt-in. */}
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[13px] font-semibold text-text-primary">Network access</h3>
+            <h3 className="text-[13.5px] font-semibold text-text-primary">Network access</h3>
             <div className="flex flex-row items-center justify-between gap-4 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="lan" className="font-normal">
                   Allow other devices on the network to open your sites
                 </Label>
-                <p className="text-[11px] leading-relaxed text-text-muted">
+                <p className="text-[13.5px] leading-relaxed text-text-muted">
                   Exposes the proxy ports above to your network; only enable this on a Wi-Fi you
                   trust. Applies after restart.
                 </p>
@@ -197,22 +192,22 @@ export default function SettingsPage() {
           <CardDescription>
             This file applies to all sites (passed via PHPRC).{" "}
             {ini?.version && (
-              <>Active PHP: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini.version}</code>. </>
+              <>Active PHP: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">{ini.version}</code>. </>
             )}
-            Stored at <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
+            Stored at <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
           </CardDescription>
           <Textarea
-            className="mt-2 min-h-[300px] font-mono text-[11.5px] leading-relaxed"
+            className="mt-2 min-h-[300px] font-mono text-[13.5px] leading-relaxed"
             value={iniContent}
             onChange={(e) => setIniContent(e.target.value)}
             spellCheck={false}
             placeholder="memory_limit = 256M&#10;upload_max_filesize = 64M&#10;..."
           />
           <div className="mt-2 flex items-center gap-2">
-            <Button className="w-fit" onClick={savePhpIni} disabled={savingIni}>
+            <Button className="w-fit" variant="outline" onClick={savePhpIni} disabled={savingIni}>
               <Save /> Save php.ini
             </Button>
-            <span className="text-[11px] text-text-muted">
+            <span className="text-[13.5px] text-text-muted">
               Saving will restart running sites.
             </span>
           </div>
@@ -247,7 +242,7 @@ export default function SettingsPage() {
                     <TableCell className="font-medium">
                       {p.Name}
                       {p.Description && (
-                        <span className="ml-2 text-[10.5px] text-text-muted">{p.Description}</span>
+                        <span className="ml-2 text-[13.5px] text-text-muted">{p.Description}</span>
                       )}
                     </TableCell>
                     <TableCell>{p.PHP || "(default)"}</TableCell>

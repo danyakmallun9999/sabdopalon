@@ -24,7 +24,7 @@ function FieldDescription({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
-      className={cn("text-[11.5px] leading-relaxed text-text-muted", className)}
+      className={cn("text-[13.5px] leading-relaxed text-text-muted", className)}
       {...props}
     />
   )
@@ -36,7 +36,7 @@ function FieldError({ className, children, ...props }: ComponentProps<"p">) {
     <p
       data-slot="field-error"
       role="alert"
-      className={cn("text-[11.5px] text-destructive", className)}
+      className={cn("text-[13.5px] text-destructive", className)}
       {...props}
     >
       {children}
