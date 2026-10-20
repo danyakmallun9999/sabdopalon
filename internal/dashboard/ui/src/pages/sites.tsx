@@ -38,6 +38,7 @@ import TerminalPanel, {
 } from "@/components/terminal-panel"
 import { useLive } from "@/lib/live"
 import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/page-header"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
 import { IconButton } from "@/components/icon-button"
 import { Empty, EmptyTitle } from "@/components/ui/empty"
@@ -382,7 +383,7 @@ export default function SitesPage() {
         href={s.url}
         target="_blank"
         rel="noreferrer"
-        className="text-primary inline-flex items-center gap-1.5 text-sm hover:underline"
+        className="inline-flex items-center gap-1.5 text-[11.5px] text-brand hover:underline"
       >
         <Globe className="size-3.5 shrink-0" />
         {s.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
@@ -392,7 +393,7 @@ export default function SitesPage() {
         href={s.https}
         target="_blank"
         rel="noreferrer"
-        className="text-muted-foreground inline-flex items-center gap-1.5 text-sm hover:underline"
+        className="inline-flex items-center gap-1.5 text-[11.5px] text-text-secondary hover:text-text-primary hover:underline"
       >
         <Lock className="size-3.5 shrink-0 text-success" />
         {s.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
@@ -518,8 +519,8 @@ export default function SitesPage() {
   const listing = (
     <>
       {/* Desktop/tablet: table */}
-      <div className="bg-card hidden overflow-hidden rounded-xl border md:block">
-        <div className="overflow-x-auto">
+      <div className="hidden rounded-2xl border border-ring-outer bg-ring-gap p-[3px] md:block">
+        <div className="overflow-x-auto rounded-[14px] border border-ring-inner bg-card">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -574,10 +575,10 @@ export default function SitesPage() {
       {/* Mobile: cards */}
       <div className="flex flex-col gap-3 md:hidden">
         {filtered.length === 0 && (
-          <div className="bg-card rounded-xl border">{emptyRow}</div>
+          <div className="overflow-hidden rounded-xl border border-ring-inner bg-surface">{emptyRow}</div>
         )}
         {filtered.map((s) => (
-          <div key={s.name} className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+          <div key={s.name} className="flex flex-col gap-3 rounded-xl border border-ring-inner bg-surface p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-2 font-medium">
                 {runBadge(s)} {s.name} {tunnelBadge(s)}
@@ -585,7 +586,7 @@ export default function SitesPage() {
               {phpBadge(s)}
             </div>
             {urlCell(s)}
-            <div className="flex items-center justify-between gap-2 border-t pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-border-soft pt-3">
               {startStopBtn(s)}
               <div className="flex items-center gap-1">
                 <Button size="sm" variant="ghost" onClick={() => openTerminalFor(s)}>
@@ -605,21 +606,26 @@ export default function SitesPage() {
   const termDir = termSite?.dir ?? ""
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-4 lg:px-6">
+    <div className="flex h-full min-h-0 flex-col px-5 pb-6 lg:px-7">
+      <PageHeader
+        title="Sites"
+        description="Every folder in sites/ is served locally. Start, stop, or open a site without leaving the list."
+        className="pt-7"
+      />
       {/* Toolbar: filter + actions, all on one control height (h-8) so nothing
           in the row stands a few pixels taller than its neighbour. The sentence
           that used to explain that every folder in sites/ is served at
           name.localhost is gone: the URLs column below shows exactly that, per
           site, and repeating it pushed the table down for no information. */}
-      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-end">
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-text-muted" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Filter sites…"
-              className="h-8 w-44 pl-8"
+              className="h-[30px] w-52 pl-8 text-[12px]"
             />
           </div>
           <Button
@@ -682,7 +688,7 @@ export default function SitesPage() {
                         href={createState.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                        className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
                       >
                         <Globe className="size-3.5" /> Open site
                       </a>
@@ -701,7 +707,7 @@ export default function SitesPage() {
 
                   <pre
                     ref={logRef}
-                    className={`bg-background text-muted-foreground max-h-72 min-h-40 overflow-x-hidden overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap ${
+                    className={`max-h-72 min-h-40 overflow-x-hidden overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary ${
                       rawLog ? "break-all" : "break-words"
                     } ${createState.error ? "border-destructive/40" : ""}`}
                   >
@@ -817,7 +823,7 @@ export default function SitesPage() {
           <>
             {/* Divider: vertical on desktop (drag width), horizontal on mobile */}
             <div
-              className="bg-border/60 hover:bg-primary/40 group relative my-1 h-1.5 cursor-row-resize rounded-full lg:my-0 lg:ml-4 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
+              className="group relative my-1 h-1.5 cursor-row-resize rounded-full bg-border-soft hover:bg-brand/40 lg:my-0 lg:ml-4 lg:h-auto lg:w-1.5 lg:cursor-col-resize"
               onPointerDown={(e) => {
                 draggingRef.current = true
                 e.currentTarget.setPointerCapture(e.pointerId)
@@ -839,12 +845,12 @@ export default function SitesPage() {
               onPointerCancel={() => (draggingRef.current = false)}
               title="Drag to resize"
             >
-              <span className="bg-primary/40 absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
+              <span className="absolute top-1/2 left-1/2 h-1 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/50 opacity-0 transition-opacity group-hover:opacity-100 lg:h-10 lg:w-1" />
             </div>
 
             {/* Right dock: full height on desktop, bottom panel on mobile */}
             <aside
-              className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-background max-lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0"
+              className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-ring-inner bg-surface-inset max-lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0"
               style={
                 isDesktop
                   ? { width: dock.width }
@@ -852,7 +858,7 @@ export default function SitesPage() {
               }
             >
               {/* Dock header */}
-              <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+              <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-soft px-3">
                 <TerminalSquare className="size-4 shrink-0" />
                 <Select
                   value={termSite?.name ?? "__root"}

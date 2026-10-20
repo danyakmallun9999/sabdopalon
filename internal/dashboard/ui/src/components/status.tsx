@@ -39,7 +39,7 @@ export function StatusDot({
   return (
     <span
       aria-hidden={labelled ? undefined : true}
-      className={cn("size-2 shrink-0 rounded-full", DOT[status], className)}
+      className={cn("size-1.5 shrink-0 rounded-full", DOT[status], className)}
       {...props}
     />
   )
@@ -48,10 +48,10 @@ export function StatusDot({
 export type Tone = "success" | "warning" | "danger" | "muted"
 
 const TONE: Record<Tone, string> = {
-  success: "border-success/30 bg-success/15 text-success",
-  warning: "border-warning/30 bg-warning/15 text-warning",
-  danger: "border-destructive/30 bg-destructive/15 text-destructive",
-  muted: "text-muted-foreground",
+  success: "border-success/20 bg-success-soft text-success",
+  warning: "border-warning/20 bg-warning-soft text-warning",
+  danger: "border-destructive/20 bg-danger-soft text-destructive",
+  muted: "border-ring-inner bg-surface-raised text-text-secondary",
 }
 
 /**
@@ -66,7 +66,7 @@ export function ToneBadge({
   ...props
 }: ComponentProps<typeof Badge> & { tone: Tone }) {
   return (
-    <Badge variant="outline" className={cn("gap-1.5", TONE[tone], className)} {...props}>
+    <Badge variant="outline" className={cn("h-[22px] gap-1.5 border px-2.5 text-[11px]", TONE[tone], className)} {...props}>
       {children}
     </Badge>
   )

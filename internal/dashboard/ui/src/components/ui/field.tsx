@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
  * aria-describedby on the input (see the setup wizard).
  */
 function Field({ className, ...props }: ComponentProps<"div">) {
-  return <div data-slot="field" className={cn("flex flex-col gap-2", className)} {...props} />
+  return <div data-slot="field" className={cn("flex flex-col gap-1.5", className)} {...props} />
 }
 
 function FieldLabel({ className, ...props }: ComponentProps<typeof Label>) {
@@ -24,7 +24,7 @@ function FieldDescription({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
       data-slot="field-description"
-      className={cn("text-muted-foreground text-xs", className)}
+      className={cn("text-[11.5px] leading-relaxed text-text-muted", className)}
       {...props}
     />
   )
@@ -36,7 +36,7 @@ function FieldError({ className, children, ...props }: ComponentProps<"p">) {
     <p
       data-slot="field-error"
       role="alert"
-      className={cn("text-destructive text-xs", className)}
+      className={cn("text-[11.5px] text-destructive", className)}
       {...props}
     >
       {children}

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { Plus, X } from "lucide-react"
 
 import { IconButton } from "@/components/icon-button"
+import { PageHeader } from "@/components/page-header"
 import TerminalPanel, { type TerminalPanelHandle } from "@/components/terminal-panel"
 
 type ShellTab = { id: number; title: string; sk: string }
@@ -75,17 +76,22 @@ export default function TerminalPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3 px-4 pt-2 lg:px-6">
+    <div className="flex h-full min-h-0 flex-col gap-3 px-5 pb-6 lg:px-7">
+      <PageHeader
+        className="pt-7"
+        title="Terminal"
+        description="Each tab is an independent shell. Sessions survive tab switches, route changes, and reloads."
+      />
       {/* Tab bar */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
-            className={`group inline-flex h-8 items-center gap-2 rounded-lg border px-3 text-sm transition-colors ${
+            className={`group inline-flex h-[30px] shrink-0 items-center gap-2 rounded-lg border px-2.5 text-[12px] transition-colors ${
               t.id === active
-                ? "bg-accent font-medium"
-                : "text-muted-foreground hover:bg-muted/60 border-transparent"
+                ? "border-ring-inner bg-surface-raised font-medium text-text-primary"
+                : "border-transparent text-text-muted hover:bg-surface-raised/60 hover:text-text-primary"
             }`}
           >
             {t.title}
@@ -98,7 +104,7 @@ export default function TerminalPage() {
                 closeTab(t.id)
               }}
               onKeyDown={(e) => e.key === "Enter" && closeTab(t.id)}
-              className="hover:bg-background rounded-sm p-0.5 opacity-50 group-hover:opacity-100"
+              className="rounded-sm p-0.5 opacity-50 transition hover:bg-destructive/15 hover:text-destructive group-hover:opacity-100"
             >
               <X className="size-3.5" />
             </span>
@@ -110,7 +116,7 @@ export default function TerminalPage() {
       </div>
 
       {/* Panels — kept mounted so background sessions survive tab switches. */}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-ring-inner bg-surface-inset">
         {tabs.map((t) => (
           <div key={t.id} className={`absolute inset-0 ${t.id === active ? "" : "hidden"}`}>
             <TerminalPanel

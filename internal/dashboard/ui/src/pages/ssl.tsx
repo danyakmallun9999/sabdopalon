@@ -4,8 +4,8 @@ import { Copy, KeyRound, Lock, ShieldCheck } from "lucide-react"
 
 import api, { poll, type SslAction, type SslStatus } from "@/lib/api"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { ToneBadge } from "@/components/status"
+import { PageHeader } from "@/components/page-header"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -98,29 +98,33 @@ export default function SslPage() {
 
   function stepBadge(s: Step) {
     if (s.stateKey === "trusted") {
-      if (!st?.installed) return <Badge variant="outline">not trusted</Badge>
+      if (!st?.installed) return <ToneBadge tone="muted">not trusted</ToneBadge>
       if (staleTrust) return <ToneBadge tone="warning">stale — re-trust</ToneBadge>
-      return <Badge>trusted ✓</Badge>
+      return <ToneBadge tone="success">trusted ✓</ToneBadge>
     }
     const ok = s.stateKey === "ca_exists" ? st?.ca_exists : st?.wildcard_cert
-    return <Badge variant={ok ? "default" : "outline"}>{ok ? "ready" : "pending"}</Badge>
+    return <ToneBadge tone={ok ? "success" : "muted"}>{ok ? "ready" : "pending"}</ToneBadge>
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
+      <PageHeader
+        title="SSL / HTTPS"
+        description="A local certificate authority makes every site trusted in the browser — without warnings."
+      />
+      <div className="grid grid-cols-1 gap-3.5 @xl/main:grid-cols-3">
         {steps.map((s) => (
           <Card key={s.n}>
             <CardHeader>
               <div className="flex items-center gap-2">
                 {s.n === 1 ? (
-                  <KeyRound className="text-primary size-4" />
+                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><KeyRound className="size-3.5 text-brand" /></span>
                 ) : s.n === 2 ? (
-                  <Lock className="text-primary size-4" />
+                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><Lock className="size-3.5 text-brand" /></span>
                 ) : (
-                  <ShieldCheck className="text-primary size-4" />
+                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><ShieldCheck className="size-3.5 text-brand" /></span>
                 )}
-                <CardTitle className="text-base">
+                <CardTitle>
                   {s.n} · {s.title}
                 </CardTitle>
               </div>
@@ -160,7 +164,7 @@ export default function SslPage() {
         <CardHeader>
           <CardTitle>Status</CardTitle>
         </CardHeader>
-        <div className="px-4 pb-4 lg:px-6">
+        <div className="px-(--card-pad-x) pb-(--card-pad-y)">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -209,7 +213,7 @@ export default function SslPage() {
             <DialogDescription>{suAction?.message}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2">
-            <code className="bg-muted flex-1 rounded-md p-3 font-mono text-xs break-all">
+            <code className="flex-1 rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[11.5px] break-all text-text-secondary">
               {suAction?.command}
             </code>
             <Button size="icon" variant="outline" onClick={() => copyCommand(suAction?.command)}>
@@ -218,7 +222,7 @@ export default function SslPage() {
             </Button>
           </div>
           {suAction?.note && (
-            <p className="text-muted-foreground text-xs">{suAction.note}</p>
+            <p className="text-[11px] leading-relaxed text-text-muted">{suAction.note}</p>
           )}
         </DialogContent>
       </Dialog>

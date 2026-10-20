@@ -28,7 +28,7 @@ const AboutPage = lazy(() => import("@/pages/about"))
 
 function PageSkeleton() {
   return (
-    <div className="flex flex-col gap-4 px-4 py-6 lg:px-6">
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -45,7 +45,7 @@ function PageSkeleton() {
  *  the chunk took to arrive. */
 function SetupSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-5 py-6 sm:px-7">
       <Skeleton className="h-9 w-56" />
       <Skeleton className="h-52 w-full rounded-xl" />
       <Skeleton className="h-16 w-full rounded-xl" />
@@ -64,7 +64,7 @@ function SetupSkeleton() {
  */
 function FullBleedLayout() {
   return (
-    <div className="h-(--app-h) flex min-h-0 flex-col overflow-hidden pt-2">
+    <div className="h-(--app-h) flex min-h-0 flex-col overflow-hidden">
       <Outlet />
     </div>
   )
@@ -72,7 +72,7 @@ function FullBleedLayout() {
 
 function PageLayout() {
   return (
-    <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <Outlet />
     </div>
   )
@@ -127,8 +127,8 @@ export function App() {
         className={cn(tauri && "min-h-(--app-h) flex-1")}
         style={
           {
-            "--sidebar-width": "calc(var(--spacing) * 64)",
-            "--header-height": "calc(var(--spacing) * 12)",
+            "--sidebar-width": "calc(var(--spacing) * 66)",
+            "--header-height": "calc(var(--spacing) * 15)",
             // The frame the pages live in: viewport minus the desktop title bar
             // and the app header. Defined ONCE — pages read h-(--app-h) instead
             // of each repeating a calc() chain (there used to be three, mixing

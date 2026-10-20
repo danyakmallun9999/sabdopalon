@@ -156,23 +156,25 @@ export default function SetupPage() {
             {/* Header / Brand */}
             <div className="mb-4 flex flex-col gap-1 sm:mb-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border/80 bg-card p-1 shadow-2xs">
-                  <img
-                    src="/logo.png"
-                    alt="Sabdopalon"
-                    className="size-full object-contain"
-                  />
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-ring-outer bg-ring-gap p-[3px] shadow-2xs">
+                  <div className="flex size-full items-center justify-center rounded-[9px] border border-ring-inner bg-surface p-1">
+                    <img
+                      src="/logo.png"
+                      alt="Sabdopalon"
+                      className="size-full object-contain"
+                    />
+                  </div>
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
-                    <h1 className="font-heading text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                    <h1 className="text-[22px] leading-tight font-semibold tracking-[-0.025em] text-text-primary sm:text-[26px]">
                       Sabdopalon
                     </h1>
-                    <Badge variant="outline" className="px-1.5 py-0 text-xs font-medium tracking-wide uppercase">
+                    <Badge variant="secondary" className="px-2 py-0 text-[10px] font-medium tracking-[0.08em] uppercase">
                       Setup
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11.5px] text-text-secondary">
                     Configure your local server and pick components to start your development environment.
                   </p>
                 </div>
@@ -183,33 +185,33 @@ export default function SetupPage() {
               {/* LEFT — core + settings */}
               <div className="flex flex-col gap-4 lg:col-span-7">
                 {/* Core components */}
-                <Card size="sm" className="border-border/80 shadow-2xs">
+                <Card size="sm">
                   <CardHeader className="pb-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-0.5">
-                        <CardTitle className="font-heading text-sm font-semibold">Core Components</CardTitle>
-                        <CardDescription className="text-xs">
+                        <CardTitle>Core Components</CardTitle>
+                        <CardDescription>
                           Required components always provisioned in the local environment.
                         </CardDescription>
                       </div>
-                      <Badge variant="secondary" className="shrink-0 text-xs font-normal">
-                        3 Components
-                      </Badge>
+                      <ToneBadge tone="muted" className="shrink-0">
+                        3 components
+                      </ToneBadge>
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2 pt-0">
                     {(status?.components ?? []).map((c) => (
                       <div
                         key={c.key}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/40"
+                        className="flex items-center justify-between gap-3 rounded-md border border-ring-inner bg-surface-inset px-3 py-2"
                       >
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <div className="bg-background flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/60 shadow-2xs">
+                          <div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70">
                             {coreIcon(c.key)}
                           </div>
                           <div className="flex min-w-0 flex-col">
-                            <span className="truncate text-xs font-medium text-foreground sm:text-sm">{c.label}</span>
-                            <span className="truncate text-xs text-muted-foreground">
+                            <span className="truncate text-[12px] font-medium text-text-primary">{c.label}</span>
+                            <span className="truncate text-[10.5px] text-text-muted">
                               {c.installed
                                 ? c.version
                                   ? `v${c.version}`
@@ -219,11 +221,11 @@ export default function SetupPage() {
                           </div>
                         </div>
                         {c.installed ? (
-                          <ToneBadge tone="success" className="shrink-0 text-xs">
+                          <ToneBadge tone="success" className="shrink-0">
                             <CheckCircle2 className="size-3" /> Installed
                           </ToneBadge>
                         ) : (
-                          <ToneBadge tone="muted" className="shrink-0 text-xs">
+                          <ToneBadge tone="muted" className="shrink-0">
                             Included
                           </ToneBadge>
                         )}
@@ -234,45 +236,45 @@ export default function SetupPage() {
                 </Card>
 
                 {/* Settings */}
-                <Card size="sm" className="border-border/80 shadow-2xs">
+                <Card size="sm">
                   <CardHeader className="pb-2.5">
                     <div className="flex flex-col gap-0.5">
-                      <CardTitle className="font-heading text-sm font-semibold">Settings</CardTitle>
-                      <CardDescription className="text-xs">
+                      <CardTitle>Settings</CardTitle>
+                      <CardDescription>
                         Customize the initial local server configuration.
                       </CardDescription>
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-3 pt-0">
-                    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 p-2.5 transition-colors hover:bg-muted/40">
+                    <label className="flex cursor-pointer items-start justify-between gap-3 rounded-md border border-ring-inner bg-surface-inset p-2.5 transition-colors hover:bg-surface-raised/60">
                       <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-xs font-medium text-foreground sm:text-sm">Create sample site</span>
-                        <span className="text-xs text-muted-foreground sm:text-xs">
-                          The <code className="bg-muted rounded-sm px-1 py-0.5 font-mono text-xs">myapp</code> site will be ready to open once setup finishes
+                        <span className="text-[12px] font-medium text-text-primary">Create sample site</span>
+                        <span className="text-[10.5px] leading-relaxed text-text-muted">
+                          The <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10px] text-text-secondary">myapp</code> site will be ready to open once setup finishes
                         </span>
                       </span>
                       <Checkbox checked={sample} onCheckedChange={(v) => setSample(v === true)} className="mt-0.5 shrink-0" />
                     </label>
 
-                    <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/10 p-2.5">
+                    <div className="flex flex-col gap-2 rounded-md border border-ring-inner bg-surface-inset p-2.5">
                       <button
                         type="button"
                         onClick={() => setAdvanced((v) => !v)}
-                        className="text-foreground/80 hover:text-foreground flex w-full items-center justify-between text-xs font-medium transition-colors"
+                        className="flex w-full items-center justify-between text-[11.5px] font-medium text-text-secondary transition-colors hover:text-text-primary"
                       >
                         <span className="flex items-center gap-1.5">
                           <ChevronDown className={`size-3.5 transition-transform duration-200 ${advanced ? "rotate-180" : ""}`} />
                           Advanced settings (domain & ports)
                         </span>
-                        <span className="text-xs text-muted-foreground font-normal">
+                        <span className="text-[10.5px] font-normal text-text-muted">
                           {advanced ? "Hide" : "Customize"}
                         </span>
                       </button>
 
                       {advanced && (
-                        <div className="grid grid-cols-1 gap-2.5 border-t border-border/40 pt-2 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-2.5 border-t border-border-soft pt-3 sm:grid-cols-3">
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-tld" className="text-xs font-medium text-muted-foreground">
+                            <Label htmlFor="setup-tld">
                               Domain lokal (*.…)
                             </Label>
                             <Input
@@ -280,14 +282,14 @@ export default function SetupPage() {
                               value={tld}
                               onChange={(e) => setTld(e.target.value)}
                               placeholder="localhost"
-                              className="h-8 text-xs font-mono"
+                              className="h-[30px] font-mono text-[11.5px]"
                               aria-invalid={!!errors.tld}
                               aria-describedby={errors.tld ? "setup-tld-error" : undefined}
                             />
                             <FieldError id="setup-tld-error">{errors.tld}</FieldError>
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-http" className="text-xs font-medium text-muted-foreground">
+                            <Label htmlFor="setup-http">
                               Port HTTP
                             </Label>
                             <Input
@@ -295,13 +297,13 @@ export default function SetupPage() {
                               inputMode="numeric"
                               value={httpPort}
                               onChange={(e) => setHttpPort(e.target.value)}
-                              className="h-8 text-xs font-mono"
+                              className="h-[30px] font-mono text-[11.5px]"
                               aria-invalid={!!errors.ports}
                               aria-describedby={errors.ports ? "setup-ports-error" : undefined}
                             />
                           </div>
                           <div className="flex flex-col gap-1">
-                            <Label htmlFor="setup-https" className="text-xs font-medium text-muted-foreground">
+                            <Label htmlFor="setup-https">
                               Port HTTPS
                             </Label>
                             <Input
@@ -309,7 +311,7 @@ export default function SetupPage() {
                               inputMode="numeric"
                               value={httpsPort}
                               onChange={(e) => setHttpsPort(e.target.value)}
-                              className="h-8 text-xs font-mono"
+                              className="h-[30px] font-mono text-[11.5px]"
                               aria-invalid={!!errors.ports}
                               aria-describedby={errors.ports ? "setup-ports-error" : undefined}
                             />
@@ -326,26 +328,26 @@ export default function SetupPage() {
 
               {/* RIGHT — optional tools */}
               <div className="flex flex-col gap-4 lg:col-span-5">
-                <Card size="sm" className="border-border/80 shadow-2xs">
+                <Card size="sm">
                   <CardHeader className="pb-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col gap-0.5">
-                        <CardTitle className="font-heading text-sm font-semibold">Additional Tools</CardTitle>
-                        <CardDescription className="text-xs">
+                        <CardTitle>Additional Tools</CardTitle>
+                        <CardDescription>
                           Check what to install now — the rest can be added later via Packages.
                         </CardDescription>
                       </div>
                       {selected.size > 0 && (
-                        <Badge variant="default" className="shrink-0 text-xs font-normal">
-                          {selected.size} Selected
-                        </Badge>
+                        <ToneBadge tone="success" className="shrink-0">
+                          {selected.size} selected
+                        </ToneBadge>
                       )}
                     </div>
                   </CardHeader>
                   <CardContent className="flex flex-col gap-2 pt-0">
                     {availableTools.length === 0 && status && (
-                      <div className="rounded-lg border border-border/50 bg-muted/20 p-3 text-center">
-                        <p className="text-xs text-muted-foreground">All tools already installed 🎉</p>
+                      <div className="rounded-md border border-ring-inner bg-surface-inset p-3 text-center">
+                        <p className="text-[11px] text-text-muted">All tools already installed 🎉</p>
                       </div>
                     )}
                     {availableTools.map((tool) => (
@@ -354,13 +356,13 @@ export default function SetupPage() {
                     {!status && <SkeletonRows rows={4} />}
 
                     {activeTools.length > 0 && (
-                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border/50 pt-2.5">
-                        <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      <div className="mt-2 flex flex-col gap-1.5 border-t border-border-soft pt-3">
+                        <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-text-muted">
                           Already Active
                         </span>
                         <div className="flex flex-wrap gap-1.5">
                           {activeTools.map((t) => (
-                            <ToneBadge key={t.key} tone="success" className="text-xs">
+                            <ToneBadge key={t.key} tone="success">
                               <CheckCircle2 className="size-3" /> {t.label}
                             </ToneBadge>
                           ))}
@@ -374,11 +376,11 @@ export default function SetupPage() {
           </main>
 
           {/* Footer — CTA always visible without scrolling */}
-          <footer className="border-border/80 bg-background/95 sticky bottom-0 z-30 mt-auto shrink-0 border-t px-4 py-3 shadow-xs backdrop-blur-md sm:px-6">
+          <footer className="sticky bottom-0 z-30 mt-auto shrink-0 border-t border-border-soft bg-background/95 px-4 py-3 backdrop-blur-md sm:px-6">
             <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="bg-primary/80 size-2 shrink-0 rounded-full animate-pulse" />
-                <span className="text-xs sm:text-xs">
+              <div className="flex items-center gap-2 text-[11px] text-text-muted">
+                <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-success" />
+                <span className="text-[11px]">
                   {selected.size > 0
                     ? `${selected.size} additional tools will be downloaded + 3 core components.`
                     : "Only the 3 core components will be provisioned."}
@@ -386,7 +388,7 @@ export default function SetupPage() {
               </div>
               <Button
                 size="default"
-                className="min-w-48 sm:min-w-56 font-medium gap-2 shadow-xs cursor-pointer"
+                className="min-w-48 gap-2 font-medium sm:min-w-56"
                 disabled={!status}
                 onClick={start}
               >
@@ -434,23 +436,23 @@ function ToolRow({ tool, checked, onToggle }: { tool: SetupTool; checked: boolea
   const Icon = TOOL_ICONS[tool.key] ?? Boxes
   return (
     <label
-      className={`group flex cursor-pointer items-start justify-between gap-3 rounded-lg border p-2.5 transition-all select-none ${
+      className={`group flex cursor-pointer items-start justify-between gap-3 rounded-md border p-2.5 transition-all select-none ${
         checked
-          ? "border-primary/50 bg-primary/5 shadow-2xs"
-          : "border-border/60 bg-card hover:border-border hover:bg-muted/40"
+          ? "border-brand/35 bg-brand-soft"
+          : "border-ring-inner bg-surface-inset hover:bg-surface-raised/60"
       }`}
     >
       <span className="flex min-w-0 items-start gap-2.5">
         <div
           className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg border transition-colors ${
-            checked ? "border-primary/30 bg-primary/10 text-primary" : "border-border/40 bg-muted text-muted-foreground"
+            checked ? "border-brand/30 bg-brand/10 text-brand" : "border-ring-inner bg-surface-raised text-text-muted"
           }`}
         >
           <Icon className="size-3.5" />
         </div>
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-xs font-medium text-foreground sm:text-sm">{tool.label}</span>
-          <span className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground sm:text-xs">
+          <span className="truncate text-[12px] font-medium text-text-primary">{tool.label}</span>
+          <span className="mt-0.5 line-clamp-2 text-[10.5px] leading-relaxed text-text-muted">
             {tool.description}
           </span>
         </span>
@@ -469,7 +471,7 @@ function SkeletonRows({ rows }: { rows: number }) {
   return (
     <div className="flex flex-col gap-2">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="bg-muted/60 h-11 animate-pulse rounded-lg border border-border/40" />
+        <div key={i} className="h-11 animate-pulse rounded-md border border-ring-inner bg-surface-raised/60" />
       ))}
     </div>
   )
@@ -489,23 +491,24 @@ function InstallPanel({
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-3 px-4 py-4 sm:px-6 sm:py-5">
       {/* Header Status Card */}
-      <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-3 shadow-2xs sm:p-3.5">
+      <Card>
+        <CardContent className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             {success ? (
-              <div className="bg-success/15 text-success flex size-8 items-center justify-center rounded-lg">
+              <div className="flex size-8 items-center justify-center rounded-md border border-success/20 bg-success-soft text-success">
                 <CheckCircle2 className="size-4.5" />
               </div>
             ) : (
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <div className="flex size-8 items-center justify-center rounded-md border border-brand/20 bg-brand-soft text-brand">
                 <LoaderCircle className="size-4.5 animate-spin" />
               </div>
             )}
             <div className="flex flex-col">
-              <h2 className="font-heading text-sm font-semibold text-foreground sm:text-base">
+              <h2 className="text-[14.5px] font-medium text-text-primary">
                 {success ? "Setup complete" : "Setting up Sabdopalon…"}
               </h2>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[11px] text-text-muted">
                 {success
                   ? "Opening the dashboard…"
                   : "Downloading packages and setting up the install directory..."}
@@ -515,38 +518,39 @@ function InstallPanel({
 
           <div className="flex items-center gap-2.5">
             <Progress value={progress} className="h-2 w-32 sm:w-44" />
-            <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+            <span className="font-mono text-[11.5px] font-medium text-text-primary tabular-nums">
               {Math.round(progress)}%
             </span>
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Terminal log panel */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/80 bg-zinc-950 shadow-sm dark:bg-black/90">
-        <div className="flex items-center justify-between border-b border-zinc-800/80 bg-zinc-900/60 px-3.5 py-1.5">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-ring-inner bg-[#0a0a0a]">
+        <div className="flex items-center justify-between border-b border-border-soft bg-surface-inset px-3.5 py-2">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-red-500/80" />
               <span className="size-2 rounded-full bg-amber-500/80" />
               <span className="size-2 rounded-full bg-emerald-500/80" />
             </div>
-            <span className="ml-1.5 font-mono text-xs text-zinc-400">setup-process.log</span>
+            <span className="ml-1.5 font-mono text-[10.5px] text-text-secondary">setup-process.log</span>
           </div>
-          <span className="font-mono text-xs text-zinc-500">Live Output</span>
+          <span className="font-mono text-[10px] text-text-muted">Live output</span>
         </div>
         <pre
           ref={logRef}
-          className="min-h-[140px] flex-1 overflow-y-auto p-3.5 font-mono text-xs leading-relaxed text-zinc-300 select-text whitespace-pre-wrap sm:min-h-[180px]"
+          className="min-h-[140px] flex-1 overflow-y-auto p-4 font-mono text-[11.5px] leading-relaxed text-text-secondary select-text whitespace-pre-wrap sm:min-h-[180px]"
         >
           {job?.output || "Starting installation…"}
         </pre>
       </div>
 
       {job?.error && (
-        <div className="bg-destructive/10 rounded-xl border border-destructive/30 p-3.5">
-          <p className="text-destructive font-medium text-xs sm:text-sm">Setup failed: {job.error}</p>
-          <p className="text-muted-foreground mt-1 text-xs">
+        <div className="rounded-xl border border-destructive/25 bg-danger-soft p-3.5">
+          <p className="text-[12.5px] font-medium text-destructive">Setup failed: {job.error}</p>
+          <p className="mt-1 text-[11px] text-text-muted">
             You can also finish later from the Packages page.
           </p>
           <Button

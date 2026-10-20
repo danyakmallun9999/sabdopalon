@@ -62,9 +62,31 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
 
       const term = new Terminal({
         cursorBlink: true,
-        fontSize: 13,
+        fontSize: 12,
         fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, monospace',
-        theme: { background: "#0b0f14" },
+        theme: {
+          background: "#0a0a0a",
+          foreground: "#e5e5e5",
+          cursor: "#e07b28",
+          cursorAccent: "#0a0a0a",
+          selectionBackground: "#e07b2840",
+          black: "#171717",
+          red: "#ff6b6b",
+          green: "#00d492",
+          yellow: "#f5b544",
+          blue: "#6aa9ff",
+          magenta: "#c792ea",
+          cyan: "#4dd0e1",
+          white: "#fafafa",
+          brightBlack: "#8c8c8c",
+          brightRed: "#ff8f8f",
+          brightGreen: "#5fe3b5",
+          brightYellow: "#ffd27f",
+          brightBlue: "#a8c8ff",
+          brightMagenta: "#d8b4fe",
+          brightCyan: "#8ae5f0",
+          brightWhite: "#ffffff",
+        },
         scrollback: 5000,
       })
       const fit = new FitAddon()
@@ -194,7 +216,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
       restart: () => restartRef.current?.(),
     }))
 
-    return <div ref={hostRef} className={`${className} overflow-hidden rounded-lg border bg-[#0b0f14] p-2`} />
+    return <div ref={hostRef} className={`${className} overflow-hidden bg-[#0a0a0a] p-2`} />
   },
 )
 export default TerminalPanel

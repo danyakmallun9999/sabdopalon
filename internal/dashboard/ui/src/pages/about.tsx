@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useLive } from "@/lib/live"
+import { PageHeader } from "@/components/page-header"
 import { toast } from "sonner"
 
 /**
@@ -91,13 +92,13 @@ function CopyRow({ label, value, hint }: { label: string; value: string; hint?: 
   }, [value])
 
   return (
-    <div className="flex items-start justify-between gap-3 border-b py-2 last:border-0">
+    <div className="flex items-start justify-between gap-3 border-b border-border-soft py-2 last:border-0">
       <div className="min-w-0">
-        <div className="text-xs font-medium text-muted-foreground">{label}</div>
-        <div className="truncate font-mono text-xs" title={value}>
+        <div className="text-[11.5px] font-medium text-text-secondary">{label}</div>
+        <div className="truncate font-mono text-[11px] text-text-primary" title={value}>
           {value || "—"}
         </div>
-        {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+        {hint ? <div className="text-[10.5px] text-text-muted">{hint}</div> : null}
       </div>
       <div className="flex shrink-0 items-center">
         <Button variant="ghost" size="sm" onClick={copy} disabled={!value} aria-label={`Copy ${label}`}>
@@ -290,39 +291,37 @@ export default function AboutPage() {
     )}`
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-auto px-4 py-6 lg:px-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">About</h1>
-          <p className="text-sm text-muted-foreground">
-            Everything this installation is made of, and everything it talks to.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={busy}>
-          <RefreshCw className={busy ? "size-3.5 animate-pulse" : "size-3.5"} />
-          Refresh
-        </Button>
-      </div>
+    <div className="flex h-full min-h-0 flex-col gap-5 overflow-auto px-5 py-7 lg:px-7">
+      <PageHeader
+        title="About"
+        description="Everything this installation is made of, and everything it talks to."
+        actions={
+          <Button variant="outline" size="sm" onClick={() => void load()} disabled={busy}>
+            <RefreshCw className={busy ? "size-3.5 animate-pulse" : "size-3.5"} />
+            Refresh
+          </Button>
+        }
+      />
 
       {error ? (
         <Card className="border-destructive/40">
-          <CardContent className="py-4 text-sm text-destructive">{error}</CardContent>
+          <CardContent className="py-4 text-[12.5px] text-destructive">{error}</CardContent>
         </Card>
       ) : null}
 
       {/* Identity */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Info className="size-4 text-muted-foreground" />
+          <CardTitle className="flex items-center gap-2">
+            <Info className="size-4 text-text-muted" />
             Sabdopalon
-            <Badge variant="secondary" className="font-mono text-xs">
+            <Badge variant="secondary" className="font-mono text-[10.5px]">
               {version}
             </Badge>
             {/* The channel you follow, not the channel this build came from. They are
                 different axes, and showing the build's would contradict the Updates card
                 for anyone following beta. */}
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-[10.5px]">
               {channel}
             </Badge>
           </CardTitle>
@@ -330,15 +329,15 @@ export default function AboutPage() {
             A local PHP, database and tunnel environment for Windows, Linux and macOS.
           </CardDescription>
         </CardHeader>
-        <CardContent className="text-sm">
+        <CardContent className="text-[12.5px]">
           <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
-            <div className="text-muted-foreground">Platform</div>
-            <div className="font-mono text-xs">
+            <div className="text-text-muted">Platform</div>
+            <div className="font-mono text-[11px] text-text-primary">
               {info ? `${info.app.platform} · ${info.app.arch}` : "—"}
             </div>
-            <div className="text-muted-foreground">Runtime</div>
-            <div className="font-mono text-xs">{info?.app.runtime ?? "—"}</div>
-            <div className="text-muted-foreground">Interface</div>
+            <div className="text-text-muted">Runtime</div>
+            <div className="font-mono text-[11px] text-text-primary">{info?.app.runtime ?? "—"}</div>
+            <div className="text-text-muted">Interface</div>
             <div>Desktop shell (Tauri) with a Go sidecar</div>
           </div>
         </CardContent>
@@ -349,8 +348,8 @@ export default function AboutPage() {
           never installs one on its own. */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <RefreshCw className="size-4 text-muted-foreground" />
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="size-4 text-text-muted" />
             Updates
           </CardTitle>
           <CardDescription>
@@ -361,23 +360,23 @@ export default function AboutPage() {
                 : "Check whether a newer release exists."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm">
+        <CardContent className="flex flex-col gap-3 text-[12.5px]">
           {upd?.available ? (
             <div className="flex flex-col gap-2">
-              <div className="font-medium">
+              <div className="font-medium text-text-primary">
                 {upd.kind === "sidecar"
                   ? "Updates in about 10 seconds, without closing Sabdopalon: the dashboard, proxy and CLI are replaced."
                   : "This one includes shell changes, so it installs like a normal update — Sabdopalon closes and reopens, roughly a minute. Sites and databases stop and come back."}
               </div>
               {upd.notes ? (
-                <pre className="max-h-40 overflow-auto rounded-md border bg-muted/40 p-2 font-mono text-xs leading-relaxed">
+                <pre className="max-h-40 overflow-auto rounded-xl border border-ring-inner bg-surface-inset p-3 font-mono text-[11px] leading-relaxed text-text-secondary">
                   {upd.notes}
                 </pre>
               ) : null}
             </div>
           ) : null}
 
-          {upd?.error ? <div className="text-destructive">{upd.error}</div> : null}
+          {upd?.error ? <div className="text-[11.5px] text-destructive">{upd.error}</div> : null}
 
           {upd?.available ? (
             <div className="flex flex-col gap-2">
@@ -397,7 +396,7 @@ export default function AboutPage() {
                         ? "Download and install"
                         : "Update now"}
                 </Button>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-[11px] leading-relaxed text-text-muted">
                   {upd.kind === "installer"
                     ? "The file is verified first, then Sabdopalon closes so the installer can replace it — roughly a minute."
                     : "The file is checked against the checksum the release published before anything is replaced."}
@@ -407,15 +406,15 @@ export default function AboutPage() {
               {job && (job.running || job.done > 0) ? (
                 <div className="flex flex-col gap-1">
                   <div
-                    className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                    className="h-1.5 w-full overflow-hidden rounded-full bg-surface-raised"
                     role="presentation"
                   >
                     <div
-                      className="h-full bg-primary transition-all"
+                      className="h-full rounded-full bg-brand-fill transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[10.5px] text-text-muted">
                     <span aria-live="polite">
                       {mb(job.done)}
                       {job.total > 0 ? ` of ${mb(job.total)} (${pct}%)` : ""}
@@ -442,21 +441,23 @@ export default function AboutPage() {
               </Button>
             ) : null}
             {upd?.checked_at ? (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[10.5px] text-text-muted">
                 Last checked {new Date(upd.checked_at).toLocaleString()} on{" "}
                 {upd.channel ?? channel}
               </span>
             ) : null}
             {/* Stable follows /releases/latest, which GitHub keeps free of
                 pre-releases; beta reads the list, pre-releases included. */}
-            <div className="ml-auto inline-flex rounded-md border p-0.5">
+            <div className="ml-auto inline-flex rounded-lg border border-ring-inner bg-surface-raised p-[3px]">
               {["stable", "beta"].map((c) => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => chooseChannel(c)}
-                  className={`rounded px-2 py-0.5 text-xs capitalize transition ${
-                    channel === c ? "bg-background shadow-sm" : "text-muted-foreground"
+                  className={`h-[24px] rounded-md border px-2.5 text-[11.5px] capitalize transition ${
+                    channel === c
+                      ? "border-[#3d3d3d] bg-[#333333] text-text-primary"
+                      : "border-transparent text-text-muted hover:text-text-primary"
                   }`}
                 >
                   {c}
@@ -465,7 +466,7 @@ export default function AboutPage() {
             </div>
           </div>
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-text-muted">
             Sabdopalon never updates itself and never touches your sites, databases or the bundled
             stack. Only the program is replaced.
           </p>
@@ -475,36 +476,36 @@ export default function AboutPage() {
       {/* Stack — what this installation is actually made of. */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">What it is made of</CardTitle>
+          <CardTitle>What it is made of</CardTitle>
           <CardDescription>
             Bundled components and what is installed on this machine. Anything missing can be added
             from the Packages page.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-sm">
+        <CardContent className="flex flex-col gap-1 text-[12.5px]">
           {pkgs.length === 0 ? (
-            <span className="text-muted-foreground">No components reported yet.</span>
+            <span className="text-[11.5px] text-text-muted">No components reported yet.</span>
           ) : (
             pkgs.map((p) => (
               <div
                 key={p.name}
-                className="flex items-center justify-between gap-3 border-b py-1.5 last:border-0"
+                className="flex items-center justify-between gap-3 border-b border-border-soft py-2 last:border-0"
               >
-                <span className="font-mono text-xs">{p.name}</span>
+                <span className="font-mono text-[11px] text-text-primary">{p.name}</span>
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{p.version}</span>
+                  <span className="font-mono text-[10.5px] text-text-muted">{p.version}</span>
                   {p.active ? (
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-[10.5px]">
                       in use
                     </Badge>
                   ) : null}
                   {p.installed ? (
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1 text-[10.5px] text-text-muted">
                       <Check className="size-3" />
                       installed
                     </span>
                   ) : (
-                    <span className="text-xs text-muted-foreground">not installed</span>
+                    <span className="text-[10.5px] text-text-muted">not installed</span>
                   )}
                 </span>
               </div>
@@ -516,16 +517,16 @@ export default function AboutPage() {
       {/* Credits — the author asked for these, and they belong somewhere visible. */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Heart className="size-4 text-muted-foreground" />
+          <CardTitle className="flex items-center gap-2">
+            <Heart className="size-4 text-text-muted" />
             Credits
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 text-sm">
+        <CardContent className="flex flex-col gap-3 text-[12.5px]">
           <div>
-            <div className="font-medium">Built by {info?.app.author ?? "danyakmallun"}</div>
+            <div className="font-medium text-text-primary">Built by {info?.app.author ?? "danyakmallun"}</div>
             <a
-              className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+              className="inline-flex items-center gap-1 font-mono text-[11px] text-brand hover:underline"
               href={info?.app.repo ?? "https://github.com/danyakmallun9999/sabdopalon"}
               target="_blank"
               rel="noreferrer"
@@ -559,7 +560,7 @@ export default function AboutPage() {
               Changelog
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-[11px] leading-relaxed text-text-muted">
             Licence terms ship with the repository. Bundled components keep their own licences —
             PHP, MariaDB, PostgreSQL, Cloudflare cloudflared, Mailpit, MinIO, Meilisearch, Node,
             Composer — and are downloaded from their own vendors.
@@ -570,7 +571,7 @@ export default function AboutPage() {
       {/* Paths */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Paths</CardTitle>
+          <CardTitle>Paths</CardTitle>
           <CardDescription>Where this installation keeps everything.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -584,17 +585,17 @@ export default function AboutPage() {
       {/* Privacy */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">What it talks to</CardTitle>
+          <CardTitle>What it talks to</CardTitle>
           <CardDescription>
             No telemetry, no analytics, no account. These are the only outbound hosts, and each one
             is a download you asked for.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-sm">
+        <CardContent className="flex flex-col gap-1 text-[12.5px]">
           {(info?.privacy ?? []).map((h) => (
-            <div key={h.host} className="flex flex-col border-b py-1.5 last:border-0 sm:flex-row sm:gap-3">
-              <span className="min-w-64 font-mono text-xs">{h.host}</span>
-              <span className="text-xs text-muted-foreground">{h.why}</span>
+            <div key={h.host} className="flex flex-col border-b border-border-soft py-2 last:border-0 sm:flex-row sm:gap-3">
+              <span className="min-w-64 font-mono text-[11px] text-text-primary">{h.host}</span>
+              <span className="text-[10.5px] text-text-muted">{h.why}</span>
             </div>
           ))}
         </CardContent>
@@ -603,13 +604,13 @@ export default function AboutPage() {
       {/* Diagnostics */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Diagnostics</CardTitle>
+          <CardTitle>Diagnostics</CardTitle>
           <CardDescription>
             Paste this into a bug report — it is the first thing anyone would ask for.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <pre className="overflow-auto rounded-md border bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+          <pre className="overflow-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11px] leading-relaxed text-text-secondary">
             {diagnostics}
           </pre>
           <div>

@@ -15,7 +15,7 @@ function Empty({ className, ...props }: ComponentProps<"div">) {
     <div
       data-slot="empty"
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed p-8 text-center",
+        "flex flex-col items-center justify-center gap-1.5 rounded-xl border border-ring-inner bg-surface p-10 text-center",
         className
       )}
       {...props}
@@ -25,7 +25,11 @@ function Empty({ className, ...props }: ComponentProps<"div">) {
 
 function EmptyTitle({ className, ...props }: ComponentProps<"p">) {
   return (
-    <p data-slot="empty-title" className={cn("text-sm font-medium", className)} {...props} />
+    <p
+      data-slot="empty-title"
+      className={cn("text-[13px] font-medium text-text-primary", className)}
+      {...props}
+    />
   )
 }
 
@@ -33,7 +37,7 @@ function EmptyDescription({ className, ...props }: ComponentProps<"p">) {
   return (
     <p
       data-slot="empty-description"
-      className={cn("text-muted-foreground text-xs", className)}
+      className={cn("max-w-sm text-[11.5px] leading-relaxed text-text-muted", className)}
       {...props}
     />
   )

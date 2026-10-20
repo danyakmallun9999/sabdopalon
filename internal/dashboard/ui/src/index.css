@@ -2,101 +2,79 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/dm-sans";
-@import "@fontsource-variable/public-sans";
 @import "@fontsource/jetbrains-mono/400.css";
 @import "@fontsource/jetbrains-mono/600.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Sabdopalon ships a single dark theme. The palette is intentionally
+   low-chroma: the orange is the only saturated colour, and status colours are
+   reserved for status. Surfaces are layered (app < inset < surface < elevated)
+   instead of relying on shadows, which keeps dense desktop screens calm. */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.555 0.163 48.998);
-    --primary-foreground: oklch(0.987 0.022 95.277);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    /* Status semantics — the ONLY place a status colour is defined. Dots,
-       tinted chips and status text all read from here (bg-success,
-       text-warning, border-success/30), so "running", "needs attention" and
-       "offline" cannot drift apart page by page the way forty hard-coded
-       emerald/amber/zinc classes did. Tinted usage is the intent; for a solid
-       fill pair it with a /15 opacity rather than adding a foreground token.
-       No --info: nothing in the UI expresses "informational" yet. */
-    --success: oklch(0.596 0.145 163.225);
-    --warning: oklch(0.666 0.179 58.318);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.855 0.138 181.071);
-    --chart-2: oklch(0.704 0.14 182.503);
-    --chart-3: oklch(0.6 0.118 184.704);
-    --chart-4: oklch(0.511 0.096 186.391);
-    --chart-5: oklch(0.437 0.078 188.216);
-    /* One source of truth for every corner in the app. Controls (buttons,
-       inputs, selects) and inline chips sit on --radius; larger surfaces step
-       up by a fixed amount so a card can never turn into a pill. Changing this
-       single number moves the whole UI. */
+    color-scheme: dark;
+    --background: #0a0a0a;
+    --foreground: #fafafa;
+    --card: #171717;
+    --card-foreground: #fafafa;
+    --popover: #171717;
+    --popover-foreground: #fafafa;
+    --primary: #e07b28;
+    --primary-foreground: #0a0a0a;
+    --secondary: #262626;
+    --secondary-foreground: #fafafa;
+    --muted: #1f1f1f;
+    --muted-foreground: #8c8c8c;
+    --accent: #262626;
+    --accent-foreground: #fafafa;
+    --destructive: #ff6b6b;
+    --success: #00d492;
+    --warning: #f5b544;
+    --border: #2a2a2a;
+    --input: #2a2a2a;
+    --ring: #e07b28;
+    --chart-1: #e07b28;
+    --chart-2: #00d492;
+    --chart-3: #8c8c8c;
+    --chart-4: #a1a1a1;
+    --chart-5: #2a2a2a;
     --radius: 10px;
-    --sidebar: oklch(1 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.666 0.179 58.318);
-    --sidebar-primary-foreground: oklch(0.987 0.022 95.277);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-}
+    --sidebar: #0a0a0a;
+    --sidebar-foreground: #fafafa;
+    --sidebar-primary: #e07b28;
+    --sidebar-primary-foreground: #0a0a0a;
+    --sidebar-accent: #262626;
+    --sidebar-accent-foreground: #fafafa;
+    --sidebar-border: #222222;
+    --sidebar-ring: #e07b28;
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.473 0.137 46.201);
-    --primary-foreground: oklch(0.987 0.022 95.277);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    /* The 400 tones the UI already used as dark:text-emerald-400 /
-       dark:text-amber-400, now named once. */
-    --success: oklch(0.765 0.177 163.223);
-    --warning: oklch(0.828 0.189 84.429);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.855 0.138 181.071);
-    --chart-2: oklch(0.704 0.14 182.503);
-    --chart-3: oklch(0.6 0.118 184.704);
-    --chart-4: oklch(0.511 0.096 186.391);
-    --chart-5: oklch(0.437 0.078 188.216);
-    --sidebar: oklch(0.145 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.769 0.188 70.08);
-    --sidebar-primary-foreground: oklch(0.279 0.077 45.635);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    /* Semantic surfaces. These are the names new work should use; the shadcn
+       aliases above remain for primitives and third-party components. */
+    --surface: #171717;
+    --surface-raised: #262626;
+    --surface-inset: #121212;
+    --border-soft: #222222;
+    --ring-gap: #0a0a0a;
+    --ring-outer: #2e2e2e;
+    --ring-inner: #232323;
+    --brand: #e07b28;
+    --brand-soft: #edab4a20;
+    --brand-fill: #973c00;
+    --brand-fg: #fffbeb;
+    --success-soft: #00d4921a;
+    --warning-soft: #f5b5441a;
+    --danger-soft: #ff6b6b1a;
+    --bar-idle: #2a2a2a;
+    --text-primary: #fafafa;
+    --text-secondary: #a1a1a1;
+    --text-muted: #8c8c8c;
 }
 
 @theme inline {
     --font-sans: 'DM Sans Variable', sans-serif;
-    --font-heading: 'Public Sans Variable', sans-serif;
+    --font-heading: 'DM Sans Variable', sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -114,9 +92,6 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
-    /* Registering the tokens as Tailwind colours is what makes bg-success,
-       text-warning and border-success/30 exist at all — the variables alone do
-       not generate a single utility. */
     --color-success: var(--success);
     --color-warning: var(--warning);
     --color-accent-foreground: var(--accent-foreground);
@@ -133,28 +108,55 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
-    /* Linear steps, not multipliers: with --radius at 10px a multiplier scale
-       would put a 26px corner on a 32px-tall button (a pill) and let cards run
-       away. Each step moves by a fixed amount instead. */
-    --radius-sm: calc(var(--radius) - 4px);
-    --radius-md: calc(var(--radius) - 2px);
-    --radius-lg: var(--radius);
-    --radius-xl: calc(var(--radius) + 2px);
-    --radius-2xl: calc(var(--radius) + 2px);
-    --radius-3xl: calc(var(--radius) + 4px);
-    --radius-4xl: calc(var(--radius) + 4px);
+
+    /* Revamp-specific semantic colours. */
+    --color-surface: var(--surface);
+    --color-surface-raised: var(--surface-raised);
+    --color-surface-inset: var(--surface-inset);
+    --color-border-soft: var(--border-soft);
+    --color-ring-gap: var(--ring-gap);
+    --color-ring-outer: var(--ring-outer);
+    --color-ring-inner: var(--ring-inner);
+    --color-brand: var(--brand);
+    --color-brand-soft: var(--brand-soft);
+    --color-brand-fill: var(--brand-fill);
+    --color-brand-fg: var(--brand-fg);
+    --color-success-soft: var(--success-soft);
+    --color-warning-soft: var(--warning-soft);
+    --color-danger-soft: var(--danger-soft);
+    --color-danger: var(--destructive);
+    --color-bar-idle: var(--bar-idle);
+    --color-text-primary: var(--text-primary);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-muted: var(--text-muted);
+
+    /* Fixed steps keep a 30px control at 8px and a card at 17px. */
+    --radius-sm: 6px;
+    --radius-md: 8px;
+    --radius-lg: 10px;
+    --radius-xl: 14px;
+    --radius-2xl: 17px;
+    --radius-3xl: 20px;
+    --radius-4xl: 22px;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
-    }
-  body {
-    @apply bg-background text-foreground;
-    }
+  }
   html {
     @apply font-sans;
-    }
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 13px;
+    line-height: 1.5;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgb(224 123 40 / 0.28);
+    color: var(--text-primary);
+  }
 }
 
 /* Native-app scrollbars: hide the system scrollbar so the webview feels like
@@ -172,6 +174,7 @@
     scrollbar-width: none;
   }
 }
+
 /* Custom desktop title bar (Tauri shell only): the FIXED sidebar container
    must start below the bar instead of the viewport top (it used to sit
    under the title bar — "buried sidebar").

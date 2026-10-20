@@ -3,7 +3,8 @@ import { toast } from "sonner"
 import { Copy, CircleAlert, ExternalLink, Play, Square } from "lucide-react"
 
 import api, { poll, type ServiceStatus } from "@/lib/api"
-import { Badge } from "@/components/ui/badge"
+import { PageHeader } from "@/components/page-header"
+import { StatusDot, ToneBadge } from "@/components/status"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -67,7 +68,7 @@ function EnvSnippet({ services }: { services: ServiceStatus[] }) {
             </TabsList>
           </Tabs>
         )}
-        <pre className="bg-background text-muted-foreground max-h-56 overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap">
+        <pre className="max-h-56 overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary">
           {snippet}
         </pre>
         <Button
@@ -141,18 +142,19 @@ export default function ServicesPage() {
   const installed = services.filter((s) => s.installed)
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <p className="text-muted-foreground text-sm">
-        <strong>Start/Stop</strong> acts now; <strong>Auto-start</strong> applies when Sabdopalon opens.
-      </p>
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
+      <PageHeader
+        title="Services"
+        description="Start or stop a tool now, or let it come up automatically when Sabdopalon opens."
+      />
 
       {installed.length === 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">No services installed yet</CardTitle>
+            <CardTitle>No services installed yet</CardTitle>
             <CardDescription>
               Install tools via the{" "}
-              <a href="/packages" className="text-primary hover:underline">Packages</a>{" "}
+              <a href="/packages" className="text-brand hover:underline">Packages</a>{" "}
               (Mailpit, Redis, MinIO, Meilisearch) — once installed, tools automatically
               start when Sabdopalon opens.
             </CardDescription>
@@ -165,16 +167,17 @@ export default function ServicesPage() {
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-col gap-1.5">
-                    <CardTitle className="text-base">{svc.label}</CardTitle>
+                    <CardTitle>{svc.label}</CardTitle>
                     <CardDescription>
                       {svc.ports?.length ? (
-                        <span className="font-mono text-xs">{svc.ports.join("  ")}</span>
+                        <span className="font-mono text-[10.5px]">{svc.ports.join("  ")}</span>
                       ) : null}
                     </CardDescription>
                   </div>
-                  <Badge variant={svc.running ? "default" : "outline"}>
+                  <ToneBadge tone={svc.running ? "success" : "muted"}>
+                    <StatusDot status={svc.running ? "running" : "stopped"} />
                     {svc.running ? "running" : "stopped"}
-                  </Badge>
+                  </ToneBadge>
                 </div>
 
                 <div className="mt-2 flex flex-col gap-2">
@@ -183,7 +186,7 @@ export default function ServicesPage() {
                       href={svc.ui}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-primary hover:underline inline-flex items-center gap-1 text-sm"
+                      className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
                     >
                       Open UI <ExternalLink className="size-3.5" />
                     </a>
@@ -201,7 +204,7 @@ export default function ServicesPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="flex items-center justify-between rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
                     <Label htmlFor={`svc-${svc.name}`} className="font-normal">
                       Auto-start when the app opens
                     </Label>
@@ -214,7 +217,7 @@ export default function ServicesPage() {
                   </div>
 
                   {svc.last_error && !svc.running && (
-                    <p className="text-destructive flex items-center gap-1 text-xs">
+                    <p className="flex items-center gap-1 text-[11px] text-destructive">
                       <CircleAlert className="size-3" /> {svc.last_error}
                     </p>
                   )}

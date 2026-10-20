@@ -14,7 +14,7 @@ import {
   ScrollText,
   Square,
 } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import api, {
   poll,
@@ -25,7 +25,6 @@ import api, {
 import SetupPage from "@/pages/setup"
 import { useLive } from "@/lib/live"
 import { dbEngineRunning } from "@/lib/dbstatus"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -42,6 +41,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IconButton } from "@/components/icon-button"
+import { PageHeader } from "@/components/page-header"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -63,7 +63,7 @@ import {
 const chartConfig = {
   requests: {
     label: "Requests",
-    color: "hsl(var(--chart-1))",
+    color: "var(--chart-1)",
   },
 } satisfies ChartConfig
 
@@ -80,13 +80,19 @@ function StatCard({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-muted-foreground text-sm font-medium">{label}</CardTitle>
-        <Icon className="text-muted-foreground size-4" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {sub && <p className="text-muted-foreground text-xs">{sub}</p>}
+      <CardContent className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10.5px] font-medium tracking-[0.08em] text-text-muted uppercase">
+            {label}
+          </span>
+          <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70">
+            <Icon className="size-3.5 text-text-secondary" />
+          </span>
+        </div>
+        <div className="text-[26px] leading-none font-semibold tracking-[-0.03em] text-text-primary tabular-nums">
+          {value}
+        </div>
+        {sub ? <p className="text-[10.5px] text-text-muted">{sub}</p> : null}
       </CardContent>
     </Card>
   )
@@ -112,22 +118,20 @@ function ServiceCard({
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base">{svc.label}</CardTitle>
-            <CardDescription className="font-mono text-xs">
+            <CardTitle>{svc.label}</CardTitle>
+            <CardDescription className="font-mono text-[10.5px]">
               {svc.ports?.join("  ") || "no ports"}
             </CardDescription>
           </div>
-          <Badge
-            variant={svc.running ? "default" : svc.installed ? "outline" : "secondary"}
-            className={svc.running ? "" : "text-muted-foreground"}
-          >
+          <ToneBadge tone={svc.running ? "success" : "muted"}>
+            <StatusDot status={svc.running ? "running" : "stopped"} />
             {svc.running ? "running" : svc.installed ? "installed" : "not installed"}
-          </Badge>
+          </ToneBadge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="flex items-center justify-between rounded-lg border p-3">
-          <span className="text-sm font-normal">
+        <div className="flex items-center justify-between rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
+          <span className="text-[11.5px] text-text-secondary">
             {svc.enabled ? "Auto-start ON" : "Auto-start OFF"}
           </span>
           <Switch checked={!!svc.enabled} disabled={busy} onCheckedChange={onToggle} />
@@ -151,7 +155,7 @@ function ServiceCard({
               href={svc.ui}
               target="_blank"
               rel="noreferrer"
-              className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+              className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
             >
               Open UI <ExternalLink className="size-3.5" />
             </a>
@@ -159,10 +163,10 @@ function ServiceCard({
         </div>
 
         {!svc.installed && !svc.running && (
-          <p className="text-muted-foreground text-xs">{svc.hint || "Install its package from Packages."}</p>
+          <p className="text-[11px] leading-relaxed text-text-muted">{svc.hint || "Install its package from Packages."}</p>
         )}
         {svc.last_error && !svc.running && (
-          <p className="text-destructive flex items-center gap-1 text-xs">
+          <p className="flex items-center gap-1 text-[11px] text-destructive">
             <CircleAlert className="size-3" /> {svc.last_error}
           </p>
         )}
@@ -210,11 +214,11 @@ function LogDialog({
           <DialogDescription>Auto-refreshing (5s).</DialogDescription>
         </DialogHeader>
         {error ? (
-          <p className="text-muted-foreground text-sm">{error}</p>
+          <p className="text-xs text-text-secondary">{error}</p>
         ) : (
           <pre
             ref={preRef}
-            className="bg-background text-muted-foreground max-h-[55vh] overflow-y-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap"
+            className="max-h-[55vh] overflow-y-auto rounded-xl border border-ring-inner bg-surface-inset p-4 font-mono text-[11.5px] leading-relaxed whitespace-pre-wrap text-text-secondary"
           >
             {lines.length ? lines.join("\n") : "No logs yet."}
           </pre>
@@ -479,7 +483,8 @@ export default function DashboardPage() {
 
   if (!setup) {
     return (
-      <div className="flex flex-col gap-4 px-4 lg:px-6">
+      <div className="flex flex-col gap-5 px-5 py-5 lg:px-7">
+        <Skeleton className="h-14 w-64" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -488,7 +493,7 @@ export default function DashboardPage() {
 
   if (!setup.bootstrapped) {
     return (
-      <div className="flex flex-col gap-4 px-4 lg:px-6">
+      <div className="flex flex-col gap-5 px-5 py-5 lg:px-7">
         <SetupPage />
       </div>
     )
@@ -506,12 +511,16 @@ export default function DashboardPage() {
   const dbEngine = status?.database ?? "—"
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
-      <div className="flex items-center justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
-          <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
-        </Button>
-      </div>
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
+      <PageHeader
+        title="Dashboard"
+        description="Everything Sabdopalon is serving, provisioning, and running on this machine."
+        actions={
+          <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
+            <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
+          </Button>
+        }
+      />
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
@@ -523,7 +532,7 @@ export default function DashboardPage() {
           tabIndex={0}
           onClick={() => navigate("/database")}
           onKeyDown={(e) => e.key === "Enter" && navigate("/database")}
-          className="cursor-pointer transition-shadow hover:shadow-md rounded-xl"
+          className="cursor-pointer rounded-2xl transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
           title="Manage databases — start/stop/restart"
         >
           <StatCard
@@ -543,20 +552,20 @@ export default function DashboardPage() {
 
       {/* Error banner (port conflict etc.) */}
       {anyError && (
-        <div className="bg-destructive/10 flex items-start gap-3 rounded-xl border border-destructive/30 p-4">
+        <div className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-danger-soft p-4">
           <CircleAlert className="text-destructive mt-0.5 size-5 shrink-0" />
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium">Some services failed to start</p>
+            <p className="text-[12.5px] font-medium text-text-primary">Some services failed to start</p>
             {Object.entries(errors).map(([name, msg]) => (
-              <p key={name} className="text-muted-foreground text-xs">
-                <code className="bg-muted rounded-sm px-1 py-0.5">{name}</code>: {msg}
+              <p key={name} className="text-[11px] text-text-secondary">
+                <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-primary">{name}</code>: {msg}
               </p>
             ))}
             {installed
               .filter((s) => s.last_error)
               .map((s) => (
-                <p key={s.name} className="text-muted-foreground text-xs">
-                  <code className="bg-muted rounded-sm px-1 py-0.5">{s.name}</code>: {s.last_error}
+                <p key={s.name} className="text-[11px] text-text-secondary">
+                  <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-primary">{s.name}</code>: {s.last_error}
                 </p>
               ))}
           </div>
@@ -568,8 +577,8 @@ export default function DashboardPage() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <LayoutDashboard className="size-4" /> Server
+              <CardTitle className="flex items-center gap-2">
+                <span className="flex size-6 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><LayoutDashboard className="size-3.5 text-brand" /></span> Server
               </CardTitle>
               <CardDescription>
                 {runningCount > 0 ? `${runningCount} services running` : "No services running"} · DB{" "}
@@ -603,17 +612,18 @@ export default function DashboardPage() {
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="flex flex-col gap-1">
-                    <CardTitle className="text-base">{engine === "mariadb" ? "MariaDB" : "PostgreSQL"}</CardTitle>
-                    <CardDescription className="font-mono text-xs">
+                    <CardTitle>{engine === "mariadb" ? "MariaDB" : "PostgreSQL"}</CardTitle>
+                    <CardDescription className="font-mono text-[10.5px]">
                       {engine === "mariadb" ? ":3306" : ":5433"}
                     </CardDescription>
                   </div>
-                  <Badge variant={running ? "default" : "outline"} className={running ? "" : "text-muted-foreground"}>
+                  <ToneBadge tone={running ? "success" : "muted"}>
+                    <StatusDot status={running ? "running" : "stopped"} />
                     {running ? "running" : "stopped"}
-                  </Badge>
+                  </ToneBadge>
                 </div>
                 {err && (
-                  <p className="text-destructive mt-1 flex items-center gap-1 text-xs">
+                  <p className="mt-1 flex items-center gap-1 text-[11px] text-destructive">
                     <CircleAlert className="size-3" /> {err}
                   </p>
                 )}
@@ -636,7 +646,7 @@ export default function DashboardPage() {
                   )}
                   <a
                     href="/database"
-                    className="text-primary inline-flex items-center gap-1 text-sm hover:underline"
+                    className="inline-flex items-center gap-1 text-[11.5px] text-brand hover:underline"
                   >
                     Manage <ExternalLink className="size-3.5" />
                   </a>
@@ -665,10 +675,10 @@ export default function DashboardPage() {
       ) : (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Additional services</CardTitle>
+            <CardTitle>Additional services</CardTitle>
             <CardDescription>
               No additional tools installed yet. Install via the{" "}
-              <a href="/packages" className="text-primary hover:underline">Packages</a>{" "}
+              <a href="/packages" className="text-brand hover:underline">Packages</a>{" "}
               (Mailpit, Redis, MinIO, Meilisearch, Adminer).
             </CardDescription>
           </CardHeader>
@@ -679,44 +689,44 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Traffic (requests/minute)</CardTitle>
+            <CardTitle>Traffic (requests/minute)</CardTitle>
             <CardDescription>Last 30 minutes — via proxy</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[220px] w-full">
-              <AreaChart data={traffic} margin={{ left: -20, right: 8, top: 8 }}>
-                <defs>
-                  <linearGradient id="fillRequests" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--color-requests)" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="var(--color-requests)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="t" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
-                <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Area
-                  dataKey="requests"
-                  type="monotone"
-                  fill="url(#fillRequests)"
-                  stroke="var(--color-requests)"
-                  strokeWidth={2}
+              <BarChart data={traffic} margin={{ left: -20, right: 8, top: 8 }}>
+                <CartesianGrid vertical={false} stroke="var(--border-soft)" />
+                <XAxis
+                  dataKey="t"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  minTickGap={24}
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                 />
-              </AreaChart>
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="requests" fill="var(--color-requests)" radius={[3, 3, 0, 0]} maxBarSize={18} />
+              </BarChart>
             </ChartContainer>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Service status</CardTitle>
+            <CardTitle>Service status</CardTitle>
             <CardDescription>Running vs enabled (last 30 samples)</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer
               config={{
-                running: { label: "Running", color: "hsl(var(--chart-2))" },
-                enabled: { label: "Enabled", color: "hsl(var(--chart-3))" },
+                running: { label: "Running", color: "var(--chart-2)" },
+                enabled: { label: "Enabled", color: "var(--chart-3)" },
               }}
               className="h-[220px] w-full"
             >
@@ -727,19 +737,25 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="var(--color-running)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} />
+                <CartesianGrid vertical={false} stroke="var(--border-soft)" />
                 <XAxis
                   dataKey="t"
                   tickLine={false}
                   axisLine={false}
                   tickMargin={8}
                   minTickGap={24}
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
                   // t = epoch minutes → display as hour:minute
                   tickFormatter={(v: number) =>
                     new Date(v * 60000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                   }
                 />
-                <YAxis tickLine={false} axisLine={false} allowDecimals={false} />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  tick={{ fill: "var(--text-muted)", fontSize: 10 }}
+                />
                 <ChartTooltip
                   content={<ChartTooltipContent />}
                   labelFormatter={(v) =>
@@ -757,7 +773,7 @@ export default function DashboardPage() {
       {/* Service table (compact overview) */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Installed services</CardTitle>
+          <CardTitle>Installed services</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -774,7 +790,7 @@ export default function DashboardPage() {
                 {installed.map((svc) => (
                   <TableRow key={svc.name}>
                     <TableCell className="font-medium">{svc.label}</TableCell>
-                    <TableCell className="font-mono text-xs">{svc.ports?.join("  ")}</TableCell>
+                    <TableCell className="font-mono text-[11px] text-text-secondary">{svc.ports?.join("  ")}</TableCell>
                     <TableCell>
                       {/* Same vocabulary as the Sites table: a state is never
                           the primary button colour, and the dot always travels

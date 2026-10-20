@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
+import { PageHeader } from "@/components/page-header"
 import {
   Table,
   TableBody,
@@ -72,7 +74,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
       {/*
         One card, one form, one button.
 
@@ -83,6 +85,11 @@ export default function SettingsPage() {
         while the LAN switch sat below that button and looked like it saved
         itself. One card with the button in its footer is what the code does.
       */}
+      <PageHeader
+        title="Settings"
+        description="Domain, ports, network exposure, and the PHP defaults every site inherits."
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>General</CardTitle>
@@ -91,15 +98,15 @@ export default function SettingsPage() {
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="flex flex-col gap-6">
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold">Domain and ports</h3>
+        <CardContent className="flex flex-col gap-5">
+          <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
+            <h3 className="text-[12.5px] font-medium text-text-primary">Domain and ports</h3>
             <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <Label htmlFor="tld">Domain suffix (TLD)</Label>
                 <Input id="tld" value={cfg.tld ?? ""} onChange={(e) => set("tld", e.target.value)} />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <Label htmlFor="http">HTTP port (fallback)</Label>
                 <Input
                   id="http"
@@ -108,7 +115,7 @@ export default function SettingsPage() {
                   onChange={(e) => set("http_port", Number(e.target.value))}
                 />
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <Label htmlFor="https">HTTPS port (fallback)</Label>
                 <Input
                   id="https"
@@ -118,16 +125,16 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
-            <p className="text-muted-foreground text-xs">
+            <p className="text-[11px] leading-relaxed text-text-muted">
               Sabdopalon automatically tries ports 80/443 for clean URLs first; these are fallbacks.
-              Enable permanently: <code>sabdopalon enable-ports</code>.
+              Enable permanently: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">sabdopalon enable-ports</code>.
             </p>
           </section>
 
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold">Dashboard</h3>
+          <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
+            <h3 className="text-[12.5px] font-medium text-text-primary">Dashboard</h3>
             <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1.5">
                 <Label htmlFor="dashport">Dashboard port</Label>
                 <Input
                   id="dashport"
@@ -136,7 +143,7 @@ export default function SettingsPage() {
                   onChange={(e) => set("dashboard_port", Number(e.target.value))}
                 />
               </div>
-              <div className="flex flex-row items-center justify-between rounded-lg border p-3">
+              <div className="flex flex-row items-center justify-between rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
                 <Label htmlFor="autoopen" className="font-normal">
                   Open dashboard on start
                 </Label>
@@ -150,14 +157,14 @@ export default function SettingsPage() {
           </section>
 
           {/* Security: PHP sites execute code, so LAN access must be opt-in. */}
-          <section className="flex flex-col gap-3">
-            <h3 className="text-sm font-semibold">Network access</h3>
-            <div className="flex flex-row items-center justify-between gap-4 rounded-lg border p-3">
+          <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
+            <h3 className="text-[12.5px] font-medium text-text-primary">Network access</h3>
+            <div className="flex flex-row items-center justify-between gap-4 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="lan" className="font-normal">
                   Allow other devices on the network to open your sites
                 </Label>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-[11px] leading-relaxed text-text-muted">
                   Exposes the proxy ports above to your network; only enable this on a Wi-Fi you
                   trust. Applies after restart.
                 </p>
@@ -171,7 +178,7 @@ export default function SettingsPage() {
           </section>
         </CardContent>
 
-        <CardFooter className="justify-end border-t pt-4">
+        <CardFooter className="justify-end border-t border-border-soft">
           <Button onClick={save} disabled={saving}>
             <Save /> Save settings
           </Button>
@@ -181,17 +188,17 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" /> PHP configuration (php.ini)
+            <FileText className="size-4 text-text-muted" /> PHP configuration (php.ini)
           </CardTitle>
           <CardDescription>
             This file applies to all sites (passed via PHPRC).{" "}
             {ini?.version && (
-              <>Active PHP: <code>{ini.version}</code>. </>
+              <>Active PHP: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini.version}</code>. </>
             )}
-            Stored at <code>{ini?.path ?? "config/php.ini"}</code>.
+            Stored at <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
           </CardDescription>
-          <textarea
-            className="border-input bg-background focus-visible:ring-ring mt-2 min-h-[280px] w-full rounded-md border p-3 font-mono text-xs focus-visible:ring-1 focus-visible:outline-none"
+          <Textarea
+            className="mt-2 min-h-[300px] font-mono text-[11.5px] leading-relaxed"
             value={iniContent}
             onChange={(e) => setIniContent(e.target.value)}
             spellCheck={false}
@@ -201,7 +208,7 @@ export default function SettingsPage() {
             <Button className="w-fit" onClick={savePhpIni} disabled={savingIni}>
               <Save /> Save php.ini
             </Button>
-            <span className="text-muted-foreground text-xs">
+            <span className="text-[11px] text-text-muted">
               Saving will restart running sites.
             </span>
           </div>
@@ -215,6 +222,9 @@ export default function SettingsPage() {
             Named PHP/database presets. Applying stops running sites so they pick up the new PHP
             binary.
           </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-hidden rounded-xl border border-ring-inner">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -232,7 +242,7 @@ export default function SettingsPage() {
                   <TableCell className="font-medium">
                     {p.Name}
                     {p.Description && (
-                      <span className="text-muted-foreground ml-2 text-xs">{p.Description}</span>
+                      <span className="ml-2 text-[10.5px] text-text-muted">{p.Description}</span>
                     )}
                   </TableCell>
                   <TableCell>{p.PHP || "(default)"}</TableCell>
@@ -248,7 +258,8 @@ export default function SettingsPage() {
               ))}
             </TableBody>
           </Table>
-        </CardHeader>
+          </div>
+        </CardContent>
       </Card>
     </div>
   )

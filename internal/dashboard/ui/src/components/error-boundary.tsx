@@ -21,19 +21,19 @@ export default class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
-          <h1 className="text-lg font-semibold">Something went wrong</h1>
-          <pre className="max-w-xl overflow-auto rounded-lg border bg-muted/40 p-4 text-left font-mono text-xs whitespace-pre-wrap">
+          <h1 className="text-[20px] font-semibold tracking-[-0.02em] text-text-primary">Something went wrong</h1>
+          <pre className="max-w-xl overflow-auto rounded-xl border border-ring-inner bg-surface-inset p-4 text-left font-mono text-[11.5px] whitespace-pre-wrap text-text-secondary">
             {this.state.error.message}
           </pre>
           <div className="flex gap-2">
             <button
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+              className="rounded-lg border border-ring-inner bg-brand-fill px-4 py-2 text-[12.5px] font-medium text-brand-fg"
               onClick={() => this.setState({ error: null })}
             >
               Try again
             </button>
             <button
-              className="rounded-md border px-4 py-2 text-sm font-medium"
+              className="rounded-lg border border-ring-inner bg-surface-raised px-4 py-2 text-[12.5px] font-medium text-text-primary"
               onClick={() => location.reload()}
             >
               Reload

@@ -44,7 +44,7 @@ function ControlButton({
       title={label}
       onClick={onClick}
       className={cn(
-        "text-muted-foreground hover:bg-muted hover:text-foreground flex h-full w-12 items-center justify-center transition-colors",
+        "flex h-full w-11 items-center justify-center text-text-secondary transition-colors hover:bg-surface-raised hover:text-text-primary",
         danger && "hover:bg-destructive hover:text-white",
       )}
     >
@@ -90,13 +90,13 @@ export function AppTitlebar() {
     <div
       data-tauri-drag-region
       style={{ height: TITLEBAR_H }}
-      className="bg-background/85 border-border/60 fixed inset-x-0 top-0 z-50 flex select-none items-center border-b backdrop-blur"
+      className="fixed inset-x-0 top-0 z-50 flex select-none items-center border-b border-border-soft bg-background/90 backdrop-blur"
     >
       <div data-tauri-drag-region className={cn("flex items-center gap-2 pl-3", mac && "pl-20")}>
-        <span aria-hidden className="text-base leading-none">
+        <span aria-hidden className="text-[15px] leading-none">
           🐫
         </span>
-        <span className="text-sm font-semibold tracking-tight">Sabdopalon</span>
+        <span className="text-[12.5px] font-semibold tracking-[-0.01em] text-text-primary">Sabdopalon</span>
       </div>
       <div className="ml-auto flex h-full">
         {mac ? (

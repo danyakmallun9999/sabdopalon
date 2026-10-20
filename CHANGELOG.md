@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Changed
+- **The dashboard is rebuilt on one visual language.** Every surface — the
+  desktop title bar, the sidebar, the top bar, all nine pages, the setup wizard,
+  and every dialog, dropdown, toast, table, form and empty state — now shares
+  one palette (a single dark theme with layered surfaces instead of shadows), one
+  type scale (DM Sans for the interface, JetBrains Mono for code), one radius
+  scale, and one set of controls. Page cards are ring cards: a 1px outer edge, a
+  3px gap in the app background, then the panel itself. Buttons, badges, tabs,
+  inputs, selects, switches, checkboxes, tables and dialogs were each rebuilt
+  from the same measurements, so two controls of the same kind no longer differ
+  in height, radius, or padding from one screen to the next. Status colours are
+  still read from a single source (`StatusDot` / `ToneBadge`), so "running",
+  "needs attention" and "offline" cannot drift apart page by page.
+- **The page title moved into the page.** It used to sit in the top bar, which
+  meant every page inherited the same strip and had nowhere to put its own
+  description or primary action. Each page now opens with a heading, a short
+  description, and its actions, and the top bar is a global status strip
+  (database, PHP, services, version, connection). Site Detail keeps its
+  "Sites › name" trail, so the way back is still one click away.
+- **The traffic chart is a bar chart**, because it shows requests per minute —
+  a count per bucket, not a continuous signal. The service-status chart stays an
+  area/step chart: that one is history, and the shape of a line is the point.
+- **The sidebar groups the nine pages by intent** (Manage, Tools, System) and
+  ends with a small proxy card showing the live ports, instead of repeating the
+  brand the desktop title bar already carries.
+
+No behaviour changed: the same routes, tabs, fields, actions and API calls are
+in place, and the backend is untouched. The full plan, the design reference and
+the per-page feature-preservation checklist are in `docs/ui-revamp-plan.md`.
+
 ## [0.11.33] - 2026-10-20
 
 ### Changed

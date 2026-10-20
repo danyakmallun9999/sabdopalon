@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom"
 import { ScrollText } from "lucide-react"
 
 import { Switch } from "@/components/ui/switch"
+import { PageHeader } from "@/components/page-header"
 
 import api, { type LogResponse } from "@/lib/api"
 import {
@@ -47,21 +48,27 @@ export default function LogsPage() {
   }, [current, auto])
 
   return (
-    <div className="flex flex-col gap-4 px-4 lg:px-6">
+    <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
+      <PageHeader
+        title="Logs"
+        description="Follow a site, the database, or Mailpit without opening a terminal."
+        actions={
+          <label className="flex items-center gap-2 text-[11px] text-text-muted">
+            auto-refresh
+            <Switch checked={auto} onCheckedChange={setAuto} id="log-auto" />
+          </label>
+        }
+      />
       <Tabs value={current} onValueChange={setCurrent}>
-        <div className="flex items-center justify-between gap-2">
-          <TabsList className="flex-wrap">
+        <div className="max-w-full overflow-x-auto">
+          <TabsList>
             {sites.map((n) => (
-              <TabsTrigger key={n} value={n}>
+              <TabsTrigger key={n} value={n} className="flex-none">
                 <ScrollText className="size-3.5" />
                 {n}
               </TabsTrigger>
             ))}
           </TabsList>
-          <label className="text-muted-foreground flex items-center gap-2 text-xs">
-            auto-refresh
-            <Switch checked={auto} onCheckedChange={setAuto} id="log-auto" />
-          </label>
         </div>
 
         {sites.map((n) => (

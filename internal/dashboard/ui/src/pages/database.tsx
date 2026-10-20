@@ -5,8 +5,8 @@ import { Database, HardDriveDownload, Play, RotateCw, Server, Square, Terminal a
 import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
 import { useLive } from "@/lib/live"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
-import { Badge } from "@/components/ui/badge"
-import { StatusDot } from "@/components/status"
+import { PageHeader } from "@/components/page-header"
+import { StatusDot, ToneBadge } from "@/components/status"
 import { Empty, EmptyTitle } from "@/components/ui/empty"
 import { Button } from "@/components/ui/button"
 import {
@@ -206,7 +206,12 @@ export default function DatabasePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 px-4 lg:px-6">
+    <div className="flex h-full min-h-0 flex-col gap-4 px-5 pb-6 lg:px-7">
+      <PageHeader
+        className="pt-7"
+        title="Database"
+        description="Run MariaDB and PostgreSQL side by side, manage the SQLite fallback, and keep a recent backup."
+      />
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="flex-wrap">
           <TabsTrigger value="daemons"><Server className="size-3.5" /> Daemons</TabsTrigger>
@@ -283,9 +288,10 @@ function DaemonsTab({
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={running ? "default" : "outline"}>
+                    <ToneBadge tone={running ? "success" : "muted"}>
+                      <StatusDot status={running ? "running" : "stopped"} />
                       {running ? "running" : "stopped"}
-                    </Badge>
+                    </ToneBadge>
                     <Switch
                       checked={!!d.enabled}
                       onCheckedChange={(v) => toggleEnabled(d.key, v === true)}
@@ -295,11 +301,11 @@ function DaemonsTab({
                 </div>
 
                 {!d.installed && (
-                  <p className="text-destructive mt-2 text-xs">
+                  <p className="mt-2 text-[11px] text-destructive">
                     Not installed yet — install it from the Packages page first.
                   </p>
                 )}
-                {err && <p className="text-destructive mt-2 text-xs">Start failed: {err}</p>}
+                {err && <p className="mt-2 text-[11px] text-destructive">Start failed: {err}</p>}
 
                 {d.enabled && (
                   <>
@@ -332,7 +338,7 @@ function DaemonsTab({
                         <RotateCw /> Restart
                       </Button>
                       {(busyKey === d.key + "start" || busyKey === d.key + "restart") && (
-                        <span className="text-muted-foreground text-xs">
+                        <span className="text-[10.5px] text-text-muted">
                           {busyKey === d.key + "start" ? "starting…" : "restarting…"}
                         </span>
                       )}
@@ -340,7 +346,7 @@ function DaemonsTab({
 
                     <div className="mt-3 grid grid-cols-[1fr_auto] items-end gap-2">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor={"port-" + d.key} className="text-xs">
+                        <Label htmlFor={"port-" + d.key}>
                           Port (requires daemon restart)
                         </Label>
                         <Input
@@ -368,7 +374,7 @@ function DaemonsTab({
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle>SQLite</CardTitle>
-              <Badge variant="secondary">always active</Badge>
+              <ToneBadge tone="success">always active</ToneBadge>
             </div>
             <CardDescription>
               No daemon — database file at <code>data/sabdopalon.db</code>, used directly by PHP.
@@ -377,8 +383,8 @@ function DaemonsTab({
         </Card>
       </div>
 
-      <p className="text-muted-foreground mt-4 px-1 text-xs">
-        Every site can reach any engine: <code>SABDOPALON_MARIADB_*</code> and <code>SABDOPALON_PG_*</code> are set for it.
+      <p className="mt-4 px-1 text-[11px] leading-relaxed text-text-muted">
+        Every site can reach any engine: <code className="rounded bg-surface-raised px-1 font-mono text-[10.5px] text-text-secondary">SABDOPALON_MARIADB_*</code> and <code className="rounded bg-surface-raised px-1 font-mono text-[10.5px] text-text-secondary">SABDOPALON_PG_*</code> are set for it.
       </p>
     </>
   )
@@ -406,13 +412,13 @@ function BackupsTab({
           <HardDriveDownload /> Back Up Now
         </Button>
       </CardHeader>
-      <div className="px-4 pb-4 lg:px-6">
+      <CardContent>
         {backups.length === 0 ? (
           <Empty>
             <EmptyTitle>No backups yet.</EmptyTitle>
           </Empty>
         ) : (
-          <div className="bg-card overflow-hidden rounded-xl border">
+          <div className="overflow-hidden rounded-xl border border-ring-inner">
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
@@ -424,16 +430,16 @@ function BackupsTab({
               <TableBody>
                 {backups.map((b) => (
                   <TableRow key={b.name}>
-                    <TableCell className="font-mono text-xs">{b.name}</TableCell>
+                    <TableCell className="font-mono text-[11px]">{b.name}</TableCell>
                     <TableCell>{(b.size / 1024).toFixed(0)} KB</TableCell>
-                    <TableCell className="text-muted-foreground">{b.time}</TableCell>
+                    <TableCell className="text-[11px] text-text-muted">{b.time}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
-      </div>
+      </CardContent>
     </Card>
   )
 }
@@ -483,7 +489,7 @@ function TerminalTab({
     <div className="flex h-full min-h-0 flex-col gap-3">
       {/* Engine selector + connection status */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
+        <div className="inline-flex rounded-lg border border-ring-inner bg-surface-raised p-[3px]">
           {cards.map((d) => {
             const dRunning = status?.db_states?.[d.key] ?? cfg.db_states?.[d.key] ?? false
             const active = d.key === engine
@@ -494,8 +500,10 @@ function TerminalTab({
                 disabled={!d.installed}
                 onClick={() => setEngine(d.key)}
                 title={!d.installed ? "Install from the Packages page first" : dRunning ? "running" : "stopped"}
-                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                  active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                className={`inline-flex h-[28px] items-center gap-1.5 rounded-md border px-2.5 text-[11.5px] font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                  active
+                    ? "border-[#3d3d3d] bg-[#333333] text-text-primary"
+                    : "border-transparent text-text-muted hover:text-text-primary"
                 }`}
               >
                 <StatusDot status={dRunning ? "running" : "stopped"} />
@@ -504,7 +512,7 @@ function TerminalTab({
             )
           })}
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-[10.5px] text-text-muted">
           {pgUnsupported ? (
             <span>{card.label} — terminal feature not available yet</span>
           ) : running ? (
@@ -560,12 +568,12 @@ function TerminalTab({
           </CardContent>
         </Card>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-background">
-          <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-ring-inner bg-surface-inset">
+          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border-soft px-3">
             <TerminalIcon className="size-4 shrink-0" />
-            <span className="text-sm font-medium">{card.label}</span>
-            <span className={`size-2 rounded-full ${termStatus === "connected" ? "bg-emerald-500" : termStatus === "connecting" ? "bg-amber-500 animate-pulse" : "bg-red-400"}`} />
-            <span className="text-muted-foreground text-xs">{termStatus}</span>
+            <span className="text-[12px] font-medium text-text-primary">{card.label}</span>
+            <span className={`size-1.5 rounded-full ${termStatus === "connected" ? "bg-success" : termStatus === "connecting" ? "bg-warning animate-pulse" : "bg-destructive"}`} />
+            <span className="text-[10.5px] text-text-muted">{termStatus}</span>
             <div className="ml-auto flex items-center gap-1.5">
               <Button size="sm" variant="ghost" onClick={() => panelRef.current?.clear()}>
                 Clear
