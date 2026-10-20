@@ -159,11 +159,13 @@ lan = %t
 
 [php]
 # binary = "" means auto-detect. The order is: this binary -> [php] prefer ->
-# the first php on PATH (that is what "system" means, and it is the default),
-# then the bundled bin/php/X.Y. Set prefer = "bundled" to use the bundled PHP
-# even when another php.exe comes first on PATH.
+# the bundled bin/php/X.Y - and only then the first php on PATH.
+#
+# "bundled" is the default: Sabdopalon ships a PHP built for this stack, while a
+# php.exe found on PATH belongs to some other product, with its own php.ini,
+# extensions and curl. Set prefer = "system" to use that one instead.
 binary = "%s"
-# prefer = "system"   # or "bundled"
+# prefer = "system"   # or "bundled" (the default)
 
 [database]
 engine = "%s"

@@ -832,7 +832,7 @@ func (a *App) doctor() int {
 	resolved, _ := pkgmgr.ResolveDefaultPHP(a.Cfg)
 	prefer := a.Cfg.PHP.Prefer
 	if prefer == "" {
-		prefer = "system"
+		prefer = "bundled" // the resolver default; do not imply "system"
 	}
 	activeStr := resolved
 	if activeStr == "" {
@@ -1058,7 +1058,7 @@ func (a *App) installSysTool(name string) int {
 		fmt.Fprintf(os.Stderr, "✗ unknown system tool: %s\n", name)
 		return 1
 	}
-	fmt.Printf("Installing %s onto your system (per-user, no sudo needed)…\n", t.Label)
+	fmt.Printf("Installing %s into %s (bundled, no admin needed)\n", t.Label, sysinstall.TargetBinDirForMessages())
 	if _, err := sysinstall.Install(name, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "✗ %v\n", err)
 		return 1

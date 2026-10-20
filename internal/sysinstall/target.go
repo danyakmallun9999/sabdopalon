@@ -95,3 +95,8 @@ func bundledPath(name string) string {
 	}
 	return ""
 }
+
+// TargetBinDirForMessages is the exported form, for the CLI's install messages:
+// they used to say "onto your system" while writing into the install's own bin/,
+// which reads as a change to the whole machine.
+func TargetBinDirForMessages() string { return targetBinDir() }

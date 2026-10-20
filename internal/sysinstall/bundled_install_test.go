@@ -112,3 +112,63 @@ func TestBundledDidNotChangeThePins(t *testing.T) {
 		t.Error("no SHA-256 pinned for the Node.js version in use")
 	}
 }
+
+// TestForeignComposerDoesNotSatisfyTheBundledNeed is the rule the user asked
+// about directly: "if Composer is already installed system-wide, will Sabdopalon
+// still install and use its own?"
+//
+// It must. A machine-wide Composer is somebody else's program run by somebody
+// else's PHP — the arrangement that produced the Schannel/2.10.2 failure in the
+// first place. So a foreign copy must make IsInstalled(composer) true ("you can
+// run composer") while leaving needsInstall(composer) true as well ("we still
+// need ours"). Conflating the two is what made `add composer` skip the download
+// and then fail with "Composer was installed but is not visible in bin".
+func TestForeignComposerDoesNotSatisfyTheBundledNeed(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SABDOPALON_BIN_DIR", bin)
+
+	// A foreign Composer somewhere else on PATH, and nothing bundled.
+	foreign := filepath.Join(t.TempDir(), "ComposerSetup", "bin")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	names := []string{"composer"}
+	if runtime.GOOS == "windows" {
+		names = append(names, "composer.bat", "composer.cmd")
+	}
+	for _, n := range names {
+		if err := os.WriteFile(filepath.Join(foreign, n), []byte("@echo off\r\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", foreign)
+
+	spec := Find("composer")
+	if spec == nil {
+		t.Fatal("composer is not a registered tool")
+	}
+
+	if got := bundledPath("composer"); got != "" {
+		t.Fatalf("bundledPath(composer) = %q, want none before an install", got)
+	}
+	if !needsInstall(spec) {
+		t.Error("a foreign Composer must NOT stop Sabdopalon from installing its own")
+	}
+	if !IsInstalled("composer") {
+		t.Error("IsInstalled must stay true: the user can run composer, just not ours")
+	}
+
+	// Once ours exists, the downloader has nothing to do.
+	if err := os.WriteFile(filepath.Join(bin, "composer.phar"), []byte("phar"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if needsInstall(spec) {
+		t.Error("a bundled Composer means there is nothing to install")
+	}
+	if got := Version("composer"); got != composerVersion {
+		t.Errorf("Version(composer) = %q, want the bundled pin %q, not the foreign copy", got, composerVersion)
+	}
+}

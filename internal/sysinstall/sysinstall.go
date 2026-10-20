@@ -304,11 +304,24 @@ func Install(name string, p Progress) (string, error) {
 	return "", nil
 }
 
+// needsInstall reports whether the downloader has work to do.
+//
+// It is deliberately NOT IsInstalled: that answers "can the user run this tool
+// at all?" (used by the Packages page and `doctor`), while this answers "does
+// this installation own a copy?". The two differ exactly when a machine-wide
+// install exists, and that is the case Sabdopalon must not be fooled by.
+func needsInstall(t *SystemTool) bool {
+	return bundledPath(t.Bin) == ""
+}
 func installTool(t *SystemTool, p Progress) error {
-	// Already available â€” on PATH, or shipped in this install? Skip the
-	// download. A bundled Composer must not be re-fetched just because a GUI
-	// launch left bin/ off PATH.
-	if IsInstalled(t.Name) {
+	// Skip only when THIS install already has the tool. A copy on PATH is not
+	// the same thing: `composer` in C:\ProgramData\ComposerSetup\bin is somebody
+	// else's Composer, run by somebody else's PHP, and Sabdopalon deliberately
+	// provisions its own instead. Asking "is it on PATH anywhere?" made
+	// `add composer` answer "already installed" without writing
+	// bin/composer.phar, after which the caller â€” which needs that phar to exist
+	// â€” failed with "Composer was installed but is not visible in ...".
+	if !needsInstall(t) {
 		p.Printf("  ✓  %s already installed (%s)\n", t.Label, Version(t.Name))
 		return nil
 	}
@@ -375,7 +388,14 @@ func installTool(t *SystemTool, p Progress) error {
 	// Node.js points its own bin/node dir at the shims, but adding that
 	// sub-folder to PATH as well would turn one entry into one-per-tool, which
 	// is the mess the single-entry layout exists to avoid.
-	ensurePath(targetBinDir(), p)
+	//
+	// Only when that folder is durable: an install into a scratch directory is a
+	// dev run or a test harness, and its PATH entry would outlive the run. This
+	// was measured â€” running `add composer` against a temp root put that temp
+	// folder at position 1 of the real user PATH.
+	if binDir := targetBinDir(); isDurableBinDir(binDir, os.TempDir()) {
+		ensurePath(binDir, p)
+	}
 
 	// Regenerate the launchers now, not on the next start: composer.cmd,
 	// node.cmd, npm.cmd and npx.cmd are what make a freshly installed tool
