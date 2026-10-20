@@ -5,8 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.31] - 2026-10-20
+
 ### Fixed
-- **A site works at its custom domain after the TLD is changed.** Changing the TLD
+- **A tunnel no longer reports itself ready before it is.** `tunnel.Manager.Start`
+  launched cloudflared and then snapshotted the state, so on a fast machine the
+  caller could receive `online` for a tunnel that had only just been accepted;
+  the Linux CI runner lost that race every time. The snapshot is taken before the
+  goroutine starts, so `Start` returns the state it actually accepted and the
+  dashboard stops showing a tunnel as ready a moment early.- **A site works at its custom domain after the TLD is changed.** Changing the TLD
   on the Settings page saved, routed, and then left the site unreachable: the
   proxy has always matched the Host header against the configured TLD, but the
   NAME has to resolve before a browser can send that request, and nothing wrote a
