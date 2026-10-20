@@ -90,7 +90,8 @@ export default function SettingsPage() {
         description="Domain, ports, network exposure, and the PHP defaults every site inherits."
       />
 
-      <Card>
+      <div className="grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-3">
+        <Card className="min-w-0 @4xl/main:col-span-2">
         <CardHeader>
           <CardTitle>General</CardTitle>
           <CardDescription>
@@ -100,7 +101,7 @@ export default function SettingsPage() {
 
         <CardContent className="flex flex-col gap-5">
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[12.5px] font-medium text-text-primary">Domain and ports</h3>
+            <h3 className="text-[13px] font-semibold text-text-primary">Domain and ports</h3>
             <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="tld">Domain suffix (TLD)</Label>
@@ -132,7 +133,7 @@ export default function SettingsPage() {
           </section>
 
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[12.5px] font-medium text-text-primary">Dashboard</h3>
+            <h3 className="text-[13px] font-semibold text-text-primary">Dashboard</h3>
             <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="dashport">Dashboard port</Label>
@@ -158,7 +159,7 @@ export default function SettingsPage() {
 
           {/* Security: PHP sites execute code, so LAN access must be opt-in. */}
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
-            <h3 className="text-[12.5px] font-medium text-text-primary">Network access</h3>
+            <h3 className="text-[13px] font-semibold text-text-primary">Network access</h3>
             <div className="flex flex-row items-center justify-between gap-4 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
               <div className="flex flex-col gap-1">
                 <Label htmlFor="lan" className="font-normal">
@@ -185,7 +186,8 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
 
-      <Card>
+        <div className="flex min-w-0 flex-col gap-4">
+      <Card className="min-w-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="size-4 text-text-muted" /> PHP configuration (php.ini)
@@ -195,7 +197,7 @@ export default function SettingsPage() {
             {ini?.version && (
               <>Active PHP: <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini.version}</code>. </>
             )}
-            Stored at <code className="rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
+            Stored at <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[10.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
           </CardDescription>
           <Textarea
             className="mt-2 min-h-[300px] font-mono text-[11.5px] leading-relaxed"
@@ -261,6 +263,8 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   )
 }

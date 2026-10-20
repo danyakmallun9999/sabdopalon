@@ -13,11 +13,15 @@ function Card({
   className,
   size = "default",
   variant = "ring",
+  padded = true,
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   size?: "default" | "sm"
   variant?: "ring" | "flat" | "inset"
+  /** When false the panel has no padding of its own — for strips (a row of
+   *  metric cells) where each cell brings its own. */
+  padded?: boolean
 }) {
   const ring = variant === "ring"
 
@@ -37,7 +41,8 @@ function Card({
         data-slot="card-panel"
         data-size={size}
         className={cn(
-          "flex min-h-0 flex-1 flex-col gap-(--card-gap) overflow-hidden py-(--card-pad-y)",
+          "flex min-h-0 flex-1 flex-col gap-(--card-gap) overflow-hidden",
+          padded ? "py-(--card-pad-y)" : "py-0",
           "[--card-pad-y:18px] [--card-pad-x:22px] [--card-gap:14px]",
           "data-[size=sm]:[--card-pad-y:14px] data-[size=sm]:[--card-pad-x:18px] data-[size=sm]:[--card-gap:10px]",
           ring
@@ -72,7 +77,7 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-title"
       className={cn(
-        "font-heading text-[14.5px] leading-[1.3] font-medium tracking-[-0.01em] text-text-primary",
+        "font-heading text-[14.5px] leading-[1.3] font-semibold tracking-[-0.01em] text-text-primary",
         className
       )}
       {...props}
@@ -84,7 +89,7 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-description"
-      className={cn("text-xs leading-relaxed text-text-secondary", className)}
+      className={cn("text-[12.5px] leading-relaxed text-text-secondary", className)}
       {...props}
     />
   )

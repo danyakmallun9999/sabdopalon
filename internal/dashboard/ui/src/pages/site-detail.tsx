@@ -39,7 +39,7 @@ import { openExternal } from "@/lib/external"
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -132,32 +132,30 @@ export default function SiteDetailPage() {
     <div className="flex h-full min-h-0 flex-col px-5 pb-6 lg:px-7">
       <PageHeader
         className="pt-7"
-        breadcrumb={[{ label: "Sites", to: "/sites" }, { label: detail.name }]}
-        title={detail.name}
+        title={
+          <span className="flex flex-wrap items-center gap-2.5">
+            {detail.name}
+            <ToneBadge tone={detail.running ? "success" : "muted"}>
+              <StatusDot status={detail.running ? "running" : "stopped"} />
+              {detail.running ? "running" : "stopped"}
+            </ToneBadge>
+          </span>
+        }
         description={
-          <div className="flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <ToneBadge tone={detail.running ? "success" : "muted"}>
-                <StatusDot status={detail.running ? "running" : "stopped"} />
-                {detail.running ? "running" : "stopped"}
-              </ToneBadge>
-              {detail.framework !== "unknown" && (
-                <Badge variant="secondary">{detail.framework}</Badge>
-              )}
-              {detail.port ? (
-                <span className="font-mono text-[10.5px] text-text-muted">:{detail.port}</span>
-              ) : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11.5px]">
-              <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-brand hover:underline">
-                <Globe className="size-3" /> {detail.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-                <ExternalLink className="size-3 opacity-60" />
-              </a>
-              <span className="text-text-muted/40">·</span>
-              <a href={detail.https} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-text-secondary hover:text-text-primary hover:underline">
-                <Lock className="size-3 text-success" /> {detail.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-              </a>
-            </div>
+          <div className="flex flex-wrap items-center gap-2 text-[12.5px]">
+            {detail.framework !== "unknown" && (
+              <Badge variant="secondary">{detail.framework}</Badge>
+            )}
+            <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-text-primary hover:underline">
+              <Globe className="size-3.5 text-brand" /> {detail.url.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+            </a>
+            <span className="text-text-muted/40">·</span>
+            <a href={detail.https} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-mono text-text-primary hover:underline">
+              <Lock className="size-3.5 text-success" /> {detail.https.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+            </a>
+            {detail.port ? (
+              <span className="font-mono text-text-muted">:{detail.port}</span>
+            ) : null}
           </div>
         }
         actions={
@@ -245,22 +243,22 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
 
   return (
     <div className="flex flex-col gap-4 pb-6">
-      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
         {cards.map((c) => (
           <Card key={c.title}>
             <CardContent className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10.5px] font-medium tracking-[0.08em] text-text-muted uppercase">
+                <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
                   {c.title}
                 </span>
-                <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70">
-                  <c.icon className="size-3.5 text-text-secondary" />
-                </span>
+                <c.icon className="size-[15px] text-text-muted" />
               </div>
-              <div className="truncate font-mono text-[12.5px] font-medium text-text-primary" title={c.value}>
+              <div className="truncate text-[15px] font-semibold text-text-primary" title={c.value}>
                 {c.value}
               </div>
-              {c.sub && <p className="truncate text-[10.5px] text-text-muted">{c.sub}</p>}
+              {c.sub && (
+                <p className="truncate font-mono text-[12.5px] text-text-muted">{c.sub}</p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -269,7 +267,7 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
       {/* URLs card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Globe className="size-4 text-text-muted" /> URLs</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Globe className="size-[15px] text-text-muted" /> URLs</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <a href={detail.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-[11.5px] text-brand hover:underline">
@@ -294,7 +292,7 @@ function OverviewTab({ detail }: { detail: SiteDetail }) {
       {(detail.devtools ?? []).filter((t) => t.running).length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Zap className="size-4 text-text-muted" /> Running Dev Tools</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Zap className="size-[15px] text-text-muted" /> Running Dev Tools</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {(detail.devtools ?? []).filter((t) => t.running).map((t) => (
@@ -578,10 +576,14 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
       : phpOptions
 
   return (
-    <div className="grid grid-cols-1 gap-4 pb-6 @5xl/main:grid-cols-2">
+    <div className="grid grid-cols-1 items-start gap-4 pb-6 @5xl/main:grid-cols-12">
+      <div className="flex flex-col gap-4 @5xl/main:col-span-5">
       <Card>
-        <CardHeader>
-          <CardTitle>PHP Version</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+            PHP version
+          </span>
+          <Settings2 className="size-[15px] text-text-muted" />
         </CardHeader>
         <CardContent>
           <Select value={cfg.php} onValueChange={(v) => setCfg({ ...cfg, php: v ?? "" })}>
@@ -605,17 +607,11 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Custom php.ini</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <PhpIniEditor name={name} onSaved={onSaved} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Document Root</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+            Document root
+          </span>
+          <FolderTree className="size-[15px] text-text-muted" />
         </CardHeader>
         <CardContent>
           <Input
@@ -628,8 +624,11 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Aliases</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+            Aliases
+          </span>
+          <Globe className="size-[15px] text-text-muted" />
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Textarea
@@ -644,9 +643,24 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
         </CardContent>
       </Card>
 
+      </div>
+
+      <div className="flex flex-col gap-4 @5xl/main:col-span-7">
       <Card>
         <CardHeader>
-          <CardTitle>Environment Variables</CardTitle>
+          <CardTitle>Custom php.ini</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <PhpIniEditor name={name} onSaved={onSaved} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold tracking-[0.08em] text-text-muted uppercase">
+            Environment
+          </span>
+          <TerminalIcon className="size-[15px] text-text-muted" />
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <Textarea
@@ -666,10 +680,19 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
         </CardContent>
       </Card>
 
-      <div className="flex justify-end @5xl/main:col-span-2">
-        <Button onClick={save} disabled={saving}>
-          {saving ? "Saving…" : "Save & apply"}
-        </Button>
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Apply changes</CardTitle>
+            <CardDescription>
+              Restarts the site so PHP and the databases pick up the new config.
+            </CardDescription>
+          </div>
+          <Button className="w-full" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save & apply"}
+          </Button>
+        </CardContent>
+      </Card>
       </div>
     </div>
   )

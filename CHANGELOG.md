@@ -33,6 +33,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
   ends with a small proxy card showing the live ports, instead of repeating the
   brand the desktop title bar already carries.
 - The README screenshots (`images/ui/*`) show the new interface.
+- **The interface now follows the design frame for frame.** The first pass took
+  the palette and the type scale from the design, but the structure was still
+  the old app's: buttons had no outer edge, the four headline numbers were
+  four separate cards instead of one card with dividers, card titles carried
+  their icon in a box, the sidebar's active item was a flat panel, and the
+  Settings and Config pages were single columns. The design file was then read
+  node by node and compared screen by screen with the running app, and the
+  differences were closed: buttons are drawn as two layers (1px outer edge, a
+  2px gap in the app background, the button surface with its own edge), the
+  headline numbers are one card with 1px dividers, card and section icons are
+  plain accent glyphs, the active sidebar item gets the same ring, the site
+  trail sits in the top bar, and Settings and the site Config tab became the
+  two-column arrangements from the design. The dashboard's sections now run in
+  the design's order, with an empty row in the services table.
+
+  The pieces of the design with no backend behind them — the top-bar search
+  field, the notification bell, the avatar, the quick-install chips — are still
+  deliberately absent: a control that cannot work is worse than no control.
 
 ### Fixed
 - **A tool version no longer shows its terminal escape codes.** Composer

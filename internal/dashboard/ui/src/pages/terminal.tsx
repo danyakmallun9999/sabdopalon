@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
-import { Plus, X } from "lucide-react"
+import { Plus, TerminalSquare, X } from "lucide-react"
 
-import { IconButton } from "@/components/icon-button"
+import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/page-header"
 import TerminalPanel, { type TerminalPanelHandle } from "@/components/terminal-panel"
 
@@ -82,23 +82,29 @@ export default function TerminalPage() {
         title="Terminal"
         description="Each tab is an independent shell. Sessions survive tab switches, route changes, and reloads."
         actions={
-          <IconButton label="New shell" variant="outline" size="icon-sm" onClick={addTab}>
-            <Plus />
-          </IconButton>
+          <Button size="sm" onClick={addTab}>
+            <Plus /> New shell
+          </Button>
         }
       />
       {/* Tab bar */}
       <div className="flex items-center gap-1 overflow-x-auto">
+        <div className="flex items-center gap-1 rounded-xl border border-ring-inner bg-surface-raised p-[3px]">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActive(t.id)}
-            className={`group inline-flex h-[30px] shrink-0 items-center gap-2 rounded-lg border px-2.5 text-[12px] transition-colors ${
+            className={`group inline-flex h-[28px] shrink-0 items-center gap-2 rounded-lg border px-2.5 text-[12.5px] transition-colors ${
               t.id === active
-                ? "border-ring-inner bg-surface-raised font-medium text-text-primary"
-                : "border-transparent text-text-muted hover:bg-surface-raised/60 hover:text-text-primary"
+                ? "border-[#3d3d3d] bg-[#333333] font-medium text-text-primary"
+                : "border-transparent text-text-muted hover:text-text-primary"
             }`}
           >
+            <TerminalSquare
+              className={`size-3.5 ${
+                t.id === active ? "text-brand" : "text-text-muted"
+              }`}
+            />
             {t.title}
             <span
               role="button"
@@ -115,6 +121,7 @@ export default function TerminalPage() {
             </span>
           </button>
         ))}
+        </div>
       </div>
 
       {/* Panels — kept mounted so background sessions survive tab switches. */}

@@ -33,7 +33,7 @@ export function PageHeader({
         className
       )}
     >
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1.5">
         {breadcrumb?.length ? (
           <nav
             aria-label="Breadcrumb"
@@ -60,7 +60,7 @@ export function PageHeader({
           {title}
         </h1>
         {description ? (
-          <div className="max-w-2xl text-xs leading-relaxed text-text-secondary">
+          <div className="max-w-2xl text-[13px] leading-relaxed text-text-secondary">
             {description}
           </div>
         ) : null}

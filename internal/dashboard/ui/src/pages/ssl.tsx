@@ -118,11 +118,11 @@ export default function SslPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 {s.n === 1 ? (
-                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><KeyRound className="size-3.5 text-brand" /></span>
+                  <KeyRound className="size-[15px] text-brand" />
                 ) : s.n === 2 ? (
-                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><Lock className="size-3.5 text-brand" /></span>
+                  <Lock className="size-[15px] text-brand" />
                 ) : (
-                  <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><ShieldCheck className="size-3.5 text-brand" /></span>
+                  <ShieldCheck className="size-[15px] text-brand" />
                 )}
                 <CardTitle>
                   {s.n} · {s.title}

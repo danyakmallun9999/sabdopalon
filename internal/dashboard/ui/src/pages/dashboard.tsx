@@ -42,6 +42,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { IconButton } from "@/components/icon-button"
 import { PageHeader } from "@/components/page-header"
+import { MetricStrip } from "@/components/metric-strip"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -66,37 +67,6 @@ const chartConfig = {
     color: "var(--chart-1)",
   },
 } satisfies ChartConfig
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  sub?: string
-}) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10.5px] font-medium tracking-[0.08em] text-text-muted uppercase">
-            {label}
-          </span>
-          <span className="flex size-7 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70">
-            <Icon className="size-3.5 text-text-secondary" />
-          </span>
-        </div>
-        <div className="text-[26px] leading-none font-semibold tracking-[-0.03em] text-text-primary tabular-nums">
-          {value}
-        </div>
-        {sub ? <p className="text-[10.5px] text-text-muted">{sub}</p> : null}
-      </CardContent>
-    </Card>
-  )
-}
 
 function ServiceCard({
   svc,
@@ -509,6 +479,7 @@ export default function DashboardPage() {
   // Unknown state (snapshot not yet arrived) must not render as ✓.
   const dbRunning = dbEngineRunning(status)
   const dbEngine = status?.database ?? "—"
+  const peakTraffic = traffic.reduce((max, p) => Math.max(max, p.requests ?? 0), 0)
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
@@ -522,33 +493,53 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-        <StatCard icon={Globe} label="Sites" value={String(status?.sites_count ?? 0)} sub={`*.${status?.tld ?? "localhost"}`} />
-        <StatCard icon={Boxes} label="Services" value={`${runningCount}/${installed.length}`} sub={`${installed.length} installed`} />
-        <StatCard icon={Activity} label="Requests" value={String(trafficTotal)} sub={`HTTP :${status?.http_port ?? "?"} · HTTPS :${status?.https_port ?? "?"}`} />
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => navigate("/database")}
-          onKeyDown={(e) => e.key === "Enter" && navigate("/database")}
-          className="cursor-pointer rounded-2xl transition-[filter] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-          title="Manage databases — start/stop/restart"
-        >
-          <StatCard
-            icon={Database}
-            label="Databases"
-            value={Object.entries(status?.db_states ?? {}).filter(([, v]) => v).length + "/2"}
-            sub={
-              Object.keys(status?.db_states ?? {}).length > 0
-                ? Object.entries(status?.db_states ?? {})
-                    .map(([k, v]) => `${k} ${v ? "✓" : "✗"}`)
-                    .join(" · ")
-                : "mariadb · postgresql"
-            }
-          />
-        </div>
-      </div>
+      {/* The four numbers are one card, not four: the divider between the
+          cells is what makes them read as one fact about the machine. */}
+      <MetricStrip
+        metrics={[
+          {
+            icon: Globe,
+            label: "Sites",
+            value: String(status?.sites_count ?? 0),
+            sub: `*.${status?.tld ?? "localhost"}`,
+          },
+          {
+            icon: Boxes,
+            label: "Services",
+            value: `${runningCount}/${installed.length}`,
+            sub: `${installed.length} installed`,
+          },
+          {
+            icon: Activity,
+            label: "Requests",
+            value: String(trafficTotal),
+            sub: `HTTP :${status?.http_port ?? "?"} · HTTPS :${status?.https_port ?? "?"}`,
+          },
+          {
+            icon: Database,
+            label: "Databases",
+            value:
+              Object.entries(status?.db_states ?? {}).filter(([, v]) => v).length +
+              "/2",
+            sub: (
+              <span className="flex flex-wrap items-center gap-1.5">
+                {Object.entries(status?.db_states ?? {}).length > 0
+                  ? Object.entries(status?.db_states ?? {}).map(
+                      ([k, v]) => (
+                        <span key={k} className="inline-flex items-center gap-1.5 text-text-secondary">
+                          <StatusDot status={v ? "running" : "stopped"} />
+                          {k}
+                        </span>
+                      )
+                    )
+                  : "mariadb · postgresql"}
+              </span>
+            ),
+            onClick: () => navigate("/database"),
+            title: "Manage databases — start/stop/restart",
+          },
+        ]}
+      />
 
       {/* Error banner (port conflict etc.) */}
       {anyError && (
@@ -578,7 +569,12 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-col gap-1">
               <CardTitle className="flex items-center gap-2">
-                <span className="flex size-6 items-center justify-center rounded-md border border-ring-inner bg-surface-raised/70"><LayoutDashboard className="size-3.5 text-brand" /></span> Server
+                <LayoutDashboard className="size-[15px] text-brand" /> Server
+                <ToneBadge tone={runningCount > 0 ? "success" : "muted"}>
+                  {runningCount > 0
+                    ? `${runningCount} services running`
+                    : "No services running"}
+                </ToneBadge>
               </CardTitle>
               <CardDescription>
                 {runningCount > 0 ? `${runningCount} services running` : "No services running"} · DB{" "}
@@ -657,6 +653,73 @@ export default function DashboardPage() {
         })}
       </div>
 
+      {/* Service table (compact overview) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Installed services</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Service</TableHead>
+                  <TableHead>Ports</TableHead>
+                  <TableHead className="w-24">Status</TableHead>
+                  <TableHead className="w-40 text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {installed.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-[12.5px] text-text-muted">
+                      No services installed yet — add Mailpit, Redis, MinIO or
+                      Meilisearch from Packages.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {installed.map((svc) => (
+                  <TableRow key={svc.name}>
+                    <TableCell className="font-medium">{svc.label}</TableCell>
+                    <TableCell className="font-mono text-[11px] text-text-secondary">{svc.ports?.join("  ")}</TableCell>
+                    <TableCell>
+                      {/* Same vocabulary as the Sites table: a state is never
+                          the primary button colour, and the dot always travels
+                          with its label. */}
+                      <ToneBadge tone={svc.running ? "success" : "muted"}>
+                        <StatusDot status={svc.running ? "running" : "stopped"} />
+                        {svc.running ? "running" : svc.enabled ? "enabled" : "stopped"}
+                      </ToneBadge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {svc.running ? (
+                          <Button size="sm" variant="outline" onClick={() => stopService(svc)} disabled={busy === svc.name}>
+                            <Square /> Stop
+                          </Button>
+                        ) : (
+                          <Button size="sm" onClick={() => startService(svc)} disabled={busy === svc.name}>
+                            <Play /> Start
+                          </Button>
+                        )}
+                        <IconButton
+                          label="Logs"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setLogFor(svc.name)}
+                        >
+                          <ScrollText />
+                        </IconButton>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Service grid — installed tools only */}
       {installed.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-3">
@@ -689,8 +752,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Traffic (requests/minute)</CardTitle>
-            <CardDescription>Last 30 minutes — via proxy</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <CardTitle>Traffic</CardTitle>
+                <CardDescription>Requests per minute · last 30 minutes</CardDescription>
+              </div>
+              <ToneBadge tone="muted">peak {peakTraffic}/min</ToneBadge>
+            </div>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[220px] w-full">
@@ -769,65 +837,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Service table (compact overview) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Installed services</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead>Service</TableHead>
-                  <TableHead>Ports</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-40 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {installed.map((svc) => (
-                  <TableRow key={svc.name}>
-                    <TableCell className="font-medium">{svc.label}</TableCell>
-                    <TableCell className="font-mono text-[11px] text-text-secondary">{svc.ports?.join("  ")}</TableCell>
-                    <TableCell>
-                      {/* Same vocabulary as the Sites table: a state is never
-                          the primary button colour, and the dot always travels
-                          with its label. */}
-                      <ToneBadge tone={svc.running ? "success" : "muted"}>
-                        <StatusDot status={svc.running ? "running" : "stopped"} />
-                        {svc.running ? "running" : svc.enabled ? "enabled" : "stopped"}
-                      </ToneBadge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {svc.running ? (
-                          <Button size="sm" variant="outline" onClick={() => stopService(svc)} disabled={busy === svc.name}>
-                            <Square /> Stop
-                          </Button>
-                        ) : (
-                          <Button size="sm" onClick={() => startService(svc)} disabled={busy === svc.name}>
-                            <Play /> Start
-                          </Button>
-                        )}
-                        <IconButton
-                          label="Logs"
-                          size="icon-sm"
-                          variant="ghost"
-                          onClick={() => setLogFor(svc.name)}
-                        >
-                          <ScrollText />
-                        </IconButton>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
 
       <LogDialog name={logFor} onClose={() => setLogFor(null)} />
     </div>

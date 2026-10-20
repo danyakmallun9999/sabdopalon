@@ -9,6 +9,7 @@ export function cn(...inputs: ClassValue[]) {
 // prints "\x1b[32mComposer\x1b[39m ..."). The escape codes are invisible in a
 // terminal but show up as garbage in the dashboard, so they are stripped
 // before the value is rendered.
+// eslint-disable-next-line no-control-regex
 const ANSI = /\u001B\[[0-9;]*[A-Za-z]/g
 
 export function stripAnsi(value: string): string {

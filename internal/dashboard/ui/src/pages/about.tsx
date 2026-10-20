@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
-import { Check, Copy, ExternalLink, FolderOpen, Heart, Info, RefreshCw } from "lucide-react"
+import { Check, Copy, ExternalLink, FolderOpen, Heart, RefreshCw } from "lucide-react"
 
 import api, { type Package } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { ToneBadge } from "@/components/status"
 import { useLive } from "@/lib/live"
 import { PageHeader } from "@/components/page-header"
 import { toast } from "sonner"
@@ -312,25 +313,32 @@ export default function AboutPage() {
       {/* Identity */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Info className="size-4 text-text-muted" />
-            Sabdopalon
-            <Badge variant="secondary" className="font-mono text-[10.5px]">
-              {version}
-            </Badge>
-            {/* The channel you follow, not the channel this build came from. They are
-                different axes, and showing the build's would contradict the Updates card
-                for anyone following beta. */}
-            <Badge variant="outline" className="text-[10.5px]">
-              {channel}
-            </Badge>
-          </CardTitle>
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-ring-inner bg-surface-raised p-1.5">
+              <img src="/logo.png" alt="" className="size-full object-contain" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>Sabdopalon</CardTitle>
+                {/* The channel you follow, not the channel this build came from. They are
+                    different axes, and showing the build's would contradict the Updates card
+                    for anyone following beta. */}
+                <Badge variant="outline" className="text-[10.5px]">
+                  {channel}
+                </Badge>
+              </div>
+              <span className="font-mono text-[11.5px] text-text-muted">
+                Version {version}
+                {info ? ` · build ${info.app.runtime}` : ""}
+              </span>
+            </div>
+          </div>
           <CardDescription>
             A local PHP, database and tunnel environment for Windows, Linux and macOS.
           </CardDescription>
         </CardHeader>
         <CardContent className="text-[12.5px]">
-          <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
+          <div className="grid gap-x-6 gap-y-1 sm:grid-cols-3">
             <div className="text-text-muted">Platform</div>
             <div className="font-mono text-[11px] text-text-primary">
               {info ? `${info.app.platform} · ${info.app.arch}` : "—"}
@@ -482,30 +490,30 @@ export default function AboutPage() {
             from the Packages page.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-[12.5px]">
+        <CardContent className="grid grid-cols-1 gap-2 @xl/main:grid-cols-3">
           {pkgs.length === 0 ? (
             <span className="text-[11.5px] text-text-muted">No components reported yet.</span>
           ) : (
             pkgs.map((p) => (
               <div
                 key={p.name}
-                className="flex items-center justify-between gap-3 border-b border-border-soft py-2 last:border-0"
+                className="flex items-center justify-between gap-3 rounded-lg border border-ring-inner bg-surface-inset px-3 py-2"
               >
-                <span className="font-mono text-[11px] text-text-primary">{p.name}</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-mono text-[10.5px] text-text-muted">{p.version}</span>
+                <span className="truncate font-mono text-[11px] text-text-primary">
+                  {p.name}
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="font-mono text-[10.5px] text-text-muted">
+                    {p.version}
+                  </span>
                   {p.active ? (
                     <Badge variant="secondary" className="text-[10.5px]">
                       in use
                     </Badge>
-                  ) : null}
-                  {p.installed ? (
-                    <span className="flex items-center gap-1 text-[10.5px] text-text-muted">
-                      <Check className="size-3" />
-                      installed
-                    </span>
+                  ) : p.installed ? (
+                    <ToneBadge tone="success">installed</ToneBadge>
                   ) : (
-                    <span className="text-[10.5px] text-text-muted">not installed</span>
+                    <ToneBadge tone="muted">missing</ToneBadge>
                   )}
                 </span>
               </div>

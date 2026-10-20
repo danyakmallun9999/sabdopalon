@@ -939,3 +939,53 @@ Semua ≥ 4.5:1.
 ### Screenshot
 
 `images/ui/*.png` (10 file) diperbarui ke desain baru pada 1280×800 — dipakai README.
+
+---
+
+## Lampiran F — Kesetiaan Visual terhadap `untitled.pen`
+
+Revamp pertama dibangun dari dokumen ini. Setelah itu file desainnya dibaca ulang
+node per node (lewat pen.dev MCP: `Get`, `GetVariables`, `Export`) dan
+dibandingkan layar per layar dengan hasil implementasi. Hasilnya: palet dan
+token sudah benar sejak awal, tetapi **strukturnya** belum — dan itu yang
+membuat tampilannya terasa "mirip, tapi bukan yang sama".
+
+### Yang ditemukan berbeda (dan sudah diperbaiki)
+
+| Aspek | File desain | Implementasi pertama | Sekarang |
+|---|---|---|---|
+| Tombol | dua lapis: edge luar 1px + celah 2px di background + permukaan tombol dengan edge sendiri | satu lapis | ring digambar dengan `box-shadow` (tetap satu elemen, fokus/disabled tidak berubah) |
+| Empat angka utama | **satu** kartu dengan 4 sel dan pembatas 1px | empat kartu terpisah | `MetricStrip`: satu kartu, pembatas jadi celah 1px di atas warna pembatas |
+| Label metrik | 11.5 px / 500 / `#A1A1A1`, huruf biasa | 10.5 px uppercase muted | sama dengan desain |
+| Ikon | polos (15 px, aksen) | di dalam kotak dengan border | polos, seperti desain |
+| Judul kartu | 14.5 px / 600 | 14.5 px / 500 | 600 |
+| Sidebar aktif | ring + panel `#262626`, ikon 16 px aksen, label 13 px/600 | panel datar, ikon 15 px | ring + ikon 16 px aksen + label 13 px/600 |
+| Kartu proxy | ring + isi `#121212` (inset) | datar | ring + inset |
+| Top bar | pill = panel `#171717` + border `#222222`; panel tombol 28×28 | pill elevate | pill panel + panel tombol 28×28 |
+| Trail | breadcrumb di top bar (hanya di halaman site) | breadcrumb di dalam halaman | dipindah ke top bar, seperti desain |
+| Dashboard | urutan: metrik → server → daemon → installed services → additional services → chart | installed services di paling bawah | urutan sama dengan desain, tabel punya baris kosong |
+| Settings | bento: General 2/3 + php.ini & profiles 1/3 | satu kolom | bento |
+| Config site | bento 5/7 dengan kartu "Apply changes" | grid 2 kolom | bento + kartu Apply |
+| About | daftar komponen jadi grid 3 kolom + tile logo | daftar baris | grid tile + tile logo |
+| Terminal | tab shell berupa segmented control | tombol biasa | segmented control + tombol "New shell" berlabel |
+| Subjudul halaman | 13 px | 12 px | 13 px |
+| Baris tabel | 54 px, header 10 px/600 | 44 px, header 10 px/500 | 54 px, header 10 px/600 |
+
+### Yang tetap tidak diambil (dan kenapa)
+
+- **Kotak pencarian di top bar, lonceng notifikasi, avatar** — tidak ada
+  backendnya; memaksakan UI yang tidak bisa bekerja lebih buruk daripada
+  menyisihkannya.
+- **Chip instalasi cepat di kartu "Additional services"** — aksi yang belum ada
+  di aplikasi.
+- **"Service status" berupa daftar service dengan bar mini** di desain — versi
+  aplikasi menyimpan *riwayat* running/enabled, jadi digrafik tetap.
+- **Tombol "Clear" di halaman Terminal** — keputusan lama (Lampiran 2.2) tetap
+  berlaku: Clear hanya ada di terminal dock Sites.
+
+### Cara membandingkan
+
+`Export` frame dari `untitled.pen` ke PNG, lalu screenshot aplikasi yang
+sama pada lebar yang sama, keduanya dilihat berdampingan. Warna diambil dari
+node desain (`Get` → `fill`/`stroke`), bukan dari mata — contoh: fill tombol
+primary sudah `#973C00` sejak awal, hanya struktur dua-lapisnya yang belum.

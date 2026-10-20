@@ -1,41 +1,90 @@
 import { Boxes } from "lucide-react"
+import { Link, useLocation } from "react-router-dom"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
-import { StatusDot, ToneBadge } from "@/components/status"
+import { StatusDot } from "@/components/status"
 import { useLive } from "@/lib/live"
 import { dbEngineRunning } from "@/lib/dbstatus"
 
+// The trail the reference design puts in the top bar: on a site page you are
+// one click from the list you came from.
+function siteNameFrom(pathname: string): string {
+  const m = pathname.match(/^\/sites\/([^/]+)$/)
+  return m ? decodeURIComponent(m[1]) : ""
+}
+
+/**
+ * The top bar is a status strip, not a toolbar: what the machine is doing
+ * right now, nothing else. The pieces are neutral panels (a 1px edge on the
+ * app background) so the coloured dot is the only thing that draws the eye.
+ */
+function Pill({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <span
+      className={
+        "inline-flex h-[28px] items-center gap-1.5 rounded-lg border border-border-soft bg-surface px-2.5 text-[11px] whitespace-nowrap text-text-secondary " +
+        className
+      }
+    >
+      {children}
+    </span>
+  )
+}
+
 export default function SiteHeader() {
   const { status } = useLive()
+  const location = useLocation()
+  const siteName = siteNameFrom(location.pathname)
+  const dbRunning = status ? dbEngineRunning(status) : false
 
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center border-b border-border-soft bg-background/80 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
-      <div className="flex w-full items-center gap-3 px-5 lg:px-7">
-        <SidebarTrigger className="-ml-1.5 text-text-secondary hover:text-text-primary" />
-        <span className="hidden text-[10px] font-medium tracking-[0.12em] text-text-muted uppercase sm:inline">
-          Control room
-        </span>
+    <header className="flex h-(--header-height) shrink-0 items-center border-b border-border-soft bg-background transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+      <div className="flex w-full items-center gap-3 px-7">
+        <SidebarTrigger className="size-7 rounded-md border border-border text-text-secondary hover:bg-surface-raised hover:text-text-primary" />
+
+        {siteName ? (
+          <nav
+            aria-label="Breadcrumb"
+            className="flex items-center gap-1.5 text-[12.5px] text-text-secondary"
+          >
+            <Link to="/sites" className="hover:text-text-primary">
+              Sites
+            </Link>
+            <span className="text-text-muted/50">/</span>
+            <span className="font-medium text-text-primary">{siteName}</span>
+          </nav>
+        ) : null}
 
         <div className="ml-auto flex items-center gap-2">
           {status?.database ? (
-            <ToneBadge tone={dbEngineRunning(status) ? "success" : "warning"}>
-              DB {status.database}
-              {status.database !== "sqlite" ? (dbEngineRunning(status) ? " ✓" : " ✗") : ""}
-            </ToneBadge>
+            <Pill>
+              <StatusDot status={dbRunning ? "running" : "error"} />
+              {status.database}
+            </Pill>
           ) : (
-            <ToneBadge tone="muted">DB —</ToneBadge>
+            <Pill>
+              <StatusDot status="error" />
+              DB —
+            </Pill>
           )}
           {(status?.php_version || status?.php) && (
-            <ToneBadge tone="muted">PHP {status?.php_version ?? status?.php}</ToneBadge>
+            <Pill>PHP {status?.php_version ?? status?.php}</Pill>
           )}
-          {status?.services ? (
-            <ToneBadge tone="muted" render={<a href="/services" />}>
-              <Boxes /> Active services
-            </ToneBadge>
-          ) : null}
-          <span className="hidden text-[11px] whitespace-nowrap text-text-muted tabular-nums sm:inline">
+          {status?.services && (
+            <Pill>
+              <Boxes className="size-3 text-text-muted" />
+              Active services
+            </Pill>
+          )}
+          <Pill className="text-[10.5px]">
             v{status?.version ?? "…"} · up {status?.uptime ?? "—"}
-          </span>
+          </Pill>
           <StatusDot
             status={status ? "running" : "error"}
             aria-label={status ? "Dashboard connected" : "Dashboard disconnected"}
