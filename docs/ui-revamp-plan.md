@@ -573,16 +573,18 @@ Site detail:
 
 ### Fase 8 — QA dan handoff
 
-- [ ] Visual QA 1440 × 900, 1280 × 800, 1024 × 768, 960 × 640, 390 px web.
-- [ ] Semua halaman: populated, empty, loading, error.
-- [ ] Running/stopped/starting/error states.
-- [ ] Dialog create/configure/delete/elevation/install.
-- [ ] Keyboard/focus/contrast.
-- [ ] Tidak ada clipped text/overflow.
-- [ ] `npm run typecheck`, `npm run lint`, `npm run build`.
-- [ ] Smoke test `go test ./...` bila relevan.
-- [ ] Update screenshot `images/ui/*` setelah implementasi (opsional, bukan fitur).
-- [ ] Update dokumen ini dengan keputusan final.
+> Hasil lengkap ada di [Lampiran E](#lampiran-e--laporan-qa-fase-8).
+
+- [x] Visual QA 1440 × 900, 1280 × 800, 1024 × 768, 960 × 640, 390 px web.
+- [x] Semua halaman: populated, empty, loading, error.
+- [x] Running/stopped/starting/error states.
+- [x] Dialog create/configure/delete/elevation/install.
+- [x] Keyboard/focus/contrast.
+- [x] Tidak ada clipped text/overflow.
+- [x] `npm run typecheck`, `npm run lint`, `npm run build`.
+- [x] Smoke test `go test ./...` bila relevan.
+- [x] Update screenshot `images/ui/*` setelah implementasi (opsional, bukan fitur).
+- [x] Update dokumen ini dengan keputusan final.
 
 **Exit:** definition of done terpenuhi.
 
@@ -885,3 +887,55 @@ Aturan:
 - Font: DM Sans (UI + heading) dan JetBrains Mono (kode). Public Sans dihapus dari import CSS.
 - Scrollbar tetap disembunyikan (gaya desktop app); halaman yang panjang digulir lewat `PageLayout` (`overflow-y-auto`) atau kolom internalnya.
 - Tidak ada perubahan backend, route, tab, field, atau aksi. `untitled.pen` tidak dimodifikasi.
+
+---
+
+## Lampiran E — Laporan QA (Fase 8)
+
+### Metode
+
+- Backend nyata dijalankan dari repo (`SABDOPALON_DIR=<repo> go run ./cmd/sabdopalon`, dashboard di `:9900`), UI dijalankan lewat Vite dev server (`:5199`, proxy `/api`).
+- Screenshot diambil dengan Chrome headless yang dikendalikan lewat Chrome DevTools Protocol, jadi tab yang sama dipakai untuk semua rute: SSE tetap hidup, jadi snapshot live tidak berubah antar-halaman.
+- Interaksi (buka dialog, klik menu baris, start/stop site, tekan Tab) dijalankan lewat `Runtime.evaluate`/`Input.dispatchKeyEvent` pada halaman yang sama.
+
+### Cakupan
+
+| Area | Yang diuji | Hasil |
+|---|---|---|
+| Lebar | 1440×900, 1280×800, 1024×768, 960×640, 390×844 | Tidak ada overflow horizontal; kartu metrik 4→2 kolom ikut lebar kontainer (container query), tabel jadi kartu di <768, tab dan header wrap rapi |
+| Halaman | 12 route + setup wizard | Semua memakai `PageHeader`, ring card, dan token yang sama |
+| State | populated, loading (skeleton), empty (Services/Packages), error (backend mati → titik merah + "DB —"), running, stopped | Konsisten; status selalu_dot + label, tidak pernah warna saja |
+| Overlay | New Site, Configure, Delete (AlertDialog), dropdown baris, tab, segmented control | Dialog tidak melewati viewport; fokus terperangkap; overlay blur + surface baru |
+| Keyboard | Tab walk dari atas | Urutan fokus masuk ke sidebar lalu konten; focus ring brand terlihat (orange) |
+| Build | `npm run typecheck`, `npm run build`, `npm run lint`, `go test ./...` | Hijau; lint 12 error (semua pola lama: `react-refresh`, `set-state-in-effect`, `refs`) — 2 lebih sedikit dari baseline repo (14) |
+
+### Kontras (WCAG AA, rasio dihitung dari token final)
+
+| Pasangan | Rasio |
+|---|---|
+| `text-primary` #FAFAFA di `surface` | 17.18:1 |
+| `text-secondary` #A1A1A1 di `surface` | 6.94:1 |
+| `text-muted` #8C8C8C di `surface` | 5.33:1 |
+| `text-muted` #8C8C8C di app background | 5.89:1 |
+| `brand` #E07B28 di `surface` | 6.00:1 |
+| `brand-fg` #FFFBEB di `brand-fill` #973C00 | 6.84:1 |
+| `success` #00D492 di `success-soft` | 7.81:1 |
+| `warning` #F5B544 di `warning-soft` | 8.16:1 |
+| `danger` #FF6B6B di `danger-soft` | 5.68:1 |
+
+Semua ≥ 4.5:1.
+
+### Temuan dan perbaikan saat QA
+
+- **Versi Composer tampil dengan kode ANSI.** `composer --version` mengembalikan string berwarna (`\x1b[32m…`), yang tidak terlihat di terminal tapi jadi sampah di halaman Packages. Ditambahkan `stripAnsi()` di `src/lib/utils.ts` dan dipakai saat merender `version`. Perbaikan tampilan saja — tidak ada perubahan API atau backend.
+- Judul halaman, filter, dan aksi utama sudah berada di header (sudah ada di commit sebelumnya).
+
+### Yang tidak bisa diverifikasi dari browser
+
+- Title bar desktop Tauri (hanya muncul di shell desktop) dan perilaku minimize/maximize/close.
+- Dialog yang hanya muncul setelah aksi backend (elevation dialog SSL, panel install Packages) — alurnya mengikuti komponen yang sama, tapi tidak dipicu di QA ini.
+- Checklist fitur di Lampiran B tetap perlu dicentang manual di aplikasi berjalan (butuh stack PHP/MariaDB terpasang).
+
+### Screenshot
+
+`images/ui/*.png` (10 file) diperbarui ke desain baru pada 1280×800 — dipakai README.

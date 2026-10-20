@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { stripAnsi } from "@/lib/utils"
 
 
 const LABELS: Record<string, string> = {
@@ -142,7 +143,7 @@ function SystemToolsCard() {
                 <div className="flex flex-col gap-0.5">
                   <span className="text-[12px] font-medium text-text-primary">{t.label}</span>
                   {t.installed ? (
-                    <span className="font-mono text-[10.5px] text-text-muted">{t.version}</span>
+                    <span className="font-mono text-[10.5px] text-text-muted">{stripAnsi(t.version)}</span>
                   ) : (
                     <span className="text-[10.5px] text-text-muted">not installed yet</span>
                   )}
