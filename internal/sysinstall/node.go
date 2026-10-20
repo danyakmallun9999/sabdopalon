@@ -45,30 +45,28 @@ func nodeURL(version string) string {
 }
 
 // nodeSHA returns the pinned SHA-256 for the platform's Node.js artifact.
+//
+// Verified against https://nodejs.org/dist/v24.22.0/SHASUMS256.txt. A wrong
+// value here is not a cosmetic bug: Install refuses an artifact whose digest
+// does not match, so a stale table turns into "checksum mismatch" on the first
+// `sabdopalon add node` and nothing else.
 func nodeSHA(version string) string {
-	// Verified against https://nodejs.org/dist/<version>/SHASUMS256.txt
-	switch runtime.GOOS {
-	case "linux":
-		switch runtime.GOARCH {
-		case "amd64":
-			return "14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647"
-		case "arm64":
-			return "01443c1e1a29e531ccad5a46fefa6df490d2189c49f7955904aecdbb0fe86fdc"
-		}
-	case "darwin":
-		switch runtime.GOARCH {
-		case "amd64":
-			return "d1b5e999db158c62fe8f7267a4476b035d8bd93b1a605bac24a3f0dd166e3316"
-		case "arm64":
-			return "8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d"
-		}
-	case "windows":
-		switch runtime.GOARCH {
-		case "amd64":
-			return "57f71ab3652e797d84acddc79c81cc9ff1c6ddb2a1974cdb83f00fee9bff4c73"
-		case "arm64":
-			return "8502f4a50b458d4cc38ed8f2001556c2cd239d464920f74017926ccb1e1c157f"
-		}
+	if version != nodeVersion {
+		return ""
+	}
+	switch runtime.GOOS + "/" + runtime.GOARCH {
+	case "linux/amd64":
+		return "cc2f601cee82d9a5a233302fe307abc600727035fd7d2c3a3571755989e95008"
+	case "linux/arm64":
+		return "fef00bb4d36e1c50104a9775a10359beee98f162b4104dd12472c75065c6a143"
+	case "darwin/amd64":
+		return "495e3f273c645f3c4677d438304cdfc701729ea5dec5728f5c8e76a2dece4b91"
+	case "darwin/arm64":
+		return "6a9724d9b50a5f22b4816cded441b5a8d9ddae546191a5e5b7efa5a5e2ee26d5"
+	case "windows/amd64":
+		return "f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f80c3"
+	case "windows/arm64":
+		return "3a5c209a5bc59e65b3bc0fa13ed5e166a26bd3d55332847f498b76b037408d61"
 	}
 	return ""
 }

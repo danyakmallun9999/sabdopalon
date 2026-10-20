@@ -63,10 +63,10 @@ func (stdoutProgress) Printf(format string, a ...any) {
 }
 
 // nodeVersion is the pinned Node.js LTS line. Must match the URLs + SHAs below.
-const nodeVersion = "v24.19.0"
+const nodeVersion = "v24.22.0"
 
 // composerVersion is the pinned Composer stable release.
-const composerVersion = "2.10.2"
+const composerVersion = "2.10.3"
 
 // ManagedToolVersion returns the pinned version of a system tool Sabdopalon
 // installs ("node", "npm", "composer"), or "" for anything else.
@@ -266,7 +266,18 @@ func installTool(t *SystemTool, p Progress) error {
 		return nil
 	}
 
-	prefix := userBinDir()
+	// Install into the folder the running app actually reads. userBinDir() is
+	// $HOME/sabdopalon/bin: identical for a default install, but a DIFFERENT
+	// folder for an install rooted anywhere else (C:\sabdopalon, a portable
+	// extract, another drive). There the tool was written where nothing looked
+	// for it, `composer` resolved to a global copy instead, and the bundled PHP
+	// never got involved.
+	prefix := targetBinDir()
+	if t.Name == "node" || t.Name == "npm" {
+		// Node.js keeps its distribution together -- node.exe next to
+		// node_modules/ -- because npm.cmd resolves its CLI relative to itself.
+		prefix = filepath.Join(prefix, "node")
+	}
 	url := t.url(t.version)
 	if url == "" {
 		return fmt.Errorf("%s: no download available for %s/%s", t.Name, runtime.GOOS, runtime.GOARCH)
@@ -314,6 +325,14 @@ func installTool(t *SystemTool, p Progress) error {
 	// find the tool without manual steps. On Windows this edits HKCU\Environment
 	// (no admin); on Linux/macOS it appends a guarded export to the shell rc.
 	ensurePath(prefix, p)
+
+	// Regenerate the launchers now, not on the next start: composer.cmd,
+	// node.cmd, npm.cmd and npx.cmd are what make a freshly installed tool
+	// reachable through bin/ -- and, for Composer, what pins it to the bundled
+	// php.exe instead of whatever PATH offers.
+	if err := EnsureShims(targetBinDir()); err != nil {
+		p.Printf("  \u26a0  shims: %v\n", err)
+	}
 
 	// Verify it's now runnable (the running process PATH won't reflect the
 	// rc edit yet on Unix, so this is best-effort).

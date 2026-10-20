@@ -56,6 +56,13 @@ var shimTargets = []struct {
 	{"psql", []string{`postgresql-client\bin\psql.exe`, `postgresql\bin\psql.exe`}},
 	{"redis-cli", []string{`redis\redis-cli.exe`}},
 	{"redis-server", []string{`redis\redis-server.exe`}},
+	// Bundled Node.js: the distribution keeps node.exe next to node_modules/,
+	// so npm.cmd/npx.cmd resolve their CLI relative to themselves and work as
+	// shipped. They are launched through `call` below because a .cmd starting
+	// another .cmd without it never returns control.
+	{"npx", []string{`node\npx.cmd`, `node\npx`}},
+	{"npm", []string{`node\npm.cmd`, `node\npm`}},
+	{"node", []string{`node\node.exe`, `node\node`}},
 }
 
 // EnsureShims (re)generates the launcher .cmd files in binDir so that every
@@ -70,10 +77,19 @@ func EnsureShims(binDir string) error {
 		return fmt.Errorf("create %s: %w", binDir, err)
 	}
 
-	if rel := shimPHPRel(binDir); rel != "" {
-		if err := writeShim(binDir, "php", rel); err != nil {
+	phpRel := shimPHPRel(binDir)
+	if phpRel != "" {
+		if err := writeShim(binDir, "php", phpRel); err != nil {
 			return err
 		}
+	}
+	// Composer is a .phar: it has no launcher of its own, and the PHP it must
+	// run under is the bundled one. Resolving `php` from PATH here was the
+	// reason a machine with Herd/Laragon/XAMPP ran Composer under a foreign
+	// interpreter -- which is how Composer 2.10.2 came to invent the platform
+	// package "lib-curl-schannel..." and fail with a malformed Packagist URL.
+	if err := writeComposerShim(binDir, phpRel); err != nil {
+		return err
 	}
 	for _, t := range shimTargets {
 		for _, rel := range t.Rels {
@@ -85,6 +101,38 @@ func EnsureShims(binDir string) error {
 			}
 			break // first existing candidate wins
 		}
+	}
+	return nil
+}
+
+// writeComposerShim writes bin/composer.cmd so that `composer` runs
+// bin/composer.phar with the BUNDLED php.exe -- by path, never by name.
+//
+// phpRel is the bin-relative php path shimPHPRel chose ("" when no PHP is
+// installed yet). Without a phpRel there is nothing sensible to write: a shim
+// that fell back to PATH would reintroduce exactly the foreign-interpreter bug
+// this exists to prevent, so the shim is only written once PHP is present.
+//
+// COMPOSER_HOME is pointed inside the install for the same reason: a
+// machine-wide Composer config must not decide how Sabdopalon's Composer
+// behaves -- a stale global policy.ignore-unreachable is what turned Composer's
+// advisory fetch into noise in the field.
+func writeComposerShim(binDir, phpRel string) error {
+	phar := filepath.Join(binDir, "composer.phar")
+	if phpRel == "" || !isRegularFile(phar) {
+		return nil // nothing installed yet, or no PHP to run it with
+	}
+	path := filepath.Join(binDir, "composer.cmd")
+	content := "@echo off\r\n" +
+		"setlocal\r\n" +
+		"if exist \"%~dp0..\\config\\php.ini\" set \"PHPRC=%~dp0..\\config\\php.ini\"\r\n" +
+		"if not defined COMPOSER_HOME set \"COMPOSER_HOME=%~dp0..\\composer\"\r\n" +
+		"\"%~dp0" + phpRel + "\" -d yac.enable=0 -d yac.enable_cli=0 \"%~dp0composer.phar\" %*\r\n"
+	if old, err := os.ReadFile(path); err == nil && string(old) == content {
+		return nil
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("write composer shim %s: %w", path, err)
 	}
 	return nil
 }
@@ -154,6 +202,11 @@ func writeShim(binDir, name, rel string) error {
 		// so anything run from this shim is unaffected — and a later -d on the
 		// command line still wins, for anyone who wants it back.
 		content += "\"%~dp0" + rel + "\" -d yac.enable=0 -d yac.enable_cli=0 %*\r\n"
+	} else if strings.HasSuffix(strings.ToLower(rel), ".cmd") || strings.HasSuffix(strings.ToLower(rel), ".bat") {
+		// npm.cmd / npx.cmd are batch files: launching one from another batch
+		// file without `call` hands over control and never comes back, which
+		// also loses the exit code a caller wants.
+		content += "call \"%~dp0" + rel + "\" %*\r\n"
 	} else {
 		content += "\"%~dp0" + rel + "\" %*\r\n"
 	}

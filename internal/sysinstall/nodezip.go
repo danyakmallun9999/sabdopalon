@@ -1,4 +1,4 @@
-// Package sysinstall — node_windows.go: Node.js zip extraction.
+// Package sysinstall — nodezip.go: Node.js zip extraction.
 //
 // The archive/zip extraction here compiles on every platform (it is stdlib);
 // we guard the actual entry point with a runtime.GOOS check so the cross-
@@ -16,8 +16,16 @@ import (
 	"strings"
 )
 
-// installNodeWindows extracts the Node.js zip into the per-user prefix and
-// copies node.exe, npm, and npx to the prefix root.
+// installNodeWindows extracts the Node.js zip into prefix so that the
+// distribution's own root becomes prefix: node.exe, npm.cmd, npx.cmd and
+// node_modules/ end up side by side.
+//
+// The strip matters. The archive wraps everything in node-vX-win-x64/, and the
+// previous build copied node.exe and npm.cmd UP to the prefix root while leaving
+// node_modules/ behind in the nested folder. npm.cmd resolves its CLI as
+// "%~dp0node_modules\npm\bin\npm-cli.js", so the copied launcher pointed at a
+// path that did not exist: the bundled `npm` was dead on arrival. Keeping the
+// distribution layout intact is what makes the launcher work.
 func installNodeWindows(archivePath, prefix string, p Progress) (string, error) {
 	if runtime.GOOS != "windows" {
 		// Should never be called on non-Windows; guard for safety.
@@ -31,48 +39,46 @@ func installNodeWindows(archivePath, prefix string, p Progress) (string, error) 
 
 	rootName := ""
 	for _, f := range zr.File {
+		name := strings.ReplaceAll(f.Name, `\`, "/")
 		if rootName == "" {
-			parts := strings.SplitN(filepath.Clean(f.Name), "/", 2)
-			if parts[0] != "" {
+			if parts := strings.SplitN(name, "/", 2); len(parts) > 0 && parts[0] != "" {
 				rootName = parts[0]
 			}
 		}
+		rel := strings.TrimPrefix(name, rootName+"/")
+		if rel == "" || rel == name {
+			continue // the wrapper directory itself, or an entry outside it
+		}
+		dst := filepath.Join(prefix, rel)
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(filepath.Join(prefix, f.Name), 0o755); err != nil {
+			if err := os.MkdirAll(dst, 0o755); err != nil {
 				return "", err
 			}
 			continue
 		}
-		if err := extractZipFile(f, prefix); err != nil {
+		if err := extractZipEntry(f, dst); err != nil {
 			return "", err
 		}
 	}
 
-	// Copy node.exe and the npm/npx scripts to the prefix root.
-	rootDir := filepath.Join(prefix, rootName)
-	srcExe := filepath.Join(rootDir, "node.exe")
-	dstExe := filepath.Join(prefix, "node.exe")
-	if err := copyFileLocal(srcExe, dstExe); err != nil {
-		p.Printf("  ⚠  could not copy node.exe: %v\n", err)
+	exe := filepath.Join(prefix, "node.exe")
+	if !isRegularFile(exe) {
+		return "", fmt.Errorf("node.exe is missing from the extracted archive")
 	}
-	// npm and npx are .cmd wrappers inside the root dir.
-	for _, name := range []string{"npm", "npm.cmd", "npx", "npx.cmd"} {
-		src := filepath.Join(rootDir, name)
-		dst := filepath.Join(prefix, name)
-		_ = copyFileLocal(src, dst)
+	if !isRegularFile(filepath.Join(prefix, "node_modules", "npm", "bin", "npm-cli.js")) {
+		p.Printf("  ⚠  npm is missing from the extracted archive — `npm` will not work\n")
 	}
-	return dstExe, nil
+	return exe, nil
 }
 
-// extractZipFile writes one zip entry to the prefix, preserving the path.
-func extractZipFile(f *zip.File, prefix string) error {
+// extractZipEntry writes one zip entry to dst.
+func extractZipEntry(f *zip.File, dst string) error {
 	rc, err := f.Open()
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
 
-	dst := filepath.Join(prefix, f.Name)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -83,4 +89,9 @@ func extractZipFile(f *zip.File, prefix string) error {
 	defer out.Close()
 	_, err = io.Copy(out, rc)
 	return err
+}
+
+// extractZipFile writes one zip entry under prefix, preserving its path.
+func extractZipFile(f *zip.File, prefix string) error {
+	return extractZipEntry(f, filepath.Join(prefix, f.Name))
 }

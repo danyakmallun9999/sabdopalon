@@ -5,11 +5,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os/exec"
 	"strings"
 	"sync"
-
-	"github.com/sabdopalon/sabdopalon/internal/winproc"
 )
 
 // Progress is the stream a template writes to while it builds a project: the
@@ -111,15 +108,12 @@ func (t *tailWriter) Write(b []byte) (int, error) {
 // `exec: "php": executable file not found in %PATH%`. The child environment gets
 // the same treatment (see childEnv).
 func (p *Progress) Run(dir, name string, args ...string) error {
-	bin, err := resolveTool(name)
+	cmd, env, err := toolCommand(name, args...)
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(bin, args...)
-	winproc.Quiet(cmd)
 	cmd.Dir = dir
-	cmd.Env = childEnv()
-
+	cmd.Env = env
 	tail := &tailWriter{limit: tailLimit}
 	out := io.MultiWriter(p.Out(), tail)
 	cmd.Stdout, cmd.Stderr = out, out

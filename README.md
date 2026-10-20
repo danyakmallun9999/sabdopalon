@@ -71,6 +71,8 @@ operating system. Just run `sabdopalon` and:
 | **Backups** | One click, with automatic history |
 | **Desktop app** | A native window with a tray icon and a setup wizard |
 | **Built-in terminal** | Run `composer`, `artisan`, `php` right from the dashboard |
+| **Bundled Composer + Node.js** | Composer and Node.js ship with Sabdopalon and always run under its own PHP |
+| **Self-configuring PHP** | A valid `php.ini` per version: `extension_dir`, dev defaults, opcache |
 
 ## Prerequisites
 
@@ -78,8 +80,11 @@ operating system. Just run `sabdopalon` and:
 database, or Go by hand — the setup wizard handles PHP and the database on
 first run. (Go is only needed if you want to build from source.)
 
-> Already have PHP on your machine? Sabdopalon will just use it. Downloads
-> only happen when it can't find what it needs.
+> Already have PHP on your machine? Sabdopalon still uses **its own** copy, by
+> absolute path: a dev environment where `php`, `composer` and `node` depend on
+> whatever PATH happens to hold is not reproducible. Your global install is left
+> untouched, and `[php] prefer = "system"` in `engine.toml` opts back into it.
+> See [Runtimes and tools](docs/runtime-and-tools.md).
 
 ## Installation
 
@@ -95,8 +100,8 @@ Grab the installer from the
 | Linux | `.deb` / `.AppImage` |
 
 Double-click → a standard setup wizard → done. You never touch a terminal
-during install or everyday use. PHP, MariaDB, and phpMyAdmin come bundled in
-the installer.
+during install or everyday use. PHP, MariaDB, phpMyAdmin, Composer and Node.js
+come bundled in the installer.
 
 ### Option B — One-command installer (terminal)
 

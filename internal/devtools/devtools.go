@@ -437,11 +437,21 @@ func lookPathInDir(binRoot, name string) string {
 	}
 	names := []string{name}
 	if runtime.GOOS == "windows" {
-		names = append(names, name+".exe")
+		// .cmd matters: Composer, npm and npx are launchers, not executables.
+		// Without these suffixes bin/composer.cmd was invisible here, so a
+		// dev-tool fell through to PATH and ran whatever global Composer the
+		// machine had — with whatever PHP that one preferred.
+		names = append(names, name+".exe", name+".cmd", name+".bat")
 	}
 	var candidates []string
 	for _, n := range names {
 		candidates = append(candidates, filepath.Join(binRoot, n))
+	}
+	// Bundled Node.js keeps its distribution together under bin/node.
+	if dir := filepath.Join(binRoot, "node"); dir != "" {
+		for _, n := range names {
+			candidates = append(candidates, filepath.Join(dir, n))
+		}
 	}
 	phpDirs, _ := filepath.Glob(filepath.Join(binRoot, "php", "*"))
 	for _, d := range phpDirs {

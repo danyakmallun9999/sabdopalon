@@ -5,6 +5,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+### Fixed
+- **Creating a Laravel project works on a clean Windows install.** `composer
+  create-project` aborted with a corrupted Packagist URL
+  (`https://repo.packagist.org/p2/lib-curl-schannel zlib version => 1.3.2
+  libssh version => libssh2.json: URL rejected: Malformed input to a URL
+  function`) and then `Invalid package found during dependency resolution,
+  aborting`. Two causes, both fixed:
+  - Composer 2.10.2 mis-parses curl's info block. Sabdopalon's Windows PHP is a
+    Schannel build, whose block says `SSL Version => Schannel` with no
+    `/version`; Composer's `[^/]+` capture then spans the following lines and
+    invents the platform package `lib-curl-schannel…`, which it tries to fetch.
+    Composer is now pinned to **2.10.3**, whose parser uses `[^\r\n/]+`.
+  - Composer was launched as a bare `php composer.phar`, so the interpreter was
+    whichever PHP PATH offered first. It is now named by absolute path.
+- **The bundled PHP has a real `php.ini`.** Composer's installer used to stop
+  with "A php.ini file does not exist. You will have to create one." and
+  "Required settings: extension_dir = "ext"", and `php -i` reported
+  `Loaded Configuration File => (none)`. Every bundled version now gets a
+  generated ini next to its binary with an absolute `extension_dir`, development
+  defaults, opcache settings, and `extension=` lines only for files that
+  actually exist. `config/php.ini` gets the same baseline; a hand-edited file is
+  never rewritten, only extended with a labelled block.
+- **The per-site PHP choice no longer appears to revert.** The site page polls
+  its detail every 5s and every poll built a new `config` object, so
+  `useEffect(() => setCfg(config), [config])` reset the form while the user was
+  choosing. The form now re-syncs only when the saved values actually change.
+- **Composer, Node.js and the databases no longer depend on PATH.** A new
+  `internal/runtime` package is the single place that resolves a managed tool:
+  absolute paths inside the install, one managed environment (`PHPRC`,
+  private `COMPOSER_HOME`, `TEMP`), and `PHP_INI_SCAN_DIR` dropped so a global
+  Xdebug/handler ini cannot load into the bundled PHP. `pkgmgr`, `templates`,
+  `devtools` and `proxy` all delegate to it.
+
+### Changed
+- **Bundled runtimes win by default.** `[php] prefer` defaults to `bundled`
+  (`prefer = "system"` opts back into the old order). Composer and Node.js are
+  installed into the installation's own `bin/` instead of
+  `%USERPROFILE%\sabdopalon\bin`, which only coincided for a default install —
+  on an install at `C:\sabdopalon` the app could not see the Composer it had
+  just written and a global copy took over.
+- **Composer is a bundled component.** It is fetched on first use into
+  `bin/composer.phar` and always runs under Sabdopalon's PHP; `bin/composer.cmd`
+  spells that interpreter out.
+- **Node.js is bundled and current:** v24.22.0 (latest LTS), installed into
+  `bin/node/` with its distribution layout intact so `npm.cmd`/`npx.cmd`
+  resolve their own CLI. The old installer copied `npm.cmd` up a level while
+  leaving `node_modules/` behind, which made bundled npm fail at start.
+- `docs/runtime-and-tools.md` documents the resolution rule, the three failures
+  above, the on-disk layout, and how to verify it.
+
 ## [0.11.26] - 2026-10-16
 
 ### Fixed

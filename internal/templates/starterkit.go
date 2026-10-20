@@ -47,7 +47,7 @@ func starterKitArgs(kit, name string) []string {
 // setupStarterKit returns a Setup function that installs one Laravel starter kit.
 func setupStarterKit(kit string) func(sitesDir, name string, p *Progress) error {
 	return func(sitesDir, name string, p *Progress) error {
-		if err := requireComposer(); err != nil {
+		if err := requireComposer(p); err != nil {
 			return err
 		}
 		dir := filepath.Join(sitesDir, name)

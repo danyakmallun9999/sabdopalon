@@ -1316,13 +1316,15 @@ func ResolveDefaultPHP(cfg *config.Engine) (string, error) {
 		return ""
 	}
 
-	prefer := strings.ToLower(cfg.PHP.Prefer)
-	if prefer == "" {
-		prefer = "system"
-	}
-	order := []func() string{systemPath, bundled}
-	if prefer == "bundled" {
-		order = []func() string{bundled, systemPath}
+	// Bundled first, by default. Sabdopalon ships a PHP built to work with the
+	// rest of its stack; whatever `php` happens to be on PATH is somebody
+	// else's build, with somebody else's ini and extensions. Preferring the
+	// system copy is still available as an explicit opt-in ([php] prefer =
+	// "system") for a user who really does want Herd's or Laragon's binary.
+	prefer := strings.ToLower(strings.TrimSpace(cfg.PHP.Prefer))
+	order := []func() string{bundled, systemPath}
+	if prefer == "system" {
+		order = []func() string{systemPath, bundled}
 	}
 	for _, pick := range order {
 		if p := pick(); p != "" {

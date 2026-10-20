@@ -436,6 +436,45 @@ port = 9900
 
 ---
 
+## 9.1 Runtime resolution: one owner, absolute paths
+
+Sabdopalon ships PHP, MariaDB/PostgreSQL, Composer and Node.js, so "which
+executable runs" is a decision the product makes, not one the host makes for it.
+It used to be made by PATH, in five different places, and that produced three
+reported failures on a fresh install (a corrupted Packagist URL, a PHP with no
+`php.ini`, and a per-site PHP choice that looked reverted).
+
+The rule is now stated once, in `internal/runtime`:
+
+- A tool Sabdopalon manages is resolved to an **absolute path inside the
+  installation**. PATH is not consulted for `php`, `composer`, `node`, `npm` or
+  `npx` at all.
+- A managed child gets an environment built by the resolver, not inherited:
+  `bin/` prepended so nested calls find the shims, `PHPRC` pointing at the
+  managed ini, a private `COMPOSER_HOME`, a writable `TEMP`, and
+  `PHP_INI_SCAN_DIR` **removed** so a global PHP's ini directory cannot load
+  into the bundled interpreter.
+- Configuration that must exist for a tool to work is generated, not assumed:
+  a `php.ini` per PHP version (absolute `extension_dir`, dev defaults,
+  extensions enabled only when the file exists), the Composer home, and `tmp/`.
+  Generation never rewrites a file the user edited.
+
+Two consequences worth stating explicitly:
+
+- **Install location stops mattering.** The tools used to be installed into
+  `%USERPROFILE%\sabdopalon\bin` while the app read `<root>/bin`. Those coincide
+  only for a default install; at `C:\sabdopalon` the app could not see the
+  Composer it had just written, and a global copy won again.
+- **Pin versions that are known-good on our own runtime.** The Composer pin is
+  not "latest": 2.10.2 aborts dependency resolution on a Schannel-built PHP
+  because of how it parses curl's info block, and our bundled Windows PHP is
+  exactly that. The pin records why, and
+  `TestE2EComposerRunsUnderBundledPHP` fails if it regresses.
+
+See `docs/runtime-and-tools.md` for the incident write-ups and the verification
+commands.
+
+---
 ## 10. Open questions
 
 1. Default TLD: `.localhost` (no hosts edit) is current default — keep it?

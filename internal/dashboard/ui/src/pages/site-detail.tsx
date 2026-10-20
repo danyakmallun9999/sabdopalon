@@ -481,9 +481,23 @@ function ConfigTab({ name, config, onSaved }: { name: string; config: SiteConfig
   const [optionsError, setOptionsError] = useState("")
   const [saving, setSaving] = useState(false)
 
+  // Re-sync only when the SAVED configuration actually changes, never merely
+  // because a poll produced a new object.
+  //
+  // The site page refetches its detail every 5s, and every refetch builds a
+  // fresh `config` object, so `useEffect(() => setCfg(config), [config])` fired
+  // every few seconds and overwrote whatever had just been picked in the PHP
+  // dropdown. From the outside that reads as "I select PHP 8.4 and it jumps
+  // back to Default by itself" - the form was being reset under the user's
+  // hand. Comparing the serialised saved values keeps a poll from touching the
+  // form while still adopting a save immediately (this tab or another).
+  const saved = JSON.stringify(config)
+  const appliedRef = useRef("")
   useEffect(() => {
+    if (saved === appliedRef.current) return
+    appliedRef.current = saved
     setCfg(config)
-  }, [config])
+  }, [saved, config])
 
   // The three groups are built from two requests, and the list is published even
   // when they fail. It used to be set once, at the end of a promise chain, with

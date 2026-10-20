@@ -762,7 +762,7 @@ $pmaUrl   = 'http://phpmyadmin.' . $tld . $suffix;
 func setupLaravel(sitesDir, name string, p *Progress) error {
 	// We use composer create-project, then adjust the docroot.
 	// Laravel's public/ is the docroot, which matches Sabdopalon's convention.
-	if err := requireComposer(); err != nil {
+	if err := requireComposer(p); err != nil { // bundled Composer, fetched on demand
 		return err
 	}
 	dir := filepath.Join(sitesDir, name)
@@ -815,7 +815,7 @@ func setupWordPress(sitesDir, name string, p *Progress) error {
 }
 
 func setupCodeIgniter(sitesDir, name string, p *Progress) error {
-	if err := requireComposer(); err != nil {
+	if err := requireComposer(p); err != nil { // bundled Composer, fetched on demand
 		return err
 	}
 	dir := filepath.Join(sitesDir, name)
@@ -826,19 +826,6 @@ func setupCodeIgniter(sitesDir, name string, p *Progress) error {
 	if err := p.Run(sitesDir, "composer", "create-project", "codeigniter4/appstarter", name, "--prefer-dist"); err != nil {
 		_ = os.RemoveAll(dir) // clean up the partial scaffold so a retry is possible
 		return fmt.Errorf("composer create-project failed: %w", err)
-	}
-	return nil
-}
-
-// requireComposer verifies that the composer executable can be found — with
-// Sabdopalon's own bin/ first, so a managed composer counts — and returns a
-// clear, actionable error when it is missing. Templates that delegate project
-// scaffolding to `composer create-project` call this up front so a missing
-// composer produces one helpful message instead of a raw exec error.
-func requireComposer() error {
-	if _, err := resolveTool("composer"); err != nil {
-		return fmt.Errorf("composer is required but was not found on your PATH.\n" +
-			"Install Composer from https://getcomposer.org/download/ and retry.")
 	}
 	return nil
 }

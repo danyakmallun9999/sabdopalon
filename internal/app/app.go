@@ -26,6 +26,7 @@ import (
 	"github.com/sabdopalon/sabdopalon/internal/pkgmgr"
 	"github.com/sabdopalon/sabdopalon/internal/profiles"
 	"github.com/sabdopalon/sabdopalon/internal/proxy"
+	rt "github.com/sabdopalon/sabdopalon/internal/runtime"
 	"github.com/sabdopalon/sabdopalon/internal/services"
 	"github.com/sabdopalon/sabdopalon/internal/sitelink"
 	"github.com/sabdopalon/sabdopalon/internal/ssl"
@@ -285,10 +286,19 @@ func prepareBinDir(cfg *config.Engine) {
 		return
 	}
 	binDir := cfg.BinDir()
-	if err := sysinstall.EnsureShims(binDir); err != nil {
-		fmt.Fprintf(os.Stderr, "  \u26a0 shims: %v\n", err)
+
+	// Make the runtime self-sufficient before anything uses it. A PHP with no
+	// php.ini is a PHP nobody can configure: that is the state that produced
+	// "A php.ini file does not exist" and the missing "extension_dir = ext".
+	// The same call creates the private Composer home and the temp directory
+	// Composer and npm need. Idempotent, offline, and never fatal.
+	for _, err := range rt.New(cfg.RootDir).Provision() {
+		fmt.Fprintf(os.Stderr, "  runtime: %v\n", err)
 	}
-	// The persistent PATH entry must be the STABLE per-user folder, never a
+
+	if err := sysinstall.EnsureShims(binDir); err != nil {
+		fmt.Fprintf(os.Stderr, "  shims: %v\n", err)
+	} // The persistent PATH entry must be the STABLE per-user folder, never a
 	// transient override. userBinDir's own contract says so; the code simply was
 	// not checking, and writing the override outlived the run that caused it:
 	// measuring the dashboard bind time with SABDOPALON_BIN_DIR pointing at a

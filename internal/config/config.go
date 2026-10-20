@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sabdopalon/sabdopalon/internal/runtime"
 	"github.com/sabdopalon/sabdopalon/internal/toml"
 )
 
@@ -26,7 +27,7 @@ type Engine struct {
 
 	PHP struct {
 		Binary string
-		Prefer string // "system" (default) | "bundled"
+		Prefer string // "bundled" (default) | "system"
 	}
 
 	Database struct {
@@ -219,15 +220,13 @@ meilisearch = %t
 // 2. PATH
 // 3. herd-lite / common system locations
 func autoDetectPHP() string {
-	// 1. Sabdopalon-downloaded PHP (bin/php/php)
+	// 1. Sabdopalon's own PHP, newest version first.
 	//    We can't know RootDir here reliably, so check relative to executable.
 	if exe, err := os.Executable(); err == nil {
-		candidate := filepath.Join(filepath.Dir(exe), "bin", "php", "php")
-		if fileExists(candidate) {
-			return candidate
+		if p := runtime.New(filepath.Dir(exe)).PHPNewest(); p != "" {
+			return p
 		}
-	}
-	// 2. PATH
+	} // 2. PATH
 	if p, err := exec.LookPath("php"); err == nil {
 		return p
 	}
