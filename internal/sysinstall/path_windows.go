@@ -37,6 +37,11 @@ var (
 func addToUserPathPersistent(dir string) (bool, error) {
 	dir = filepath.Clean(dir)
 	migrateLegacyBinDir(dir)
+	// A PATH entry shaped like <dir>\bin is never a real location: it comes from
+	// a build that appended "bin" to a directory that already ended in bin.
+	// C:\sabdopalon\bin\bin was literally present on a user machine â€” a dead
+	// entry that makes `where php` and every PATH listing confusing.
+	_ = removeFromUserPath(filepath.Join(dir, "bin"))
 
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.SET_VALUE|registry.QUERY_VALUE|registry.READ)
 	if err != nil {

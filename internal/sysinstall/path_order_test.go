@@ -78,3 +78,34 @@ func TestPathFirstIsIdempotent(t *testing.T) {
 		t.Errorf("second run altered the value: %q -> %q", once, twice)
 	}
 }
+
+// TestIsDurableBinDir pins the rule that decides whether the install's bin/ is
+// written into the user's persistent PATH.
+//
+// The distinction is durability, not location. An install at C:\sabdopalon is
+// just as real as one at %USERPROFILE%\sabdopalon: both must be on PATH so
+// php/composer/mysql work outside Sabdopalon's own terminal. A folder under
+// %TEMP% must not be, because that entry outlives the run that created it.
+func TestIsDurableBinDir(t *testing.T) {
+	temp := filepath.Join(string(os.PathSeparator) + "tmp")
+	home := filepath.Join(string(os.PathSeparator), "home", "someone")
+
+	cases := []struct {
+		name    string
+		binDir  string
+		tempDir string
+		want    bool
+	}{
+		{"scratch folder under temp", filepath.Join(temp, "run-123", "bin"), temp, false},
+		{"temp itself", temp, temp, false},
+		{"default install", filepath.Join(home, "sabdopalon", "bin"), temp, true},
+		{"install outside the home dir", filepath.Join(string(os.PathSeparator), "sabdopalon", "bin"), temp, true},
+		{"no temp dir known", filepath.Join(home, "sabdopalon", "bin"), "", true},
+		{"empty bin dir", "", temp, false},
+	}
+	for _, c := range cases {
+		if got := isDurableBinDir(c.binDir, c.tempDir); got != c.want {
+			t.Errorf("%s: isDurableBinDir(%q, %q) = %v, want %v", c.name, c.binDir, c.tempDir, got, c.want)
+		}
+	}
+}

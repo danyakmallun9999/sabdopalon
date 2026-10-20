@@ -43,3 +43,37 @@ func pathFirst(current, dir string) (string, bool) {
 	}
 	return newVal, true
 }
+
+// isDurableBinDir reports whether binDir is a location worth writing into the
+// user's PERSISTENT PATH.
+//
+// It used to be "only the default install root", which quietly meant an install
+// anywhere else never got a PATH entry at all: the desktop shell always passes
+// SABDOPALON_BIN_DIR, and the old check accepted that value only when it equalled
+// %USERPROFILE%\sabdopalon\bin. An install at C:\sabdopalon therefore shipped
+// `php`/`composer`/`mysql` that worked only inside Sabdopalon's own terminal.
+//
+// The real question is not "is this the default location" but "will this path
+// still exist tomorrow". Anything outside the temp tree is an install; a scratch
+// folder under %TEMP% is a dev run or a test harness, and writing that into the
+// user's PATH outlives the run that caused it â€” a temp folder once ended up at
+// position 1, shadowing the real install until it was removed by hand.
+func isDurableBinDir(binDir, tempDir string) bool {
+	if strings.TrimSpace(binDir) == "" {
+		return false
+	}
+	binDir = filepath.Clean(binDir)
+	if strings.TrimSpace(tempDir) == "" {
+		return true
+	}
+	rel, err := filepath.Rel(filepath.Clean(tempDir), binDir)
+	if err != nil {
+		return true
+	}
+	// Inside the temp tree (or equal to it): not durable.
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// IsDurableBinDir is the exported form, for the app when it decides whether to
+// write the install's bin/ into the persistent user PATH.
+func IsDurableBinDir(binDir, tempDir string) bool { return isDurableBinDir(binDir, tempDir) }

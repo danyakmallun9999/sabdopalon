@@ -308,7 +308,7 @@ func prepareBinDir(cfg *config.Engine) {
 	// The CLI never sets the override (it uses <root>/bin, a real location and
 	// still wired below); the desktop shell sets it to exactly the per-user
 	// folder, so both intended layouts keep their PATH entry.
-	if !shouldWirePersistentPath() {
+	if !shouldWirePersistentPath(binDir) {
 		return
 	}
 	sysinstall.EnsureUserPath(binDir)
@@ -321,9 +321,8 @@ func prepareBinDir(cfg *config.Engine) {
 // relocated extraction — because that value would outlive the run and shadow the
 // real install. Split out so the decision is testable without writing to the
 // real registry.
-func shouldWirePersistentPath() bool {
-	override := os.Getenv("SABDOPALON_BIN_DIR")
-	return override == "" || samePath(override, sysinstall.UserBinDir())
+func shouldWirePersistentPath(binDir string) bool {
+	return sysinstall.IsDurableBinDir(binDir, os.TempDir())
 }
 
 // serve is the main command: starts the DB (if needed), optional services,

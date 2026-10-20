@@ -371,7 +371,11 @@ func installTool(t *SystemTool, p Progress) error {
 	// Wire the per-user bin dir into the persistent user PATH so new terminals
 	// find the tool without manual steps. On Windows this edits HKCU\Environment
 	// (no admin); on Linux/macOS it appends a guarded export to the shell rc.
-	ensurePath(prefix, p)
+	// Always advertise the ONE folder that exposes the whole stack. Installing
+	// Node.js points its own bin/node dir at the shims, but adding that
+	// sub-folder to PATH as well would turn one entry into one-per-tool, which
+	// is the mess the single-entry layout exists to avoid.
+	ensurePath(targetBinDir(), p)
 
 	// Regenerate the launchers now, not on the next start: composer.cmd,
 	// node.cmd, npm.cmd and npx.cmd are what make a freshly installed tool

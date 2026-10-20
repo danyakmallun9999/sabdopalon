@@ -1,6 +1,7 @@
 package app
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -59,23 +60,34 @@ func TestStartDaemonsHonoursStopBeforeStarting(t *testing.T) {
 // PATH. It outlives the run that set it: a bind-time measurement with the
 // override pointing at a temp root left that temp folder in the real user PATH,
 // ahead of the real install, until it was removed by hand.
-func TestShouldWirePersistentPathRejectsTransientOverride(t *testing.T) {
-	// Dev run / test harness / relocated extraction: not the stable folder.
-	t.Setenv("SABDOPALON_BIN_DIR", filepath.Join(t.TempDir(), "bin"))
-	if shouldWirePersistentPath() {
-		t.Error("a transient bin-dir override must not be wired into the persistent PATH")
+//
+// The rule is "is this location durable?", not "is this the default location?".
+// The older rule accepted the override only when it equalled
+// %USERPROFILE%\sabdopalon\bin, so an install anywhere else - C:\sabdopalon,
+// another drive, a portable extract - got no PATH entry at all and shipped
+// php/composer/mysql that worked only inside Sabdopalon's own terminal.
+func TestShouldWirePersistentPathOnlyForDurableLocations(t *testing.T) {
+	// A scratch folder under %TEMP%: dev run, test harness, relocated extraction.
+	if shouldWirePersistentPath(filepath.Join(t.TempDir(), "bin")) {
+		t.Error("a scratch bin dir must not be written into the persistent PATH")
 	}
 
-	// The CLI never sets the override, and its <root>/bin is a real location.
-	t.Setenv("SABDOPALON_BIN_DIR", "")
-	if !shouldWirePersistentPath() {
-		t.Error("without an override the install's own bin/ must keep its PATH entry")
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Skip("no home directory to build a durable path from")
 	}
 
-	// The desktop shell passes exactly the stable per-user folder.
-	t.Setenv("SABDOPALON_BIN_DIR", sysinstall.UserBinDir())
-	if !shouldWirePersistentPath() {
-		t.Error("the desktop layout (override == per-user bin) must keep its PATH entry")
+	// The default install location.
+	if !shouldWirePersistentPath(sysinstall.UserBinDir()) {
+		t.Error("the default per-user bin dir must keep its PATH entry")
+	}
+
+	// An install that is real but NOT the default location. This is the case
+	// that used to be skipped, and it is the common one on Windows: people
+	// install to C:\sabdopalon.
+	other := filepath.Join(home, "another-place", "sabdopalon", "bin")
+	if !shouldWirePersistentPath(other) {
+		t.Errorf("a durable install root outside the default location (%s) must be wired", other)
 	}
 }
 
