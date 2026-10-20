@@ -17,7 +17,7 @@ export function PageActions({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-end gap-2",
+        "flex flex-wrap items-center justify-end gap-3.5",
         className
       )}
     >

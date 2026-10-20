@@ -580,7 +580,7 @@ export default function DashboardPage() {
                 · Proxy :{status?.http_port ?? "?"}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Button size="sm" onClick={startAll} disabled={busy === "all" || installed.length === 0}>
                 <Play /> Start All
               </Button>

@@ -560,7 +560,7 @@ export default function SitesPage() {
                   <TableCell onClick={(e) => e.stopPropagation()}>{phpBadge(s)}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>{runBadge(s)}</TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-1.5">
                       {startStopBtn(s)}
                       {rowMenu(s)}
                     </div>
