@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.32] - 2026-10-20
+
+### Fixed
+- **The Dashboard stops flashing a skeleton when you switch to it.** Every piece
+  of dashboard state started empty on mount, the render has an explicit
+  `if (!setup) return <Skeleton/>` branch, and the data was fetched in an effect.
+  A tab switch is a route change, so the page unmounted and remounted: state fell
+  back to null, the skeleton rendered at once, and the real numbers replaced it
+  one round trip later. It happened every visit even though nothing had changed.
+  The last known state now lives in a module-level snapshot that survives
+  unmount, so a revisit renders what was already on screen and refreshes behind
+  it; the skeleton is reserved for the first load of the session. `setupDone`
+  resetting to false had the same effect one step further on (the 5s
+  service/traffic poll is gated on it), and `serviceHistory` was being discarded
+  on every visit, which also reset the chart's history.
+
+### Changed
+- README rewritten for clarity: what Sabdopalon is, who it is for, and how it
+  compares to the tools people already use, with the install paths and feature
+  table kept in place.
 ## [0.11.31] - 2026-10-20
 
 ### Fixed

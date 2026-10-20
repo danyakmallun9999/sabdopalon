@@ -48,7 +48,7 @@ privileges** — no `/etc/hosts` editing, no admin/root.
 
 "Sabdopalon" — a loyal, wise advisor figure in Javanese wayang. Fitting
 metaphor for a tool that quietly prepares and serves the dev environment.
-Tagline: *"Sabdopalon — Portable Local Dev Server."*
+Tagline: *"A modern Laragon alternative for Windows."*
 
 ---
 
