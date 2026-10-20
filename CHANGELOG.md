@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.11.28] - 2026-10-20
+
+### Fixed
+- **The bundled Node.js extractor no longer depends on a Windows-only helper.**
+  `nodezip.go` compiles on every platform and called `isRegularFile`, which was
+  defined in `shim_windows.go`. Windows builds and tests passed, so nothing
+  local noticed; CI on Linux and macOS failed to compile the package. The
+  helper now lives in a file with no build tag. Caught after v0.11.27 was
+  tagged, which is why this release exists: the v0.11.27 installer is fine, but
+  that tag cannot produce Linux or macOS bundles.
+
+
 ## [0.11.27] - 2026-10-20
 
 ### Fixed
