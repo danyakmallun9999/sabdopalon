@@ -102,10 +102,19 @@ export default function SettingsPage() {
         <CardContent className="flex flex-col gap-5">
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
             <h3 className="text-[13px] font-semibold text-text-primary">Domain and ports</h3>
-            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="tld">Domain suffix (TLD)</Label>
                 <Input id="tld" value={cfg.tld ?? ""} onChange={(e) => set("tld", e.target.value)} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="dashport">Dashboard port</Label>
+                <Input
+                  id="dashport"
+                  type="number"
+                  value={cfg.dashboard_port ?? ""}
+                  onChange={(e) => set("dashboard_port", Number(e.target.value))}
+                />
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="http">HTTP port (fallback)</Label>
@@ -134,26 +143,20 @@ export default function SettingsPage() {
 
           <section className="flex flex-col gap-3 border-b border-border-soft pb-5 last:border-0 last:pb-0">
             <h3 className="text-[13px] font-semibold text-text-primary">Dashboard</h3>
-            <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="dashport">Dashboard port</Label>
-                <Input
-                  id="dashport"
-                  type="number"
-                  value={cfg.dashboard_port ?? ""}
-                  onChange={(e) => set("dashboard_port", Number(e.target.value))}
-                />
-              </div>
-              <div className="flex flex-row items-center justify-between rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
+            <div className="flex flex-row items-center justify-between gap-4 rounded-md border border-ring-inner bg-surface-inset px-3 py-2.5">
+              <div className="flex flex-col gap-1">
                 <Label htmlFor="autoopen" className="font-normal">
                   Open dashboard on start
                 </Label>
-                <Switch
-                  id="autoopen"
-                  checked={!!cfg.auto_open}
-                  onCheckedChange={(v) => set("auto_open", v)}
-                />
+                <p className="text-[11px] leading-relaxed text-text-muted">
+                  Opens the dashboard in your browser when Sabdopalon starts.
+                </p>
               </div>
+              <Switch
+                id="autoopen"
+                checked={!!cfg.auto_open}
+                onCheckedChange={(v) => set("auto_open", v)}
+              />
             </div>
           </section>
 
@@ -186,7 +189,6 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
 
-        <div className="flex min-w-0 flex-col gap-4">
       <Card className="min-w-0">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -217,7 +219,8 @@ export default function SettingsPage() {
         </CardHeader>
       </Card>
 
-      <Card>
+
+      <Card className="min-w-0 @4xl/main:col-span-3">
         <CardHeader>
           <CardTitle>Profiles</CardTitle>
           <CardDescription>
@@ -227,43 +230,42 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="overflow-hidden rounded-xl border border-ring-inner">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>Name</TableHead>
-                <TableHead>PHP</TableHead>
-                <TableHead>DB</TableHead>
-                <TableHead className="w-24 text-right">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {profiles.map((p) => (
-                <TableRow key={p.Name}>
-                  <TableCell className="font-medium">
-                    {p.Name}
-                    {p.Description && (
-                      <span className="ml-2 text-[10.5px] text-text-muted">{p.Description}</span>
-                    )}
-                  </TableCell>
-                  <TableCell>{p.PHP || "(default)"}</TableCell>
-                  <TableCell>{p.DBEngine || "(default)"}</TableCell>
-                  <TableCell className="text-right">
-                    {p.Name !== "default" && (
-                      <Button size="sm" variant="outline" onClick={() => applyProfile(p.Name)}>
-                        Apply
-                      </Button>
-                    )}
-                  </TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Name</TableHead>
+                  <TableHead>PHP</TableHead>
+                  <TableHead>DB</TableHead>
+                  <TableHead className="w-24 text-right">
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {profiles.map((p) => (
+                  <TableRow key={p.Name}>
+                    <TableCell className="font-medium">
+                      {p.Name}
+                      {p.Description && (
+                        <span className="ml-2 text-[10.5px] text-text-muted">{p.Description}</span>
+                      )}
+                    </TableCell>
+                    <TableCell>{p.PHP || "(default)"}</TableCell>
+                    <TableCell>{p.DBEngine || "(default)"}</TableCell>
+                    <TableCell className="text-right">
+                      {p.Name !== "default" && (
+                        <Button size="sm" variant="outline" onClick={() => applyProfile(p.Name)}>
+                          Apply
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
-        </div>
       </div>
     </div>
   )

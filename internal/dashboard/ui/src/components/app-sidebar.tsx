@@ -90,7 +90,7 @@ export default function AppSidebar() {
                           isActive={isActive}
                           render={<span />}
                           className={
-                            "h-9 gap-2.5 rounded-lg border border-ring-inner px-2.5 text-[13px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted " +
+                            "h-9 gap-2.5 rounded-lg border border-transparent px-2.5 text-[13px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted " +
                             ACTIVE_RING +
                             " data-active:border-ring-inner data-active:bg-surface-raised data-active:font-semibold data-active:text-text-primary data-active:[&_svg]:text-brand"
                           }
