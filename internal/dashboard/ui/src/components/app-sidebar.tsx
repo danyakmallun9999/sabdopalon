@@ -80,7 +80,7 @@ export default function AppSidebar() {
               {group.label}
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
+              <SidebarMenu className="gap-1.5">
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.url}>
                     <NavLink to={item.url}>
@@ -90,7 +90,7 @@ export default function AppSidebar() {
                           isActive={isActive}
                           render={<span />}
                           className={
-                            "h-9 gap-2.5 rounded-lg border border-transparent px-2.5 text-[13px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted " +
+                            "relative h-9 gap-2.5 rounded-lg border border-transparent px-2.5 text-[13px] font-normal text-text-secondary [&_svg]:size-4 [&_svg]:text-text-muted data-active:z-10 " +
                             ACTIVE_RING +
                             " data-active:border-ring-inner data-active:bg-surface-raised data-active:font-semibold data-active:text-text-primary data-active:[&_svg]:text-brand"
                           }
