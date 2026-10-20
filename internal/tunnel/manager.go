@@ -223,8 +223,21 @@ func (m *Manager) Start(site string, allowedMail []string) (State, error) {
 	m.mu.Unlock()
 
 	_ = m.store.set(site, Prefs{AllowedMail: mail})
+
+	// Snapshot BEFORE the goroutine can change the state.
+	//
+	// Start promises the state at the moment the tunnel was accepted, which is
+	// "starting" — the caller polls from there. Taking the snapshot after
+	// `go m.run(inst)` made that answer depend on whether run() had already read
+	// cloudflared's banner: on a fast machine it returned "online" instead, so
+	// the first status a caller saw was unpredictable. The Linux CI runner lost
+	// that race consistently (TestStartPublishesURLAndTeachesTheProxy), and it
+	// was a real behaviour difference, not just a test artefact — the same
+	// window exists for the dashboard, which shows the tunnel as ready before it
+	// is.
+	st := inst.snapshot()
 	go m.run(inst)
-	return inst.snapshot(), nil
+	return st, nil
 }
 
 // Stop closes a site's tunnel and forgets its hostname.
