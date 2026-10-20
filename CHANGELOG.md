@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-21
+
 ### Changed
 - **The dashboard is rebuilt on one visual language.** Every surface — the
   desktop title bar, the sidebar, the top bar, all nine pages, the setup wizard,
@@ -30,6 +32,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 - **The sidebar groups the nine pages by intent** (Manage, Tools, System) and
   ends with a small proxy card showing the live ports, instead of repeating the
   brand the desktop title bar already carries.
+- The README screenshots (`images/ui/*`) show the new interface.
+
+### Fixed
+- **A tool version no longer shows its terminal escape codes.** Composer
+  colours its `--version` output, and the raw string was rendered on the
+  Packages page as `|Composer@|39m version …`. The escape codes are stripped
+  before the value is displayed.
 
 No behaviour changed: the same routes, tabs, fields, actions and API calls are
 in place, and the backend is untouched. The full plan, the design reference and
