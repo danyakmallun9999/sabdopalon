@@ -51,3 +51,16 @@ func cleanDir(key string) string {
 	v := strings.Trim(strings.TrimSpace(os.Getenv(key)), `"`)
 	return v
 }
+
+// isRegularFile reports whether path exists and is a plain file (a directory or
+// a dangling symlink is not).
+//
+// It lives here, in a file with no build tag, because BOTH sides need it:
+// the Windows shim writer and the Node.js extractor. It used to live in
+// shim_windows.go, which compiled on Windows and left the whole package
+// undefined on Linux and macOS -- a broken release that only cross-platform CI
+// could see.
+func isRegularFile(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Mode().IsRegular()
+}

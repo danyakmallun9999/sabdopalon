@@ -218,10 +218,3 @@ func writeShim(binDir, name, rel string) error {
 	}
 	return nil
 }
-
-// isRegularFile reports whether path exists and is a plain file (not a
-// directory or a dangling symlink).
-func isRegularFile(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && st.Mode().IsRegular()
-}
