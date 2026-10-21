@@ -595,11 +595,18 @@ export default function AboutPage() {
             is a download you asked for.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-1 text-[13.5px]">
+        <CardContent className="grid grid-cols-1 gap-2 @xl/main:grid-cols-2">
           {(info?.privacy ?? []).map((h) => (
-            <div key={h.host} className="flex flex-col border-b border-border-soft py-2 last:border-0 sm:flex-row sm:gap-3">
-              <span className="min-w-64 font-mono text-[13.5px] text-text-primary">{h.host}</span>
-              <span className="text-[13.5px] text-text-muted">{h.why}</span>
+            <div
+              key={h.host}
+              className="flex flex-col gap-1 rounded-lg border border-ring-inner bg-surface-inset px-3 py-2.5"
+            >
+              <span className="font-mono text-[13.5px] break-words text-text-primary">
+                {h.host}
+              </span>
+              <span className="text-[12.5px] leading-relaxed text-text-muted">
+                {h.why}
+              </span>
             </div>
           ))}
         </CardContent>
