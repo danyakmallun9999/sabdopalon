@@ -34,7 +34,6 @@ import api, {
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
 import { IconButton } from "@/components/icon-button"
-import { PageActions } from "@/components/page-actions"
 import { openExternal } from "@/lib/external"
 import { Spinner } from "@/components/ui/spinner"
 import { Badge } from "@/components/ui/badge"
@@ -130,38 +129,39 @@ export default function SiteDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto px-5 pt-7 pb-6 lg:px-7">
-      <PageActions className="justify-between pt-7">
-          <ToneBadge tone={detail.running ? "success" : "muted"}>
-            <StatusDot status={detail.running ? "running" : "stopped"} />
-            {detail.running ? "running" : "stopped"}
-          </ToneBadge>
-          <div className="flex items-center gap-2">
-          {detail.running ? (
-            <>
-              <Button size="sm" variant="outline" disabled={busy === "restart"} onClick={() => act("restart")}>
-                <RotateCw /> Restart
-              </Button>
-              <Button size="sm" variant="outline" disabled={busy === "stop"} onClick={() => act("stop")}>
-                <Square /> Stop
-              </Button>
-            </>
-          ) : (
-            <Button size="sm" disabled={busy === "start"} onClick={() => act("start")}>
-              <Play /> Start
-            </Button>
-          )}
-          </div>
-        </PageActions>
-
-      {/* Tabs */}
+      {/* Tabs, with the page's own state and actions on the same line: the
+          status of the site belongs next to the tabs that describe it. */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)} className="flex flex-col">
-        <TabsList className="mt-4 flex-wrap">
-          <TabsTrigger value="overview"><Box className="size-3.5" /> Overview</TabsTrigger>
-          <TabsTrigger value="config"><Settings2 className="size-3.5" /> Config</TabsTrigger>
-          <TabsTrigger value="logs"><ScrollText className="size-3.5" /> Logs</TabsTrigger>
-          <TabsTrigger value="devtools"><Zap className="size-3.5" /> Dev Tools</TabsTrigger>
-          <TabsTrigger value="terminal"><TerminalIcon className="size-3.5" /> Terminal</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="overview"><Box className="size-3.5" /> Overview</TabsTrigger>
+            <TabsTrigger value="config"><Settings2 className="size-3.5" /> Config</TabsTrigger>
+            <TabsTrigger value="logs"><ScrollText className="size-3.5" /> Logs</TabsTrigger>
+            <TabsTrigger value="devtools"><Zap className="size-3.5" /> Dev Tools</TabsTrigger>
+            <TabsTrigger value="terminal"><TerminalIcon className="size-3.5" /> Terminal</TabsTrigger>
+          </TabsList>
+
+          <div className="flex items-center gap-2.5">
+            <ToneBadge tone={detail.running ? "success" : "muted"}>
+              <StatusDot status={detail.running ? "running" : "stopped"} />
+              {detail.running ? "running" : "stopped"}
+            </ToneBadge>
+            {detail.running ? (
+              <>
+                <Button size="sm" variant="outline" disabled={busy === "restart"} onClick={() => act("restart")}>
+                  <RotateCw /> Restart
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy === "stop"} onClick={() => act("stop")}>
+                  <Square /> Stop
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" disabled={busy === "start"} onClick={() => act("start")}>
+                <Play /> Start
+              </Button>
+            )}
+          </div>
+        </div>
 
         <TabsContent value="overview" className="mt-4 pb-4">
           <OverviewTab detail={detail} />
