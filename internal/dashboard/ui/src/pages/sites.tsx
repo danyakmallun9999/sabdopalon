@@ -543,7 +543,11 @@ export default function SitesPage() {
                 </TableRow>
               )}
               {filtered.map((s) => (
-                <TableRow key={s.name} className="cursor-pointer" onClick={() => navigate(`/sites/${s.name}`)}>
+                <TableRow
+                  key={s.name}
+                  className="cursor-pointer even:bg-surface-raised/25 hover:bg-surface-raised/60"
+                  onClick={() => navigate(`/sites/${s.name}`)}
+                >
                   {/* The name is a real link: the row's onClick is a convenience
                       for the mouse, but it leaves keyboard and screen-reader
                       users no way in. A link also gives the row a middle-click

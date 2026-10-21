@@ -1081,3 +1081,10 @@ baris panjang membungkus), dan **tinggi kartu General = tinggi kartu php.ini**
   memakai **ring yang sama dengan tombol** (edge luar 1px + celah 2px + edge
   sendiri), jadi seluruh bar bagian kanan terbaca sebagai kumpulan tombol
   dari bahasa yang sama.
+
+### 9. Tabel Sites: baris berselang
+
+Baris tabel Sites sekarang berselang: baris genap diberi `surface-raised/25` di atas
+kartu, baris ganjil dibiarkan transparan. Hover tetap menang (diperiksa di DOM:
+baris genap `0.25` → `0.6` saat di-hover), jadi selisih tidak pernah menutupi
+feedback mouse.
