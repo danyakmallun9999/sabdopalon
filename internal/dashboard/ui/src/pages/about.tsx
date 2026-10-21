@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ToneBadge } from "@/components/status"
-import { useLive } from "@/lib/live"
+import { useLive } from "@/lib/live-context"
 import { PageActions } from "@/components/page-actions"
 import { toast } from "sonner"
 
@@ -163,9 +163,27 @@ export default function AboutPage() {
     }
   }, [])
 
+  // Initial fetch, straight through the promise path. `load` stays for the
+  // refresh button, where setting `busy` inside an event handler is fine —
+  // effects must not start state in their body, so this flow settles state
+  // inside the callbacks instead.
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    api
+      .about()
+      .then((r) => {
+        if (cancelled) return
+        if ("error" in r && r.error) setError(String(r.error))
+        else {
+          setInfo(r as AboutInfo)
+          setError(null)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Versions come from the same registry the Packages page manages, so the two can
   // never disagree about what is installed.

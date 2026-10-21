@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, Download, Loader2, X, XCircle } from "lucide-react"
 
@@ -40,7 +40,7 @@ function SystemPHPCard() {
   useEffect(() => {
     const load = () => api.systemPHPs().then((d) => setSys(Array.isArray(d) ? d : [])).catch(() => {})
     poll(load, 10000)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
   return (
     <Card>
@@ -84,15 +84,16 @@ function SystemToolsCard() {
   const [job, setJob] = useState<SysToolJob | null>(null)
   const logRef = useRef<HTMLPreElement>(null)
 
-  const load = () =>
-    api.listSysTools().then((d) => setTools(Array.isArray(d) ? d : [])).catch(() => {})
+  const load = useCallback(
+    () => api.listSysTools().then((d) => setTools(Array.isArray(d) ? d : [])).catch(() => {}),
+    []
+  )
 
   useEffect(() => {
     load()
     const t = poll(load, 8000)
     return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [load])
 
   // Poll the install job while it runs.
   useEffect(() => {
@@ -112,7 +113,7 @@ function SystemToolsCard() {
       else toast.success(`${job.name} installed ✓`)
       load()
     }
-  }, [job?.done, job?.running])
+  }, [job, load])
 
   async function install(name: string) {
     const r = await api.installSysTool(name)
@@ -207,24 +208,27 @@ export default function PackagesPage() {
   // listPackages resolves with {error} instead of an array when the package
   // registry cannot be loaded — render that state instead of crashing on
   // pkgs.map().
-  const load = () =>
-    api
-      .listPackages()
-      .then((raw) => {
-        const d = raw as Package[] | { error?: string }
-        if (Array.isArray(d)) {
-          setPkgs(d)
-          setLoadError(null)
-        } else {
-          setLoadError(d.error ?? "Unexpected response from /api/packages")
-        }
-      })
-      .catch(() => {})
+  const load = useCallback(
+    () =>
+      api
+        .listPackages()
+        .then((raw) => {
+          const d = raw as Package[] | { error?: string }
+          if (Array.isArray(d)) {
+            setPkgs(d)
+            setLoadError(null)
+          } else {
+            setLoadError(d.error ?? "Unexpected response from /api/packages")
+          }
+        })
+        .catch(() => {}),
+    []
+  )
 
   useEffect(() => {
     const t = poll(load, 6000)
     return () => clearInterval(t)
-  }, [])
+  }, [load])
 
   // The registry has both a generic "[php]" entry (the default, resolved by
   // `sabdopalon add php`) and versioned "[php85]" entries. They often point
@@ -251,15 +255,14 @@ export default function PackagesPage() {
     return Array.from(byShort.values())
   }, [pkgs])
 
-  // Poll the install job while it runs; update the live progress log.
+  // Poll the install job while it runs; update the live progress log. The
+  // old "done ⇒ set 100" branch lived here synchronously, but the progress
+  // bar only renders while the job runs — the interval below is all the
+  // effect needs to do.
   useEffect(() => {
-    if (!job?.running) {
-      setProgress((p) => (job?.done ? 100 : p))
-      if (!job?.running) return
-    }
+    if (!job?.running) return
     // Nudge the progress bar while running (the package manager reports no
-    // numeric progress, so this is an indeterminate feel capped at 90%; it
-    // jumps to 100 when done lands).
+    // numeric progress, so this is an indeterminate feel capped at 90%).
     const t = setInterval(() => {
       setProgress((p) => Math.min(p + 1 + Math.random() * 3, 90))
       api.installJob().then((j) => {
@@ -277,7 +280,7 @@ export default function PackagesPage() {
       else toast.success(`Installed ✓`)
       load()
     }
-  }, [job?.done, job?.running])
+  }, [job, load])
 
   async function install(name: string) {
     setProgress(10)

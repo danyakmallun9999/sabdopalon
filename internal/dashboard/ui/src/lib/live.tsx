@@ -1,21 +1,7 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react"
+import { useEffect, useState, type ReactNode } from "react"
 
 import type { Status } from "@/lib/api"
-
-type LiveState = {
-  /** Canonical server snapshot — THE source every page renders from. */
-  status: Status | null
-  /** true while no snapshot has arrived yet (first paint / reconnecting). */
-  connecting: boolean
-}
-
-const LiveContext = createContext<LiveState>({ status: null, connecting: true })
+import { LiveContext } from "@/lib/live-context"
 
 const CHANNEL = "sabdopalon-live"
 const LOCK = "sabdopalon-live-leader"
@@ -53,7 +39,6 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     // --- followers: receive broadcasts from the leader tab ---
     const chan = "BroadcastChannel" in window ? new BroadcastChannel(CHANNEL) : null
     let lastMsgAt = 0
-    let watchdog: ReturnType<typeof setInterval> | undefined
     let gapPoller: ReturnType<typeof setInterval> | undefined
 
     if (chan)
@@ -80,7 +65,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     }
 
     // Watchdog: no leader chatter while visible → bridge with polling.
-    watchdog = setInterval(() => {
+    const watchdog = setInterval(() => {
       if (closed) return
       if (lastMsgAt === 0 || Date.now() - lastMsgAt > 8000) startGapPoller()
       else stopGapPoller()
@@ -137,7 +122,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     return () => {
       closed = true
       stopGapPoller()
-      if (watchdog) clearInterval(watchdog)
+      clearInterval(watchdog)
       chan?.close()
     }
   }, [])
@@ -147,9 +132,4 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       {children}
     </LiveContext.Provider>
   )
-}
-
-/** Read the live server snapshot from anywhere. */
-export function useLive() {
-  return useContext(LiveContext)
 }

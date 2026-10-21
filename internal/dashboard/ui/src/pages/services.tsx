@@ -38,13 +38,13 @@ MEILISEARCH_HOST=http://127.0.0.1:7700`,
 function EnvSnippet({ services }: { services: ServiceStatus[] }) {
   const running = services.filter((s) => s.running && LARAVEL_ENV[s.name])
   const [tab, setTab] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  // "Copied ✓" belongs to the snippet that WAS copied. Tracking it per tab
+  // keeps a switch from inheriting the checkmark, and nothing needs to reset
+  // state from an effect.
+  const [copiedTab, setCopiedTab] = useState<string | null>(null)
 
   const current = tab && running.some((s) => s.name === tab) ? tab : running[0]?.name
-
-  useEffect(() => {
-    if (!current) setCopied(false)
-  }, [current])
+  const copied = copiedTab !== null && copiedTab === current
 
   if (!current) return null
 
@@ -76,8 +76,8 @@ function EnvSnippet({ services }: { services: ServiceStatus[] }) {
           variant="outline"
           onClick={async () => {
             await navigator.clipboard.writeText(snippet)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
+            setCopiedTab(current)
+            setTimeout(() => setCopiedTab((t) => (t === current ? null : t)), 1500)
           }}
         >
           <Copy /> {copied ? "Copied ✓" : "Copy .env snippet"}
@@ -97,7 +97,7 @@ export default function ServicesPage() {
   useEffect(() => {
     const t = poll(load, 5000)
     return () => clearInterval(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [])
 
   // Runtime start/stop (does not touch the auto-start config).

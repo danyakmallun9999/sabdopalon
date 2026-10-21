@@ -23,7 +23,7 @@ import api, {
   type TrafficPoint,
 } from "@/lib/api"
 import SetupPage from "@/pages/setup"
-import { useLive } from "@/lib/live"
+import { useLive } from "@/lib/live-context"
 import { dbEngineRunning } from "@/lib/dbstatus"
 import { Button } from "@/components/ui/button"
 import {
@@ -274,11 +274,11 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [refreshSetup])
 
-  // Stable polling callback — lives in a ref so the interval NEVER restarts
-  // (the [services]-dependent callback previously reset the effect on every
-  // fetch → fetch/setState loop that hung the UI on navigation).
-  const loadAllRef = useRef<() => void>(() => {})
-  loadAllRef.current = () => {
+  // Stable polling callback — useCallback with [] deps so the interval NEVER
+  // restarts (the [services]-dependent callback previously reset the effect on
+  // every fetch → fetch/setState loop that hung the UI on navigation).
+  // Everything it reads lives in a ref or a functional update.
+  const loadAll = useCallback(() => {
     api.services().then((d) => {
       if (mountedRef.current) setServices(d.services || [])
     }).catch(() => {})
@@ -302,17 +302,17 @@ export default function DashboardPage() {
       ]
       return next.length > 60 ? next.slice(next.length - 60) : next
     })
-  }
+  }, [])
 
   useEffect(() => {
     if (!setupDone) return
-    const t = poll(() => loadAllRef.current(), 5000)
+    const t = poll(loadAll, 5000)
     return () => clearInterval(t)
-  }, [setupDone])
+  }, [setupDone, loadAll])
 
   // The refresh button lives in the top bar, so the bar needs to know what
   // refreshing this page means.
-  usePageRefresh(() => loadAllRef.current())
+  usePageRefresh(loadAll)
 
   async function toggleService(svc: ServiceStatus, enabled: boolean) {
     setBusy(svc.name)
@@ -329,7 +329,7 @@ export default function DashboardPage() {
           return n
         })
       }
-      loadAllRef.current()
+      loadAll()
     } finally {
       setBusy(null)
     }
@@ -351,7 +351,7 @@ export default function DashboardPage() {
           return n
         })
       }
-      loadAllRef.current()
+      loadAll()
     } finally {
       setBusy(null)
     }
@@ -363,7 +363,7 @@ export default function DashboardPage() {
       const r = await api.stopService(svc.name)
       if (r.error) toast.error(r.error)
       else toast.success(r.message ?? `${svc.name} stopped`)
-      loadAllRef.current()
+      loadAll()
     } finally {
       setBusy(null)
     }
@@ -414,7 +414,7 @@ export default function DashboardPage() {
           description: failures.join("\n"),
         })
       }
-      loadAllRef.current()
+      loadAll()
     } finally {
       setBusy(null)
     }
@@ -449,7 +449,7 @@ export default function DashboardPage() {
           description: failures.join("\n"),
         })
       }
-      loadAllRef.current()
+      loadAll()
     } finally {
       setBusy(null)
     }

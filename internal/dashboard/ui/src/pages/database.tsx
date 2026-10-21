@@ -3,7 +3,7 @@ import { toast } from "sonner"
 import { Database, HardDriveDownload, Play, RotateCw, Server, Square, Terminal as TerminalIcon } from "lucide-react"
 
 import api, { poll, type Backup, type ConfigPayload } from "@/lib/api"
-import { useLive } from "@/lib/live"
+import { useLive } from "@/lib/live-context"
 import TerminalPanel, { type TermStatus } from "@/components/terminal-panel"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Empty, EmptyTitle } from "@/components/ui/empty"

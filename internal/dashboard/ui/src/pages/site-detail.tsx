@@ -51,7 +51,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { useLive } from "@/lib/live"
+import { useLive } from "@/lib/live-context"
 
 type Tab = "overview" | "config" | "logs" | "devtools" | "terminal"
 
@@ -680,18 +680,16 @@ function LogsTab({ name, sources }: { name: string; sources?: string[] | null })
   // never run), and an older sidecar sent null for that — both used to reach
   // .length here and take the page down.
   const known = sources ?? []
-  const [current, setCurrent] = useState<string>("")
+  // Selection is derived, not synced by an effect: when the sources change,
+  // an invalid choice falls back to the first source (or "php" while none
+  // exists) in the same render, with no cascading render in between.
+  const [selected, setSelected] = useState<string | null>(null)
   const [log, setLog] = useState<LogResponse | null>(null)
   const [auto, setAuto] = useState(true)
   const scrollRef = useRef<HTMLPreElement>(null)
 
-  useEffect(() => {
-    if (known.length > 0 && !known.includes(current)) {
-      setCurrent(known[0])
-    } else if (known.length === 0 && current === "") {
-      setCurrent("php")
-    }
-  }, [known, current])
+  const current =
+    selected !== null && known.includes(selected) ? selected : known.length > 0 ? known[0] : "php"
 
   useEffect(() => {
     if (!current) return
@@ -717,7 +715,7 @@ function LogsTab({ name, sources }: { name: string; sources?: string[] | null })
               key={src}
               size="sm"
               variant={src === current ? "default" : "outline"}
-              onClick={() => setCurrent(src)}
+              onClick={() => setSelected(src)}
             >
               {src}
             </Button>

@@ -1,18 +1,6 @@
 import { NavLink } from "react-router-dom"
 
 import {
-  Boxes,
-  Database,
-  Globe,
-  Info,
-  LayoutDashboard,
-  Package,
-  ScrollText,
-  Settings,
-  ShieldCheck,
-  TerminalSquare,
-} from "lucide-react"
-import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -23,45 +11,8 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { StatusDot } from "@/components/status"
-import { useLive } from "@/lib/live"
-
-type NavItem = { title: string; url: string; icon: typeof LayoutDashboard }
-
-/**
- * The sidebar groups the nine pages by what the user came to do. One group
- * called "Manage" holding everything told nobody anything; "Tools" and "System"
- * are what people actually look for.
- */
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-  {
-    label: "Manage",
-    items: [
-      { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-      { title: "Sites", url: "/sites", icon: Globe },
-      { title: "Database", url: "/database", icon: Database },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { title: "Services", url: "/services", icon: Boxes },
-      { title: "Packages", url: "/packages", icon: Package },
-      { title: "Terminal", url: "/terminal", icon: TerminalSquare },
-      { title: "Logs", url: "/logs", icon: ScrollText },
-    ],
-  },
-  {
-    label: "System",
-    items: [
-      { title: "SSL / HTTPS", url: "/ssl", icon: ShieldCheck },
-      { title: "Settings", url: "/settings", icon: Settings },
-      { title: "About", url: "/about", icon: Info },
-    ],
-  },
-]
-
-// The same list, flattened: the top bar names the page you are on.
-export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items)
+import { NAV_GROUPS } from "@/components/nav-data"
+import { useLive } from "@/lib/live-context"
 
 // The active page is drawn the same way a button is: a 1px outer edge, a 2px
 // gap in the app background, then the raised panel with its own 1px edge.

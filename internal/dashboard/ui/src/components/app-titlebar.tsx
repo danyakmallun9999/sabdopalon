@@ -2,15 +2,10 @@ import { useEffect, useState } from "react"
 import { Copy, Minus, Square, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { isTauri } from "@/lib/desktop"
 
 // Height of the custom title bar; layout math reads it via --tb-h.
 export const TITLEBAR_H = "2.25rem"
-
-// True only inside the Tauri webview — the same dashboard also runs in
-// plain browsers, where the native OS chrome stays untouched.
-export function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
-}
 
 function isMacOS(): boolean {
   return typeof navigator !== "undefined" && /Mac OS X|Macintosh/.test(navigator.userAgent)

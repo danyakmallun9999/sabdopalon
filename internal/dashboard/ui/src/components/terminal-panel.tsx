@@ -49,6 +49,16 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
     // One-shot flag: the next (re)connect replaces the named server session
     // with a brand-new shell instead of reattaching.
     const freshRef = useRef(false)
+    // cmd/onStatus have no stable identity — the parent renders an array
+    // literal and may redefine the callback — and resubscribing the socket on
+    // that churn would drop a live terminal on every render. Both are read
+    // through refs; a deliberate reconnect reacts to dir/sessionKey/cmdKey.
+    const cmdRef = useRef(cmd)
+    const onStatusRef = useRef(onStatus)
+    useEffect(() => {
+      cmdRef.current = cmd
+      onStatusRef.current = onStatus
+    })
     // Stabilize the cmd override: a fresh array literal per render would
     // otherwise retrigger the effect (and reconnect). Join to a string key.
     const cmdKey = cmd?.join(" ") ?? ""
@@ -138,10 +148,11 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
 
       const connect = () => {
         if (disposed) return
-        onStatus?.("connecting")
+        onStatusRef.current?.("connecting")
         const qs = new URLSearchParams()
         if (dir) qs.set("dir", dir)
-        if (cmd?.length) cmd.forEach((c) => qs.append("cmd", c))
+        const cmdArg = cmdRef.current
+        if (cmdArg?.length) cmdArg.forEach((c) => qs.append("cmd", c))
         if (sessionKey) {
           qs.set("session", sessionKey)
           if (freshRef.current) {
@@ -159,7 +170,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
           lastRows = 0
           fitNow()
           sendResize()
-          onStatus?.("connected")
+          onStatusRef.current?.("connected")
           term.focus()
         }
         ws.onmessage = (ev) => {
@@ -167,7 +178,7 @@ const TerminalPanel = forwardRef<TerminalPanelHandle, Props>(
         }
         ws.onclose = () => {
           if (disposed) return
-          onStatus?.("closed")
+          onStatusRef.current?.("closed")
           term.write("\r\n\x1b[90m— connection lost, retrying —\x1b[0m\r\n")
           reconnectTimer = setTimeout(connect, 1500)
         }

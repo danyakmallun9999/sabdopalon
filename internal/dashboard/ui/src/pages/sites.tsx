@@ -36,7 +36,7 @@ import TerminalPanel, {
   type TermStatus,
   type TerminalPanelHandle,
 } from "@/components/terminal-panel"
-import { useLive } from "@/lib/live"
+import { useLive } from "@/lib/live-context"
 import { Badge } from "@/components/ui/badge"
 import { PageActions } from "@/components/page-actions"
 import { StatusDot, ToneBadge, type DotStatus } from "@/components/status"
