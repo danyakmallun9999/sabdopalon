@@ -1054,3 +1054,16 @@ Label **MANAGE / TOOLS / SYSTEM** dihapus. Tiga label kecil itu memecah daftar
 sembilan halaman jadi tiga daftar pendek tanpa menambah informasi apa pun —
 halaman yang tersedia sudah diketahui, dan jaraknya antar kelompok tetap terasa.
 Sidebar sekarang satu daftar bersih, dengan jarak antar kelompok yang lebih longgar.
+
+### 7. Bento Settings: php.ini jadi kartu terlebar
+
+Susunan Settings 최종:
+
+```
+[ General (5/12) ][ PHP configuration php.ini (7/12) ]
+[ Profiles (12/12)                                   ]
+```
+
+Kartu php.ini yang paling lebar (kodenya butuh ruang — versi窄 = 12/24 dan
+baris panjang membungkus), dan **tinggi kartu General = tinggi kartu php.ini**
+(grid `items-stretch`, editor php.ini `flex-1` sehingga keypadnya ikut meregang).

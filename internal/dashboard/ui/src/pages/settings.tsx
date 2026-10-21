@@ -85,8 +85,8 @@ export default function SettingsPage() {
         itself. One card with the button in its footer is what the code does.
       */}
       
-      <div className="grid grid-cols-1 items-start gap-4 @4xl/main:grid-cols-3">
-        <Card className="min-w-0 @4xl/main:col-span-2">
+      <div className="grid grid-cols-1 gap-4 @4xl/main:grid-cols-12">
+        <Card className="min-w-0 @4xl/main:col-span-5">
         <CardHeader>
           <CardTitle>General</CardTitle>
           <CardDescription>
@@ -184,7 +184,7 @@ export default function SettingsPage() {
         </CardFooter>
       </Card>
 
-      <Card className="min-w-0">
+      <Card className="min-w-0 @4xl/main:col-span-7">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="size-4 text-text-muted" /> PHP configuration (php.ini)
@@ -196,14 +196,16 @@ export default function SettingsPage() {
             )}
             Stored at <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">{ini?.path ?? "config/php.ini"}</code>.
           </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-1 flex-col gap-2">
           <Textarea
-            className="mt-2 min-h-[300px] font-mono text-[13.5px] leading-relaxed"
+            className="min-h-[300px] flex-1 font-mono text-[13.5px] leading-relaxed"
             value={iniContent}
             onChange={(e) => setIniContent(e.target.value)}
             spellCheck={false}
             placeholder="memory_limit = 256M&#10;upload_max_filesize = 64M&#10;..."
           />
-          <div className="mt-2 flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Button className="w-fit" variant="outline" onClick={savePhpIni} disabled={savingIni}>
               <Save /> Save php.ini
             </Button>
@@ -211,11 +213,11 @@ export default function SettingsPage() {
               Saving will restart running sites.
             </span>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
 
-      <Card className="min-w-0 @4xl/main:col-span-3">
+      <Card className="min-w-0 @4xl/main:col-span-12">
         <CardHeader>
           <CardTitle>Profiles</CardTitle>
           <CardDescription>

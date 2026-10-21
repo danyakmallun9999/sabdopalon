@@ -8,14 +8,20 @@ logs = "./logs"
 data = "./data"
 
 [proxy]
-http_port = 8080
+http_port = 80
 https_port = 8443
 # false = site only from this machine (127.0.0.1). true = open to the LAN.
 lan = false
 
 [php]
-# empty = auto-detect (bundled → PATH → system)
-binary = ""
+# binary = "" means auto-detect. The order is: this binary -> [php] prefer ->
+# the bundled bin/php/X.Y - and only then the first php on PATH.
+#
+# "bundled" is the default: Sabdopalon ships a PHP built for this stack, while a
+# php.exe found on PATH belongs to some other product, with its own php.ini,
+# extensions and curl. Set prefer = "system" to use that one instead.
+binary = "C:\sabdopalon\bin\php.cmd"
+# prefer = "system"   # or "bundled" (the default)
 
 [database]
 engine = "mariadb"
