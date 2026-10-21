@@ -5,6 +5,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-21
+
+### Fixed
+- **The dashboard passes eslint with zero errors and zero warnings.** Thirteen
+  errors and eight warnings from react-refresh and the react-hooks v7 rules
+  (set-state-in-effect, refs, exhaustive-deps) had been red since before the
+  redesign landed, hidden only behind the type check. App-owned modules got
+  structure instead of disables: `useLive`/`LiveContext` moved out of `live.tsx`
+  so the provider file exports `LiveProvider` only, the nav data lives in its
+  own `nav-data.ts`, `isTauri` moved to `lib/desktop.ts`, the dashboard poller
+  is a stable `useCallback` instead of a ref mutated during render,
+  `useIsMobile` evaluates its predicate eagerly so the responsive layout no
+  longer flips on the first paint, "Copied ✓" is tracked per snippet and no
+  longer carries across a tab switch, the site log picker self-corrects in the
+  same render it learns about new log sources, package-list loaders are stable
+  callbacks, and the embedded terminal reads `cmd`/`onStatus` through refs so
+  a parent re-render can never resubscribe the socket. The only sanctioned
+  exceptions — the vendored shadcn `buttonVariants`, `badgeVariants` and
+  `useSidebar` exports — are documented in `eslint.config.js`.
+
 ## [0.12.0] - 2026-10-21
 
 ### Changed
