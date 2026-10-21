@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Toaster } from "@/components/ui/sonner"
 import { LiveProvider } from "@/lib/live"
+import { PageRefreshProvider } from "@/components/page-refresh"
 import { cn } from "@/lib/utils"
 import type { SetupStatus } from "@/lib/api"
 
@@ -123,6 +124,7 @@ export function App() {
     <div className={cn("flex flex-col", tauri ? "tb-frame" : "min-h-dvh")} style={frameStyle}>
       <AppTitlebar />
       <LiveProvider>
+      <PageRefreshProvider>
       <SidebarProvider
         className={cn(tauri && "min-h-(--app-h) flex-1")}
         style={
@@ -179,6 +181,7 @@ export function App() {
         </SidebarInset>
         <Toaster position="bottom-right" closeButton />
       </SidebarProvider>
+      </PageRefreshProvider>
       </LiveProvider>
     </div>
   )

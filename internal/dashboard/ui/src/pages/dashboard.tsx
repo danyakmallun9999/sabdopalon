@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
 import { IconButton } from "@/components/icon-button"
-import { PageActions } from "@/components/page-actions"
+import { usePageRefresh } from "@/components/page-refresh"
 import { MetricStrip } from "@/components/metric-strip"
 import { StatusDot, ToneBadge } from "@/components/status"
 import { Switch } from "@/components/ui/switch"
@@ -310,6 +310,10 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [setupDone])
 
+  // The refresh button lives in the top bar, so the bar needs to know what
+  // refreshing this page means.
+  usePageRefresh(() => loadAllRef.current())
+
   async function toggleService(svc: ServiceStatus, enabled: boolean) {
     setBusy(svc.name)
     try {
@@ -483,12 +487,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5 px-5 py-7 lg:px-7">
-      <PageActions>
-          <Button size="sm" variant="outline" onClick={() => loadAllRef.current()} disabled={busy === "all"}>
-            <RefreshCw className={busy === "all" ? "animate-spin" : ""} /> Refresh
-          </Button>
-        </PageActions>
-
       {/* The four numbers are one card, not four: the divider between the
           cells is what makes them read as one fact about the machine. */}
       <MetricStrip

@@ -1,10 +1,12 @@
-import { Boxes } from "lucide-react"
+import { Boxes, RefreshCw } from "lucide-react"
 import { Link, useLocation } from "react-router-dom"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import { StatusDot } from "@/components/status"
 import { useLive } from "@/lib/live"
 import { NAV_ITEMS } from "@/components/app-sidebar"
+import { Button } from "@/components/ui/button"
+import { usePageRefreshState } from "@/components/page-refresh"
 import { dbEngineRunning } from "@/lib/dbstatus"
 
 // The trail the reference design puts in the top bar: on a site page you are
@@ -29,7 +31,7 @@ function Pill({
   return (
     <span
       className={
-        "inline-flex h-[28px] items-center gap-1.5 rounded-lg border border-border-soft bg-surface px-2.5 text-[13.5px] whitespace-nowrap text-text-secondary " +
+        "inline-flex h-[28px] items-center gap-1.5 rounded-lg border border-ring-inner bg-surface px-3 text-[13.5px] whitespace-nowrap text-text-secondary shadow-[0_0_0_2px_var(--ring-gap),0_0_0_3px_var(--ring-outer)] " +
         className
       }
     >
@@ -44,6 +46,7 @@ export default function SiteHeader() {
   const siteName = siteNameFrom(location.pathname)
   const page = NAV_ITEMS.find((n) => n.url === location.pathname)
   const dbRunning = status ? dbEngineRunning(status) : false
+  const { canRefresh, refresh } = usePageRefreshState()
 
   return (
     <header className="flex h-(--header-height) shrink-0 items-center border-b border-border-soft bg-background transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
@@ -68,7 +71,20 @@ export default function SiteHeader() {
           </h1>
         ) : null}
 
-        <div className="ml-auto flex items-center gap-2">
+        {canRefresh ? (
+          <Button
+            size="icon-sm"
+            variant="outline"
+            onClick={refresh}
+            aria-label="Refresh"
+            title="Refresh"
+            className="ml-2"
+          >
+            <RefreshCw />
+          </Button>
+        ) : null}
+
+        <div className="ml-auto flex items-center gap-3.5">
           {status?.database ? (
             <Pill>
               <StatusDot status={dbRunning ? "running" : "error"} />

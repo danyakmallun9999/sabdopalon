@@ -1067,3 +1067,17 @@ Susunan Settings 최종:
 Kartu php.ini yang paling lebar (kodenya butuh ruang — versi窄 = 12/24 dan
 baris panjang membungkus), dan **tinggi kartu General = tinggi kartu php.ini**
 (grid `items-stretch`, editor php.ini `flex-1` sehingga keypadnya ikut meregang).
+
+### 8. Refresh pindah ke navbar, pill jadi tombol ber-ring
+
+- Tombol **Refresh** di halaman Dashboard dipindah ke **top bar**, tepat di
+  sebelah kanan judul halaman. Halaman yang punya sesuatu untuk dimuat ulang
+  mendaftarkan aksinya lewat `PageRefreshProvider`
+  (`src/components/page-refresh.tsx`): tombol di navbar muncul selama ada
+  halaman yang terdaftar, dan menghilang lagi saat pindah halaman. Halaman
+  Dashboard kini langsung dibuka dengan strip metrik — tanpa baris tombol
+  yang hanya berisi satu tombol.
+- Pill status di top bar (`mariadb`, `PHP 8.5.5`, `v0.12.0 · up …`) sekarang
+  memakai **ring yang sama dengan tombol** (edge luar 1px + celah 2px + edge
+  sendiri), jadi seluruh bar bagian kanan terbaca sebagai kumpulan tombol
+  dari bahasa yang sama.
