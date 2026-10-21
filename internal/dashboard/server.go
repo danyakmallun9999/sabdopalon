@@ -128,6 +128,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("/api/profiles", s.handleAPIProfiles)
 	s.mux.HandleFunc("/api/profiles/apply", s.handleAPIProfileApply)
 
+	// API: local DNS (the hosts file behind a custom TLD)
+	s.mux.HandleFunc("/api/hosts", s.handleAPIHosts)
+	s.mux.HandleFunc("/api/hosts/elevate", s.handleAPIHostsElevate)
+
 	// API: system PHP discovery
 	s.mux.HandleFunc("/api/php/system", s.handleAPISystemPHP)
 

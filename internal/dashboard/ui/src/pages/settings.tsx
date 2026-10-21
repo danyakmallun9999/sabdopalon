@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
-import { Save, FileText } from "lucide-react"
+import { Save, FileText, Globe, Loader2, ShieldCheck } from "lucide-react"
 
-import api, { type ConfigPayload as Config, type Profile, type PhpIni } from "@/lib/api"
+import api, {
+  type ConfigPayload as Config,
+  type HostsState,
+  type Profile,
+  type PhpIni,
+} from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -32,11 +37,15 @@ export default function SettingsPage() {
   const [ini, setIni] = useState<PhpIni | null>(null)
   const [iniContent, setIniContent] = useState("")
   const [savingIni, setSavingIni] = useState(false)
+  // Local DNS: the hosts file report, and whether a UAC prompt is in flight.
+  const [hosts, setHosts] = useState<HostsState | null>(null)
+  const [syncingHosts, setSyncingHosts] = useState(false)
 
   useEffect(() => {
     api.getConfig().then(setCfg).catch(() => {})
     api.listProfiles().then((p) => setProfiles(Array.isArray(p) ? p : [])).catch(() => {})
     api.getPhpIni().then((d) => { setIni(d); setIniContent(d.content) }).catch(() => {})
+    api.hostsState().then(setHosts).catch(() => {})
   }, [])
 
   function set<K extends keyof Config>(key: K, value: Config[K]) {
@@ -49,8 +58,39 @@ export default function SettingsPage() {
       const r = await api.saveConfig(cfg)
       if (r.error) toast.error(r.error)
       else toast.success(r.message)
+      // A saved TLD changes what the hosts file should map, and the save may
+      // have failed to write it (no elevation) — re-read the report either way.
+      api.hostsState().then(setHosts).catch(() => {})
     } finally {
       setSaving(false)
+    }
+  }
+
+  // synchronizeHosts asks the backend to raise one UAC prompt on Windows and
+  // then polls the read-only report, because the hostnames appear only after
+  // the elevated process has actually written the file.
+  async function synchronizeHosts() {
+    setSyncingHosts(true)
+    try {
+      const r = await api.hostsElevate()
+      if (!r.started) {
+        toast.info(r.message)
+        api.hostsState().then(setHosts).catch(() => {})
+        return
+      }
+      toast.info(r.message)
+      for (let i = 0; i < 20; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        const h = await api.hostsState()
+        setHosts(h)
+        if (h.ok) {
+          toast.success("Hosts file is in step")
+          return
+        }
+      }
+      toast.warning("Still not mapped — was the administrator prompt accepted?")
+    } finally {
+      setSyncingHosts(false)
     }
   }
 
@@ -216,6 +256,50 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Local DNS: a custom TLD is only reachable once its names resolve, and
+          this card is where that state lives and where the one approved click
+          fixes it — the UAC step the CLI used to require from a terminal. */}
+      <Card className="min-w-0 @4xl/main:col-span-12">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="size-4 text-text-muted" /> Local DNS (hosts file)
+          </CardTitle>
+          <CardDescription>{describeHosts(hosts)}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          {hosts && !hosts.ok && !hosts.self_resolving && hosts.missing.length > 0 && (
+            <p className="text-[13.5px] leading-relaxed text-text-muted">
+              Not mapped yet:{" "}
+              <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">
+                {hosts.missing.join(", ")}
+              </code>
+            </p>
+          )}
+          {hosts && hosts.stale.length > 0 && (
+            <p className="text-[13.5px] leading-relaxed text-text-muted">
+              Left over from an earlier TLD — the next sync removes:{" "}
+              <code className="break-all rounded bg-surface-raised px-1 py-0.5 font-mono text-[13.5px] text-text-secondary">
+                {hosts.stale.join(", ")}
+              </code>
+            </p>
+          )}
+          {hosts?.error && <p className="text-[13.5px] text-destructive">{hosts.error}</p>}
+        </CardContent>
+        <CardFooter className="justify-between gap-4 border-t border-border-soft">
+          <span className="truncate font-mono text-[13px] text-text-muted">{hosts?.path ?? ""}</span>
+          {hosts && !hosts.self_resolving ? (
+            <Button
+              variant="outline"
+              onClick={() => void synchronizeHosts()}
+              disabled={syncingHosts || hosts.ok || !hosts.can_elevate}
+              title={hosts.can_elevate ? undefined : "Run `sabdopalon hosts:sync` from an elevated terminal"}
+            >
+              {syncingHosts ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
+              {hosts.ok ? "In step" : "Synchronize (Administrator)"}
+            </Button>
+          ) : null}
+        </CardFooter>
+      </Card>
 
       <Card className="min-w-0 @4xl/main:col-span-12">
         <CardHeader>
@@ -266,4 +350,19 @@ export default function SettingsPage() {
       </div>
     </div>
   )
+}
+
+// describeHosts renders the Local DNS report as a sentence: the same facts the
+// CLI prints, phrased for the page that owns the fix.
+function describeHosts(h: HostsState | null): string {
+  if (!h) return "Reading the hosts file…"
+  if (h.error) return "The hosts file could not be read."
+  if (h.self_resolving) {
+    return `The .${h.tld || "localhost"} suffix resolves by itself (RFC 6761), so no hosts entries are needed.`
+  }
+  if (h.wanted.length === 0) {
+    return `No hostnames to map yet for .${h.tld} — they appear as sites are created.`
+  }
+  if (h.ok) return `${h.wanted.length} hostname(s) mapped to this machine for .${h.tld}.`
+  return `The hosts file is behind .${h.tld}: mapping it takes one administrator approval.`
 }

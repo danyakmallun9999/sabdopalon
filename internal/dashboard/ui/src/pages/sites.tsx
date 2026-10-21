@@ -712,6 +712,9 @@ export default function SitesPage() {
                   {createState.error ? (
                     <p className="text-destructive text-[13px]">{createState.error}</p>
                   ) : null}
+                  {createState.note ? (
+                    <p className="text-warning text-[13px]">{createState.note}</p>
+                  ) : null}
                 </div>
               ) : (
                 <div className="flex flex-col gap-4">

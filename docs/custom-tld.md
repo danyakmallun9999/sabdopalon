@@ -56,7 +56,7 @@ Properties that matter:
   every per-site alias from `.sabdopalon.yml`.
 
 It runs at three moments: on start, after a site is created, and when the TLD is
-saved on the Settings page.
+saved on the Settings page — plus on demand from the Synchronize button below.
 
 ## The elevated step
 
@@ -66,9 +66,32 @@ silently:
 
 ```
 The new domains could not be added to the hosts file: it needs administrator
-rights. Run `sabdopalon hosts:sync` in an elevated terminal, or keep the
-.localhost TLD, which resolves by itself.
+rights. Click Synchronize (Administrator) on this page, or run
+`sabdopalon hosts:sync` in an elevated terminal; keep the .localhost TLD and no
+rights are needed.
 ```
+
+### From the Settings page
+
+Settings → **Local DNS (hosts file)** is the same report and the same fix, without
+a terminal. The card reads `GET /api/hosts`, which never writes anything: the
+wanted hostnames, what the managed block maps now, what is missing, what is
+stale from an earlier TLD, and the file's path. The report is green when the two
+agree.
+
+**Synchronize (Administrator)** posts to `/api/hosts/elevate`, which raises one
+UAC prompt (`Start-Process -Verb RunAs`) and runs `hosts:sync` elevated; the page
+then polls the report until the block is there. It refuses to prompt when
+nothing needs correcting — a dialog that fixes nothing trains people to approve
+blindly — and on platforms without an elevation mechanism it returns the
+`sudo sabdopalon hosts:sync` instruction instead of a button that cannot work.
+
+The same card matters after creating a site: creation used to end with a silently
+discarded sync, so a site on a custom TLD could be "created" and unreachable at
+the address the dialog printed. The create job now carries a note naming this
+step, so the fix is one click away from where the failure appeared.
+
+### From a terminal
 
 ```
 sabdopalon hosts:sync          # from an Administrator terminal
@@ -103,4 +126,5 @@ missing one. HTTP works immediately.
 ```
 go test ./internal/hostsync/...     # block handling, no-op safety, hostnames
 sabdopalon hosts:sync               # what would be mapped (and map it, elevated)
+curl -s localhost:9900/api/hosts    # the Settings card's report, read-only
 ```

@@ -232,8 +232,9 @@ sabdopalon hosts:sync      # update the hosts file after a TLD change
 - **Local development only.** Sabdopalon is not a production server, and its
   databases listen on loopback.
 - **The default domain needs no setup.** `.localhost` resolves by itself. If you
-  switch to a custom TLD, your system needs one elevated `sabdopalon hosts:sync`
-  to write the hosts file.
+  switch to a custom TLD, Settings → **Local DNS (hosts file)** reports what is
+  mapped and maps it after one administrator prompt; `sabdopalon hosts:sync`
+  from an elevated terminal does the same thing.
 - **MariaDB on macOS is not bundled.** Use SQLite, install PostgreSQL from
   Packages, or install MariaDB with Homebrew.
 - **No telemetry.** Sabdopalon itself sends none. The only outbound traffic is

@@ -5,6 +5,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/); versioning is se
 
 ## [Unreleased]
 
+## [0.12.2] - 2026-10-21
+
+### Added
+- **A custom TLD can be mapped without leaving the dashboard.** Settings gained
+  a "Local DNS (hosts file)" card that reports — read-only, through
+  `GET /api/hosts` — what the managed hosts block maps right now against what
+  the active TLD needs: the missing entries, the stale ones a previous TLD left
+  behind, and the file's path. When a correction is needed, "Synchronize
+  (Administrator)" raises the single UAC prompt through
+  `Start-Process -Verb RunAs` and runs the same `hosts:sync` the CLI has always
+  offered (`POST /api/hosts/elevate`); the page then polls the report until the
+  block lands. The prompt is refused when the file is already in step, because
+  an approval dialog that fixes nothing is how people learn to click Yes
+  blindly. A platform without an elevation mechanism gets the
+  `sudo sabdopalon hosts:sync` instruction instead of a dead button.
+
+### Fixed
+- **A created site whose hosts entry could not be written now says so.**
+  Creation ended with a silent `_, _ = SyncHosts()`. On a custom TLD without
+  administrator rights the site existed, the dialog printed its address, and the
+  name did not resolve — with no error anywhere, which reads as "the site is
+  broken at its own domain". The job now carries a `note` (not an error: the
+  files are all there) naming the Synchronize step or the elevated CLI command,
+  and the dialog shows it under the log.
+
+### Changed
+- The permission message after saving a TLD points at the Synchronize button
+  first and keeps the elevated CLI command as the fallback. `docs/custom-tld.md`
+  documents the report, the button, and the note.
+
 ## [0.12.1] - 2026-10-21
 
 ### Fixed

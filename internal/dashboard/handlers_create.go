@@ -12,10 +12,13 @@
 package dashboard
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/sabdopalon/sabdopalon/internal/hostsync"
 	"github.com/sabdopalon/sabdopalon/internal/templates"
 )
 
@@ -28,6 +31,9 @@ type createTask struct {
 	template string
 	url      string
 	err      string
+	// note is a successful creation with a caveat — typically a hosts entry
+	// that needs administrator rights. It is not an error: the files exist.
+	note     string
 	log      createLog
 	started  string
 	finished string
@@ -52,6 +58,7 @@ func (j *createTask) snapshot() map[string]any {
 		"template":   j.template,
 		"url":        j.url,
 		"error":      j.err,
+		"note":       j.note,
 		"output":     j.log.Simplified(),
 		"output_raw": j.log.Raw(),
 		"started":    j.started,
@@ -84,6 +91,7 @@ func (s *Server) startSiteCreate(name, tmpl, database, testing string) string {
 	createJob.name = name
 	createJob.template = tmpl
 	createJob.err = ""
+	createJob.note = ""
 	createJob.url = ""
 	createJob.log.reset()
 	createJob.started = time.Now().UTC().Format(time.RFC3339)
@@ -105,13 +113,31 @@ func (s *Server) startSiteCreate(name, tmpl, database, testing string) string {
 		// The site exists on disk now, so its hostname has to exist too. With a
 		// custom TLD that means a hosts entry; without this a freshly created
 		// site was reachable only at .localhost.
+		//
+		// A failure here is not a creation failure — the files are all there —
+		// but it used to be discarded entirely, so the site was "created" and
+		// simply unreachable at the address the dialog had just printed. The
+		// note travels in the snapshot so the dialog can say which step to
+		// take; the error itself must not be swallowed.
+		var hostNote string
 		if err == nil {
-			_, _ = s.SyncHosts()
+			if _, herr := s.SyncHosts(); herr != nil {
+				if errors.Is(herr, hostsync.ErrPermission) {
+					hostNote = fmt.Sprintf(
+						"The site was created, but its hostname is not in the hosts file yet: "+
+							"writing it needs administrator rights. Click Synchronize (Administrator) on the Settings page, "+
+							"or run `sabdopalon hosts:sync` in an elevated terminal. (%s)",
+						hostsync.Path())
+				} else {
+					hostNote = "The site was created, but its hosts entry could not be updated: " + herr.Error()
+				}
+			}
 		}
 		createJob.mu.Lock()
 		defer createJob.mu.Unlock()
 		createJob.running = false
 		createJob.done = true
+		createJob.note = hostNote
 		createJob.finished = time.Now().UTC().Format(time.RFC3339)
 		if err != nil {
 			createJob.err = err.Error()

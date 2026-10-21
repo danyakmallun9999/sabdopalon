@@ -91,6 +91,9 @@ export type CreateJob = {
   template: string
   url: string
   error: string
+  // note is a successful creation with a caveat — typically a hosts entry that
+  // needs administrator rights. It is not an error: the files exist.
+  note?: string
   output: string
   output_raw: string
   started: string
@@ -131,6 +134,30 @@ export type SslAction = {
   command?: string
   note?: string
   error?: string
+}
+
+// HostsState is the read-only report behind Settings → Local DNS: what the
+// managed hosts block maps right now, and what the active TLD needs.
+export type HostsState = {
+  tld: string
+  path: string
+  self_resolving: boolean
+  managed: boolean
+  wanted: string[]
+  current: string[]
+  missing: string[]
+  stale: string[]
+  ok: boolean
+  can_elevate: boolean
+  error?: string
+}
+
+// HostsElevation acknowledges the synchronize button. `started` means a UAC
+// prompt was raised; the page then polls hostsState() until the block lands.
+export type HostsElevation = {
+  ok: boolean
+  started: boolean
+  message: string
 }
 
 export type ConfigPayload = {
@@ -398,6 +425,13 @@ const api = {
   sslCa: () => post<SslAction>("/api/ssl/ca"),
   sslWildcard: () => post<SslAction>("/api/ssl/wildcard"),
   sslTrust: () => post<SslAction>("/api/ssl/trust"),
+
+  // Local DNS: the hosts file a custom TLD needs. Reading the state never asks
+  // for rights; the POST raises one UAC prompt on Windows, and refuses when the
+  // file is already in step (an approval that fixes nothing teaches people to
+  // click Yes blindly).
+  hostsState: () => request<HostsState>("/api/hosts"),
+  hostsElevate: () => post<HostsElevation>("/api/hosts/elevate"),
 
   getConfig: () => request<ConfigPayload>("/api/config"),
   saveConfig: (payload: ConfigPayload) =>
