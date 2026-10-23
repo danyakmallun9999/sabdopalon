@@ -1,7 +1,7 @@
 <div align="center">
   <img src="images/logo-text.png" alt="Sabdopalon" width="360">
 
-<p><strong>A modern Laragon alternative for Windows.</strong></p>
+<p><strong>A modern Laragon alternative for Windows, macOS, and Linux.</strong></p>
   <p>PHP, databases, and dev tools in one folder. One installer, no setup maze.</p>
 
 <p>
