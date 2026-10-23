@@ -148,7 +148,7 @@ func (m *Manager) backupPostgreSQL(dest string) error {
 		if p, err := exec.LookPath("pg_dump"); err == nil {
 			pgDump = p
 		} else {
-			return fmt.Errorf("pg_dump not found (PostgreSQL bundle not installed yet)")
+			return fmt.Errorf("pg_dump not found (install postgresql-client: Debian/Ubuntu 'sudo apt install postgresql-client', Arch 'sudo pacman -S postgresql', or run 'sabdopalon add postgresql-client' on Windows)")
 		}
 	}
 

@@ -30,7 +30,7 @@
 version = "11.4.13"
 # Linux tarball is x86_64-only; Windows needs its own zip (platform_specific).
 url = "https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz"
-sha256_linux_x86_64 = "fa2f594c3ab0d4f4e611c79a63e5ebf0e15558ce971963d64df3bcaced1b135a"
+sha256_linux_x86_64 = "3cebf63914df3154b7cb6d548337eb2be42c773aeb641110446b72e2746cfed7"
 url_windows = "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-{version}-winx64.zip"
 sha256_windows_x64 = "d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2"
 target = "mariadb"

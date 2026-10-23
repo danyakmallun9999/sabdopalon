@@ -76,7 +76,7 @@ func registry() []*Spec {
 			Package:      "redis",
 			BinNames:     binNames("redis-server"),
 			PathFallback: "redis-server",
-			Hint:         "Windows: bundled via 'sabdopalon add redis' · Linux/macOS: install redis-server (apt/brew) or run 'sabdopalon add redis'",
+			Hint:         "Windows: bundled via 'sabdopalon add redis' · Debian/Ubuntu: sudo apt install redis-server · Arch: sudo pacman -S redis · macOS: brew install redis",
 			Ports:        []int{6379},
 			DataSub:      "redis",
 			Args: func(_ *config.Engine, dataDir string) []string {
